@@ -146,8 +146,9 @@ matching locked environment using `uv sync --locked --dev`. Preserve unrelated
 work and the immutable legacy/data paths. No database restore, asset liquidation,
 remote reset or secret rotation is part of I0 rollback.
 
-The next artifact is the I1 review plan. The master prompt explicitly requires
-approval before implementing I1. Resolve its partial-seed anchor decision during
-that review. Future operational commands, systemd hardening, backup/restore
+The owner approved `I1-PLAN.md` and its partial-seed anchor decision on
+2026-11-03, conditional on I0 hosted CI passing. Verify and record that passing
+workflow run and commit before implementing I1; do not ask for the same approval
+again. Future operational commands, systemd hardening, backup/restore
 drills, alerts and live arming belong to their later accepted iterations; none
 can be exercised through this I0 CLI.

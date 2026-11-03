@@ -1,26 +1,35 @@
 # I1 review plan — deterministic strategy and Decimal math
 
-**Status: proposed only; implementation awaits explicit approval.** I1 is pure
-domain code using fake metadata and confirmed mock events. It adds no CCXT
-client, network request, credential access, database, executor or deployment.
+**Status: approved on 2026-11-03, conditional on I0 hosted CI passing.** The
+owner selected: "Approve this I1 plan after CI passes" in response to the
+explicit scope and partial-seed decision below. Implementation has not started.
+Once a successful I0 hosted run is verified, this approval permits I1 without
+another permission request. Record that run and its commit in the I1 evidence.
+
+I1 is pure domain code using fake metadata and confirmed mock events. It adds
+no CCXT client, network request, credential access, database, executor or deployment.
 The authoritative acceptance matrix remains unchanged.
 
 ## Approval decision and inputs
 
-Resolve the PRD §3.2 / QA Q04 sellable-partial-seed ambiguity before coding:
-when a seed is partially filled enough to sell but still working, when is the
-anchor fixed and when may lower BUYs begin? The conservative proposed option is
-to manage the sellable inventory but wait for the seed's reconciled terminal
-state before fixing its final weighted-execution anchor and admitting the
-ladder. This is a proposal requiring approval, not an asserted existing rule.
-Also confirm how seed remainder cancellation interacts with a fully filled
-aggregate SELL; unresolved seed orders must participate in DRAINING.
+The owner approved the following resolution of the PRD §3.2 / QA Q04
+sellable-partial-seed ambiguity: manage sellable inventory immediately, but
+wait for the seed order's reconciled terminal state before fixing its final
+weighted-execution anchor and admitting lower BUYs. When the aggregate SELL
+fully fills, unresolved seed orders participate in DRAINING alongside ladder
+BUYs; reconcile their cancellation and late fills before a new round.
+
+The approval condition is a successful I0 hosted CI run. A local test pass,
+queued workflow, billing-blocked job or generic continuation request does not
+satisfy it. Imported specifications remain unchanged; this approval records
+the owner's clarification separately. I2 and later iterations are outside this
+approval, and live trading remains prohibited.
 
 All live policy values remain unconfigured. Tests use explicitly synthetic
 fixtures for spacing, budgets, caps, precision, fees, ranges, freshness and
 pricing guards. A fixture number is never promoted to a production default.
 
-## Proposed modules and contracts
+## Approved modules and contracts
 
 - **Domain types:** frozen typed records for scoped allocation/round/order/fill
   identity, explicit currency amounts, precision rules, fees, market constraints,

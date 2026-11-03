@@ -4,8 +4,9 @@
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and CI for a spot grid bot. It is
-not ready for live or sandbox trading. The supplied handoff explicitly requires
-approval before I1; see [the I1 plan](docs/I1-PLAN.md).
+not ready for live or sandbox trading. The owner approved I1 conditional on
+successful I0 hosted CI; see [the I1 plan](docs/I1-PLAN.md). I1 implementation
+remains pending that condition.
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
