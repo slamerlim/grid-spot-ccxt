@@ -25,6 +25,11 @@ satisfy it. Imported specifications remain unchanged; this approval records
 the owner's clarification separately. I2 and later iterations are outside this
 approval, and live trading remains prohibited.
 
+The owner also requires GitHub Free only: never activate or use paid GitHub
+features to satisfy this gate. Use the verified free CI configuration and local
+validation described in the runbook. An account lock is not authorization to
+pay, and local-only validation does not replace the agreed hosted-CI condition.
+
 All live policy values remain unconfigured. Tests use explicitly synthetic
 fixtures for spacing, budgets, caps, precision, fees, ranges, freshness and
 pricing guards. A fixture number is never promoted to a production default.

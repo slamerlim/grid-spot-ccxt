@@ -60,6 +60,14 @@ CI runs the same checks on Python 3.12 and 3.13 with read-only repository
 permissions and no live secrets. Do not equate local checks with an observed
 GitHub Actions run; actual evidence is recorded per iteration.
 
+**GitHub Free only:** no paid GitHub features, trials, runners or usage overages
+are authorized. This public repository uses standard Ubuntu runners, which
+[GitHub documents as free](https://docs.github.com/en/actions/concepts/billing-and-usage).
+The workflow skips private repositories and uploads no caches or artifacts.
+If free hosted checks are unavailable, use the local commands above and report
+hosted CI as unavailable; do not request payment or claim local tests are hosted
+CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
+
 ## Specifications and evidence
 
 - [PRD v2](docs/PRD_GRID_SPOT_CCXT_FINAL_v2.md),

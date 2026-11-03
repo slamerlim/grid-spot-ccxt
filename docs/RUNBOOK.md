@@ -76,6 +76,41 @@ remain future work; see the trace and capability registry.
   A public readable repository does not prove push authority. Do not claim a
   remote commit, PR or hosted CI run unless verified.
 
+## GitHub Free and account availability
+
+The owner confirmed on 2026-11-03 that this project uses GitHub Free and must
+never use paid GitHub features. Do not activate paid plans or trials, use paid
+runners/products or usage overages, add payment details, raise spending limits,
+or recommend an upgrade/payment to make progress. Use local tools and verified
+free capabilities; ordinary publishing authorization does not permit spending.
+
+The repository was verified public. Its standard `ubuntu-latest` runners are
+free under [GitHub's Actions billing guidance](https://docs.github.com/en/actions/concepts/billing-and-usage).
+The workflow's job condition prevents runner allocation when the repository is
+private or visibility is missing. It uses no larger runners, remote cache or
+artifact uploads, or package publishing. Do not infer the availability of a
+private repository's free quota.
+Recheck official terms and repository visibility before changing automation.
+
+The observed account billing-lock annotation is evidence that hosted checks
+could not run; it does not establish that this workflow is paid or that an
+upgrade is needed. GitHub documents that account locks can also block free-tier
+access. When the account shows no subscription, balance or payment problem,
+the documented route is a support review of the lock, without activating paid
+features. See [GitHub's account-lock guidance](https://docs.github.com/en/billing/how-tos/troubleshooting/locked-account).
+Do not send support messages on the owner's behalf without explicit permission.
+
+Do not dispatch/rerun a workflow or make an empty commit just to retry a known
+account lock. Run the local checks and report hosted CI as unavailable. Push
+substantive authorized work only after confirming its automation remains free.
+While the lock is unchanged, include the documented
+[`[skip ci]` directive](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs)
+in the commit message for necessary pushes, after confirming all workflows use
+only the supported `push`/`pull_request` events. This avoids another hosted
+attempt; it does not satisfy CI or authorize bypassing a release gate.
+The owner's existing I1 approval is still conditional on a successful I0 CI
+run; a skipped/private job or local test run does not satisfy that condition.
+
 ## GitHub publishing from this workspace
 
 The owner requested reusable Git access for agents working in `/opt/grid`.

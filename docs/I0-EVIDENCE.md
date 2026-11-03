@@ -171,8 +171,23 @@ The resulting [hosted I0 workflow](https://github.com/slamerlim/grid-spot-ccxt/a
 reported failure for both matrix jobs before any steps ran. Both job annotations
 state: **"The job was not started because your account is locked due to a
 billing issue."** This is a GitHub account blocker, not an executed test failure.
-No hosted test pass is claimed. The owner must resolve the GitHub billing lock
-before a new push or an authorized workflow rerun can validate hosted CI.
+No hosted test pass is claimed. This annotation does not show that the workflow
+uses a paid feature or that payment is required. Hosted CI needs restored free
+account access; no paid workaround is authorized. The runbook records the
+free-support route and forbids repeated attempts against an unchanged lock.
+
+### GitHub Free constraint
+
+On 2026-11-03 the owner explicitly required GitHub Free only and prohibited
+paid GitHub features. Repository metadata confirmed public visibility; the
+workflow uses standard `ubuntu-latest` runners, which
+[GitHub documents as free for public repositories](https://docs.github.com/en/actions/concepts/billing-and-usage).
+A job-level visibility condition now skips execution for private repositories.
+No paid plan, larger runner, payment setup, metered overage, remote cache or
+artifact upload is introduced. This is a configuration review, not an account
+billing audit or a hosted test pass. The reported billing lock can affect free
+access as well; earlier instructions to resolve it must not be interpreted as
+instructions to pay or upgrade.
 
 Recommendation: **GitHub publication is verified and local I0 checks pass;
 HOLD the full I0 release gate until hosted CI executes successfully.** On

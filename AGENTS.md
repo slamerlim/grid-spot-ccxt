@@ -44,6 +44,26 @@ Do not modify `/opt/module_1_multi` or `/opt/datasets`.
 Parallel work is allowed with disjoint file ownership. Report actual evidence;
 unavailable repository access or capabilities are BLOCKED/NOT TESTED, not PASS.
 
+## GitHub Free only
+
+The owner uses GitHub Free and prohibits paid GitHub features. Never activate,
+trial, buy or use paid plans/products/runners or metered overages; never add
+payment details, raise spending budgets or recommend payment as a prerequisite.
+Use local tools and verified free GitHub capabilities. Ordinary commit/push
+authorization is not permission to spend.
+
+The public repository's standard `ubuntu-latest` runner is free under the
+verified GitHub terms. CI must skip private repositories before runner
+allocation; never assume unused private-repository allowance. Keep remote
+cache/artifact uploads disabled and do not add paid integrations. A billing-lock
+message does not establish that an upgrade or payment is needed. Do not retry
+a known lock without evidence of changed access; report local checks separately
+and use free support/account review when needed. While the lock is unchanged,
+use the documented `[skip ci]` commit directive for necessary authorized pushes
+so publication does not retry it. A skipped run is not a CI pass. The I1 CI
+condition above remains in force. See `docs/RUNBOOK.md` for sources and recovery
+guidance.
+
 ## GitHub access for workspace agents
 
 The user authorized reusable GitHub access and ordinary commits/pushes for work

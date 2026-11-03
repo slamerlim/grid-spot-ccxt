@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   verify:
+    # GitHub Free only: standard public-repository runners; no private usage.
+    if: ${{ github.event.repository.visibility == 'public' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
