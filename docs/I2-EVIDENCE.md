@@ -15,17 +15,19 @@ remain in both project guidance and the runbook.
 
 - Branch: `i2/single-owner-ledger`.
 - Base: `572d5c968192e16381b248ded57eaeb41936df90` (published I1 review/plan).
-- Tested implementation: `3c6188eab8fdfa4c0e5a5ef1033da1f8adffcc8a`.
+- Initial implementation: `3c6188eab8fdfa4c0e5a5ef1033da1f8adffcc8a`.
+- Tested implementation including recovery review fix:
+  `feba2b2accc4560722cda769f152e7bc248776fc`.
 - This evidence and the next review proposal are a documentation-only follow-up.
   Remote publication must be checked against `git ls-remote`; final publication
   verification is reported in the handoff, not inferred from a configured remote.
 - PR: not created. The prepared SSH deploy key supports Git commits/pushes;
   no authenticated GitHub PR API/CLI capability was available in this session.
 - No workflow changes, dispatches, reruns, paid products or spending changes.
-  Both scoped commits use `[skip ci]` while the known account lock is unchanged.
+  All I2 commits use `[skip ci]` while the known account lock is unchanged.
 
 Added `grid.persistence`: strict codec, versioned schema, checked local storage,
-single-owner ledger, bounded async writer and backup/restore. Added 86 persistence
+single-owner ledger, bounded async writer and backup/restore. Added 88 persistence
 test cases and a subprocess crash fixture. Shared immutable domain fixtures moved
 to `tests/conftest.py` without changing their values. Narrowed the original I0
 `connect` ban only for `sqlite3.connect` in the persistence storage module; network,
@@ -69,11 +71,11 @@ UV_PYTHON=3.13.18 UV_PROJECT_ENVIRONMENT=/tmp/grid-i2-py313 /tmp/grid-tooling/uv
 
 | Check | Observed final result |
 | --- | --- |
-| Full pytest, Python 3.12.16 | **268 passed**, 0 failed, 0 skipped; 5.92 s |
-| Full pytest, Python 3.13.18 | **268 passed**, 0 failed, 0 skipped; 5.94 s |
+| Full pytest, Python 3.12.16 | **270 passed**, 0 failed, 0 skipped; 6.15 s |
+| Full pytest, Python 3.13.18 | **270 passed**, 0 failed, 0 skipped; 6.28 s |
 | `uv lock --check` | Pass; 65 packages resolved; lock unchanged |
 | `ruff check .` | All checks passed |
-| `ruff format --check .` | Pass; 47 files already formatted at implementation check |
+| `ruff format --check .` | Pass; 49 files already formatted |
 | `mypy` | Success; 31 source files checked |
 | `bandit -q -r src` | Pass; no findings or suppressions added |
 | Tracked/new-file `detect-secrets-hook` | Pass; baseline unchanged |
@@ -133,6 +135,27 @@ wrappers. Review added full schema verification before restore and stronger
 journal/fill projection validation. Formatting/security findings were resolved;
 final checks above contain no outstanding failure. No test was skipped to obtain
 a positive patched-runtime result.
+
+## I2 recovery review follow-up
+
+After initial publication at `393a435ed034feae1182b6589e177d0268ee3790`, review
+reproduced a missing multi-allocation restart case: the allocation-list SELECT
+remained active when recovery called `wal_checkpoint` on the same connection.
+Two funded allocations were enough to fail startup with
+`sqlite3.OperationalError: database table is locked`. The original 268-test suite
+covered single-allocation recovery and did not catch this failure.
+
+The correction finishes each bounded page of allocation IDs before performing
+recovery writes/checkpoints. Keyset pagination uses the existing `read_rows`
+bound and does not load all allocation IDs into memory. Two regression cases
+recover three separately funded symbols with page sizes one and two; both verify
+cash, seed reservations, unchanged orders, recovery flags/revisions and three
+reconcile intents, followed by a successful checkpoint.
+
+Both full Python suites and all required lint/type/security/audit/build checks
+were rerun successfully; the current 270-test results above supersede the earlier
+counts. The fix adds no schema, dependency, exchange or authorization change.
+I3 remains unstarted, and hosted CI was not retried.
 
 ## Boundaries and recommendation
 
