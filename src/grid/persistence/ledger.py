@@ -34,6 +34,16 @@ from grid.persistence.records import Backup, Bounds, Conflict, Intent, LedgerErr
 from grid.persistence.storage import Fault, Storage, no_fault
 
 
+def client_identity(scope: Scope, order_id: int) -> str:
+    """Synthetic identity only; real venues need verified length/charset semantics."""
+    return codec.digest(("client", scope, order_id))
+
+
+def trade_identity(scope: Scope, external_id: str) -> str:
+    identifier(external_id)
+    return codec.digest(("trade", scope.venue, scope.account, scope.symbol, external_id))
+
+
 @exact
 def reservation_rows(state: State) -> tuple[tuple[int, str, str, str], ...]:
     rows: list[tuple[int, str, str, str]] = []
@@ -130,6 +140,7 @@ class Ledger:
             for allocation in self._allocation_ids():
                 state, context, version, recovery = self._load(allocation)
                 self._verify_projection(allocation, state, context)
+                self._verify_identities(allocation, state.scope)
                 if recovery and state.reconcile_reason is None:
                     state = replace(
                         state,
@@ -172,6 +183,35 @@ class Ledger:
             for (allocation,) in rows:
                 yield allocation
             after = rows[-1][0]
+
+    def _verify_identities(self, allocation: str, scope: Scope) -> None:
+        for order_id, venue, account, symbol, external_id, client_id in self.db.execute(
+            "SELECT order_id,venue,account,symbol,external_id,client_id FROM order_bindings "
+            "WHERE allocation=? ORDER BY order_id",
+            (allocation,),
+        ):
+            identifier(external_id)
+            if (
+                (venue, account, symbol) != (scope.venue, scope.account, scope.symbol)
+                or client_id != client_identity(scope, order_id)
+                or not self.attempted(scope, order_id)
+            ):
+                raise LedgerError("stored external order identity differs from attempted intent")
+        for venue, account, symbol, external_id, trade_id, payload in self.db.execute(
+            "SELECT t.venue,t.account,t.symbol,t.external_id,t.trade_id,f.payload "
+            "FROM trade_keys t JOIN fills f ON f.allocation=t.allocation AND f.trade_id=t.trade_id "
+            "WHERE t.allocation=? ORDER BY t.trade_id",
+            (allocation,),
+        ):
+            fill = codec.loads(payload, Fill, limit=self.bounds.snapshot_bytes)
+            if (
+                (venue, account, symbol) != (scope.venue, scope.account, scope.symbol)
+                or trade_id != trade_identity(scope, external_id)
+                or fill.scope != scope
+                or fill.trade_id != trade_id
+                or self.binding(scope, fill.order_id) is None
+            ):
+                raise LedgerError("stored external trade identity differs from posted fill")
 
     def _text(self, value: object) -> str:
         return codec.dumps(value, limit=self.bounds.snapshot_bytes)
@@ -533,7 +573,15 @@ class Ledger:
                     return self._block(state, "conflicting archived order report")
         return reduce(state, event, context)
 
-    def apply(self, request_id: str, expected: int, event: Event, context: Context) -> Outcome:
+    def apply(
+        self,
+        request_id: str,
+        expected: int,
+        event: Event,
+        context: Context,
+        *,
+        external: tuple[str, str] | None = None,
+    ) -> Outcome:
         allocation = codec.digest(event.scope)
 
         def action() -> Outcome:
@@ -543,6 +591,22 @@ class Ledger:
                 context.market.quote,
             ):
                 raise LedgerError("allocation currencies cannot change")
+            if external is not None:
+                if not isinstance(event, Fill):
+                    raise LedgerError("external trade identity requires a fill")
+                external_order, external_trade = external
+                if (
+                    self.binding(event.scope, event.order_id) != external_order
+                    or trade_identity(event.scope, external_trade) != event.trade_id
+                ):
+                    raise Conflict("external fill does not match its durable binding")
+                identity = self.db.execute(
+                    "SELECT allocation,trade_id FROM trade_keys "
+                    "WHERE venue=? AND account=? AND symbol=? AND external_id=?",
+                    (event.scope.venue, event.scope.account, event.scope.symbol, external_trade),
+                ).fetchone()
+                if identity is not None and identity != (allocation, event.trade_id):
+                    raise Conflict("external trade was already assigned to another allocation")
             transition = self._transition(allocation, state, event, context)
             after = transition.state
             if (
@@ -573,6 +637,18 @@ class Ledger:
                             for index, fee in enumerate(event.fees or ())
                         ),
                     )
+                    if external is not None:
+                        self.db.execute(
+                            "INSERT INTO trade_keys VALUES (?,?,?,?,?,?)",
+                            (
+                                event.scope.venue,
+                                event.scope.account,
+                                event.scope.symbol,
+                                external[1],
+                                allocation,
+                                event.trade_id,
+                            ),
+                        )
             if (
                 isinstance(event, Reconciled)
                 and transition.accepted
@@ -588,9 +664,127 @@ class Ledger:
             intents = self._commands(allocation, transition.commands, version + 1)
             return Outcome(after, version + 1, transition.accepted, intents, transition.notices)
 
+        payload = ("event", expected, event, context)
         return self._request(
-            request_id, ("event", expected, event, context), "event", allocation, action
+            request_id,
+            payload if external is None else (*payload, external),
+            "event",
+            allocation,
+            action,
         )
+
+    def order(self, scope: Scope, order_id: int) -> Order:
+        row = self.db.execute(
+            "SELECT payload FROM orders WHERE allocation=? AND id=?",
+            (codec.digest(scope), order_id),
+        ).fetchone()
+        if row is None:
+            raise LedgerError("unknown internal order")
+        return codec.loads(row[0], Order, limit=self.bounds.snapshot_bytes)
+
+    def attempted(self, scope: Scope, order_id: int) -> bool:
+        return (
+            self.db.execute(
+                "SELECT 1 FROM intents WHERE allocation=? AND order_id=? "
+                "AND kind='place' AND attempt_run IS NOT NULL",
+                (codec.digest(scope), order_id),
+            ).fetchone()
+            is not None
+        )
+
+    def revoke_unsent(
+        self,
+        request_id: str,
+        scope: Scope,
+        expected: int,
+        order_id: int,
+        context: Context,
+    ) -> Outcome:
+        """Sole-thread proof that local cancellation has no external side effect."""
+        if self.attempted(scope, order_id):
+            raise Conflict("attempted order requires external reconciliation")
+        return self.apply(
+            request_id, expected, OrderReport(scope, order_id, "canceled", ZERO, True), context
+        )
+
+    def binding(self, scope: Scope, order_id: int) -> str | None:
+        row = self.db.execute(
+            "SELECT external_id FROM order_bindings WHERE allocation=? AND order_id=?",
+            (codec.digest(scope), order_id),
+        ).fetchone()
+        return None if row is None else str(row[0])
+
+    def bind(
+        self,
+        request_id: str,
+        scope: Scope,
+        order_id: int,
+        external_id: str,
+        client_id: str,
+    ) -> Outcome:
+        for value in (external_id, client_id):
+            identifier(value)
+        allocation = codec.digest(scope)
+
+        def action() -> Outcome:
+            if client_id != client_identity(scope, order_id) or not self.attempted(scope, order_id):
+                raise Conflict("binding lacks an attempted matching client identity")
+            values = (
+                allocation,
+                order_id,
+                scope.venue,
+                scope.account,
+                scope.symbol,
+                external_id,
+                client_id,
+            )
+            previous = self.db.execute(
+                "SELECT * FROM order_bindings WHERE allocation=? AND order_id=? "
+                "OR venue=? AND account=? AND symbol=? AND external_id=?",
+                (allocation, order_id, scope.venue, scope.account, scope.symbol, external_id),
+            ).fetchall()
+            if previous and previous != [values]:
+                raise Conflict("conflicting external order binding")
+            if not previous:
+                self.db.execute("INSERT INTO order_bindings VALUES (?,?,?,?,?,?,?)", values)
+            return self.snapshot(scope)
+
+        return self._request(
+            request_id,
+            ("bind", scope, order_id, external_id, client_id),
+            "bind",
+            allocation,
+            action,
+        )
+
+    def hold(self, request_id: str, scope: Scope, reason: str) -> Outcome:
+        identifier(reason)
+        allocation = codec.digest(scope)
+
+        def action() -> Outcome:
+            state, context, version, _ = self._load(allocation)
+            after = self._block(state, reason).state
+            self._save(allocation, after, context, version + 1, recovery=True)
+            intents = self._commands(allocation, (Reconcile(scope, reason),), version + 1)
+            return Outcome(after, version + 1, True, intents)
+
+        return self._request(request_id, ("hold", scope, reason), "hold", allocation, action)
+
+    def attempt_once(
+        self,
+        request_id: str,
+        scope: Scope,
+        expected: int,
+        intent_id: str,
+    ) -> Outcome:
+        """Only a fresh committed claim can grant a send, never an old receipt.
+
+        Both calls run in the sole writer thread without yielding. A lost commit
+        acknowledgement leaves uncertainty; the caller must reconcile, not send.
+        """
+        if self.lookup(request_id) is not None:
+            raise Conflict("attempt receipt replay cannot authorize another send")
+        return self.attempt(request_id, scope, expected, intent_id)
 
     def intents(self, scope: Scope, *, after: str = "") -> tuple[Intent, ...]:
         rows = self.db.execute(

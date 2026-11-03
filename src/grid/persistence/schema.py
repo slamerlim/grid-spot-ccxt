@@ -2,7 +2,7 @@
 
 import hashlib
 
-VERSION = 1
+VERSION = 2
 STATEMENTS = (
     "CREATE TABLE migrations (version INTEGER PRIMARY KEY, checksum TEXT NOT NULL) STRICT",
     "CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT",
@@ -67,6 +67,25 @@ STATEMENTS = (
         watermark INTEGER NOT NULL, snapshot_hash TEXT NOT NULL) STRICT""",
 )
 CHECKSUM = hashlib.sha256("\n".join(STATEMENTS).encode()).hexdigest()
+# Never change the original migration or its checksum.
+IDENTITY_STATEMENTS = (
+    """CREATE TABLE order_bindings (
+        allocation TEXT NOT NULL, order_id INTEGER NOT NULL,
+        venue TEXT NOT NULL, account TEXT NOT NULL, symbol TEXT NOT NULL,
+        external_id TEXT NOT NULL, client_id TEXT NOT NULL,
+        PRIMARY KEY(allocation,order_id), UNIQUE(venue,account,symbol,external_id),
+        UNIQUE(venue,account,client_id),
+        FOREIGN KEY(allocation,order_id) REFERENCES orders(allocation,id)) STRICT""",
+    """CREATE TABLE trade_keys (
+        venue TEXT NOT NULL, account TEXT NOT NULL, symbol TEXT NOT NULL,
+        external_id TEXT NOT NULL, allocation TEXT NOT NULL, trade_id TEXT NOT NULL,
+        PRIMARY KEY(venue,account,symbol,external_id), UNIQUE(allocation,trade_id),
+        FOREIGN KEY(allocation,trade_id) REFERENCES fills(allocation,trade_id)) STRICT""",
+)
+MIGRATIONS = (
+    (1, CHECKSUM, STATEMENTS),
+    (2, hashlib.sha256("\n".join(IDENTITY_STATEMENTS).encode()).hexdigest(), IDENTITY_STATEMENTS),
+)
 SEMANTIC_QUERIES = (
     ("pools", "SELECT * FROM pools ORDER BY venue,account,currency"),
     ("allocations", "SELECT * FROM allocations ORDER BY id"),
@@ -81,4 +100,6 @@ SEMANTIC_QUERIES = (
     ("journal", "SELECT * FROM journal ORDER BY request_id,account_key,currency,kind"),
     ("intents", "SELECT * FROM intents ORDER BY id"),
     ("checkpoints", "SELECT * FROM checkpoints ORDER BY allocation"),
+    ("order_bindings", "SELECT * FROM order_bindings ORDER BY allocation,order_id"),
+    ("trade_keys", "SELECT * FROM trade_keys ORDER BY venue,account,symbol,external_id"),
 )

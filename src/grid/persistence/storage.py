@@ -68,12 +68,14 @@ def _create_private(path: Path) -> None:
     os.close(descriptor)
 
 
-def verify_schema(connection: sqlite3.Connection) -> None:
+def verify_schema(connection: sqlite3.Connection, version: int = schema.VERSION) -> None:
     # Construct an independent expected schema, including unique/FK/check constraints.
     expected_db = sqlite3.connect(":memory:", autocommit=True, check_same_thread=True)
     try:
-        for statement in schema.STATEMENTS:
-            expected_db.execute(statement)
+        for number, _, statements in schema.MIGRATIONS:
+            if number <= version:
+                for statement in statements:
+                    expected_db.execute(statement)
         expected = tuple(
             expected_db.execute(
                 "SELECT type,name,tbl_name,sql FROM sqlite_schema "
@@ -90,9 +92,11 @@ def verify_schema(connection: sqlite3.Connection) -> None:
     )
     if (
         actual != expected
-        or tuple(connection.execute("SELECT * FROM migrations"))
-        != ((schema.VERSION, schema.CHECKSUM),)
-        or connection.execute("PRAGMA user_version").fetchone()[0] != schema.VERSION
+        or tuple(connection.execute("SELECT * FROM migrations ORDER BY version"))
+        != tuple(
+            (number, checksum) for number, checksum, _ in schema.MIGRATIONS if number <= version
+        )
+        or connection.execute("PRAGMA user_version").fetchone()[0] != version
     ):
         raise LedgerError("unrecognized schema or migration checksum")
 
@@ -100,6 +104,11 @@ def verify_schema(connection: sqlite3.Connection) -> None:
 def semantic_hash(connection: sqlite3.Connection, check: Callable[[], None] | None = None) -> str:
     hasher = hashlib.sha256()
     for table, query in schema.SEMANTIC_QUERIES:
+        if (
+            table in {"order_bindings", "trade_keys"}
+            and connection.execute("PRAGMA user_version").fetchone()[0] < 2
+        ):
+            continue
         if check is not None:
             check()
         hasher.update(table.encode())
@@ -185,7 +194,10 @@ def restore(
         source_id = str(source.execute("SELECT sqlite_source_id()").fetchone()[0])
         check_runtime(sqlite3.sqlite_version_info, source_id, approved_sources)
         source.execute("BEGIN")
-        verify_schema(source)
+        version = int(source.execute("PRAGMA user_version").fetchone()[0])
+        if version not in (1, schema.VERSION):
+            raise LedgerError("unrecognized backup schema version")
+        verify_schema(source, version)
         digest = _verify_backup(source, backup, deadline)
         if (
             source.execute("PRAGMA integrity_check(1)").fetchone() != ("ok",)
@@ -346,13 +358,32 @@ class Storage:
         if not actual:
             if not self._new:
                 raise LedgerError("existing ledger has no recognized schema")
-            with self.transaction("migration"):
-                for statement in schema.STATEMENTS:
-                    connection.execute(statement)
-                connection.execute(
-                    "INSERT INTO migrations VALUES (?,?)", (schema.VERSION, schema.CHECKSUM)
-                )
-                connection.execute(f"PRAGMA user_version={schema.VERSION}")
+            current = 0
+        else:
+            current = int(connection.execute("PRAGMA user_version").fetchone()[0])
+            if current not in (1, schema.VERSION):
+                raise LedgerError("unrecognized schema version")
+            verify_schema(connection, current)
+        # Validate an old backup BEFORE changing its schema or semantic hash.
+        backup = (
+            connection.execute("SELECT 1 FROM metadata WHERE key='backup_hash'").fetchone()
+            if current
+            else None
+        )
+        if backup:
+            _verify_backup(connection)
+        for number, checksum, statements in schema.MIGRATIONS:
+            if number > current:
+                with self.transaction("migration"):
+                    for statement in statements:
+                        connection.execute(statement)
+                    connection.execute("INSERT INTO migrations VALUES (?,?)", (number, checksum))
+                    connection.execute(f"PRAGMA user_version={number}")
+                    if backup:
+                        connection.execute(
+                            "UPDATE metadata SET value=? WHERE key='backup_hash'",
+                            (semantic_hash(connection),),
+                        )
         verify_schema(connection)
 
     def integrity(self) -> None:

@@ -1,6 +1,7 @@
 # I4 review proposal — mock executor and recovery
 
-**Status: proposed, not authorized.** The current approval ends after I3 review.
+**Status: approved on 2026-11-04.** The owner explicitly selected
+"Approve I4 with local validation" for this plan. Approval ends after I4 review.
 Hosted CI remains pending. This proposal uses local validation and GitHub Free
 only; it does not waive the later paper/soak or live canary gates.
 

@@ -89,7 +89,10 @@ fetchOpenOrders, fetchMyTrades, watchOrders and watchMyTrades. fetchTradingFee i
 advertised for six and false for Bitfinex. This is **advertised only**, including
 XT private WS. No authenticated read, subscription, fill replay or account fee
 lookup was performed. The intended bounded REST recovery policy is documented
-in `I3-DESIGN.md`; its private runtime and fault supervision belong to I4.
+in `I3-DESIGN.md`. I4 now tests that policy through a synthetic gateway and
+bounded private-event hints; see `I4-EVIDENCE.md`. Actual authenticated streams,
+pagination, order serialization, client-ID support and account fees remain
+NOT_TESTED on every venue. I4 made no additional public or private exchange calls.
 
 ## I0 baseline
 

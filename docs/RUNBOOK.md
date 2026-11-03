@@ -1,9 +1,10 @@
-# I0–I3 developer runbook
+# I0–I4 developer runbook
 
 I0 provides an offline configuration/diagnostic CLI; I1 adds pure strategy
 functions and mock-event tests. I2 adds a single-owner ledger tested only with
 temporary synthetic databases. I3 adds an explicitly invoked public CCXT client;
-there is no daemon, authenticated client or live path.
+I4 adds an explicitly driven mock executor and synthetic recovery supervisor.
+There is no daemon, authenticated client or live path.
 This is not a production operating runbook. No exchange credentials are needed.
 See `I1-DESIGN.md` and `I2-DESIGN.md` for the command and persistence contracts.
 
@@ -30,7 +31,7 @@ Account-specific authentication and fee/event semantics remain NOT_TESTED.
 
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
-and approval history. `I4-PLAN.md` is the next authorization gate.
+and approval history. I4 is now approved; `I5-PLAN.md` is the next authorization gate.
 
 ## Install and diagnose
 
@@ -140,7 +141,8 @@ attempt; it does not satisfy CI or authorize bypassing a release gate.
 The owner explicitly replaced I1's earlier hosted-CI prerequisite by selecting
 "Proceed with local validation for I1", then explicitly selected "Approve I2
 with local validation" for the published I2 plan and "Approve I3 with local
-validation" for the public read-only I3 plan. Hosted CI remains pending,
+validation" for the public read-only I3 plan, then "Approve I4 with local
+validation" for mock execution and recovery. Hosted CI remains pending,
 and the original I0 hosted acceptance gate is not reported
 as passed. A skipped/private job is not a CI pass.
 
@@ -218,8 +220,9 @@ The owner approved `I1-PLAN.md` and its partial-seed anchor decision, then
 explicitly authorized local validation for I1 despite the hosted account lock.
 I1 was published and I2 subsequently approved with local validation. I2's mock
 ledger/restore work is covered by that approval. I3 was subsequently explicitly
-approved with local validation and bounded public probes. Stop after I3 review:
-I4 requires separate authorization. Operational commands, systemd hardening, deployment
+approved with local validation and bounded public probes. I4 was subsequently
+approved with local validation for synthetic execution/recovery. Stop after I4
+review: I5 requires separate authorization. Operational commands, systemd hardening, deployment
 storage drills, alerts and live arming belong to later accepted iterations;
 none can be exercised through this CLI.
 
@@ -286,3 +289,39 @@ I2 introduces schema version 1 only in temporary fixtures; there is no deployed
 ledger to migrate or restore. Roll back code with normal scoped revert commits
 and the matching lock. There is no automatic downgrade or destructive migration.
 Preserve diagnostic failure artifacts outside Git when investigating a fault.
+
+## I4 mock execution and recovery
+
+`MockExecutor(writer, SyntheticExchange(...), scopes, limits, evidence)` is a
+test-facing API. It cannot accept the public CCXT client or an authenticated
+transport. Use only synthetic funds and temporary private database directories.
+`service(scope, context)` performs a bounded fake REST reconciliation;
+`dispatch(scope, context)` attempts at most one queued command. Startup always
+requires service first. Neither is a trading CLI or background daemon.
+
+After a timeout, lost acknowledgement, overload, stale stream or restart, keep
+the same durable intent and reconcile. `attempt_once` refuses replayed send
+permission. Never clear uncertainty manually or create a new intent to evade it.
+`offer(Notice(...))` is a bounded hint intake; the mock uses REST facts for money.
+Call `degrade(reason)` on an unsupported/disconnected stream. When backpressure
+refuses a hint or operation, the caller retains it and schedules reconciliation.
+Do not infer no fills from quiet streams, heartbeats, incomplete pages or missing
+IDs. A cancel ack alone never releases the old order's reservation or SELL slot.
+
+Service calls honor per-account request budgets and retry-after/backoff. Dispatch
+does not retry unknown sends. The caller owns the finite schedule and a fresh
+context/clock. A failed account cannot consume another account's quota. No
+automatic worker/retry loop is installed. Inspect the boolean result and
+`last_error`; `degraded` reports incomplete/expired admission across owned scopes.
+
+Migration 2 preserves v1 and adds order/trade identities. Older fixtures and
+validated v1 backups upgrade transactionally when opened; every reopened owner
+must reconcile. v2 backups include identity records and deduplication keys. No
+destructive downgrade exists. For mock rollback, revert scoped code/docs commits
+and use a compatible validated backup in a separate new path. Never remove
+identity rows or uncertain intents to force startup. No deployed database was
+created or migrated by I4.
+
+See `I4-DESIGN.md` and `I4-EVIDENCE.md` for synthetic contracts, actual tests and
+remaining account/venue limitations. All live gates stay closed. `I5-PLAN.md`
+requires separate approval before historical processing starts.

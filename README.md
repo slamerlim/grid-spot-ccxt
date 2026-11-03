@@ -1,6 +1,6 @@
 # GRID Spot CCXT
 
-**I3 read-only discovery implemented. LIVE: DISABLED. No exchange order path exists.**
+**I4 mock execution and recovery implemented. LIVE: DISABLED.**
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and a deterministic Decimal
@@ -9,10 +9,12 @@ dedicated funds, posts normalized fills and fees, and persists reservations and
 command uncertainty atomically. Tests use synthetic funds and temporary databases.
 The read-only adapter now supports explicitly invoked, bounded public discovery
 through CCXT. A public pass observed BTC/USDT metadata on all seven venues and
-validated books on six; XT's book was rejected. There is no executor or
-live/sandbox trading mode. The owner approved I3 with local validation while
-hosted CI remains pending; see [the approved plan](docs/I3-PLAN.md),
-[design](docs/I3-DESIGN.md) and [evidence](docs/I3-EVIDENCE.md).
+validated books on six; XT's book was rejected. A mock-only executor now consumes
+durable intents, captures LIMIT payloads and reconciles synthetic order/trade
+snapshots through the ledger. It has no authenticated or sandbox/live transport.
+The owner approved I4 with local validation while hosted CI remains pending;
+see [the approved plan](docs/I4-PLAN.md), [design](docs/I4-DESIGN.md) and
+[evidence](docs/I4-EVIDENCE.md). No additional exchange probes were performed in I4.
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
@@ -101,14 +103,16 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
   [local evidence](docs/I2-EVIDENCE.md) cover transactions, crash tests and restore.
 - [I3 approved plan](docs/I3-PLAN.md), [adapter design](docs/I3-DESIGN.md) and
   [local evidence](docs/I3-EVIDENCE.md) distinguish public, mocked and private coverage.
-- [I4 proposal](docs/I4-PLAN.md) is the next review gate; it is not authorization.
+- [I4 approved plan](docs/I4-PLAN.md), [execution design](docs/I4-DESIGN.md) and
+  [local evidence](docs/I4-EVIDENCE.md) cover mock sends, scoped identities and recovery.
+- [I5 proposal](docs/I5-PLAN.md) is the next review gate; it is not authorization.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)
 identifies fixed releases; a matching version is only one prerequisite, not
 proof of safe storage, approved production build provenance or live readiness.
 Mock ledger/restore tests do not certify a deployment filesystem or exchange
-reconciliation. I4 requires a separate approval.
+reconciliation. I5 requires a separate approval.
 
 Do not put credentials, account state, local configuration, research data or
 generated reports in Git. This repository does not request exchange credentials
