@@ -1,6 +1,6 @@
 # GRID Spot CCXT
 
-**I4 mock execution and recovery implemented. LIVE: DISABLED.**
+**I5 historical validation and conservative replay implemented. LIVE: DISABLED.**
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and a deterministic Decimal
@@ -12,9 +12,11 @@ through CCXT. A public pass observed BTC/USDT metadata on all seven venues and
 validated books on six; XT's book was rejected. A mock-only executor now consumes
 durable intents, captures LIMIT payloads and reconciles synthetic order/trade
 snapshots through the ledger. It has no authenticated or sandbox/live transport.
-The owner approved I4 with local validation while hosted CI remains pending;
-see [the approved plan](docs/I4-PLAN.md), [design](docs/I4-DESIGN.md) and
-[evidence](docs/I4-EVIDENCE.md). No additional exchange probes were performed in I4.
+The owner approved I5 with local validation while hosted CI remains pending.
+Offline research now validates bounded immutable OHLC windows, replays the Decimal
+strategy under explicit synthetic fill assumptions, and compares raw/Arrow/Parquet
+samples. See [the approved plan](docs/I5-PLAN.md), [design](docs/I5-DESIGN.md) and
+[evidence](docs/I5-EVIDENCE.md). I5 performs no exchange calls.
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
@@ -42,6 +44,37 @@ trading. `--check` deliberately exits 1 while live prerequisites are blocked;
 normal diagnostics exit 0, and malformed configuration exits 2. Financial values
 in configuration are quoted decimal strings or `null`. The example contains no
 invented budget, trading spacing, account allocation or exit policy.
+
+## Offline historical research
+
+Keep generated data/configurations/reports outside Git. For a deliberately
+**synthetic** demonstration (the constants are not production defaults):
+
+```sh
+uv run --locked python -m grid.research demo --output-directory /tmp/grid-research-demo --code-revision "$(git rev-parse HEAD)"
+uv run --locked python -m grid.research replay --config /tmp/grid-research-demo/replay.json --output /tmp/grid-research-demo/result.json
+```
+
+Use a new output directory/result name on each run; publication refuses overwrite.
+To inspect an original window without approving its provenance:
+
+```sh
+uv run --locked python -m grid.research validate /opt/datasets/crypto_1m/bingx_USDT_BTC.bin --venue bingx --symbol BTC/USDT --count 32768 --format-evidence /opt/datasets.md --code-revision "$(git rev-parse HEAD)" --output /tmp/grid-history-validation.json
+```
+
+Validation exit 0 means eligible under supplied provenance, 1 means the report
+contains blocking findings/unknowns, and 2 means the operation was refused or
+failed. A filename is only a mapping hint. Do not assert identity/collection
+evidence to bypass missing provenance. Replay refuses rejected records, gaps,
+unknown provenance, unlike quote currencies and incomplete UTC coverage.
+
+`benchmark` accepts the same source arguments and writes a small raw/Arrow IPC/
+Parquet comparison and derived samples beside the report, outside Git. It is a
+storage measurement, not approval to trade that source. PyArrow 26.0.1 is pinned
+in the optional `research` group, included by `dev` for tests; it is not a runtime
+trading dependency. A minimal installation can use `uv sync --locked --no-dev`;
+add `--group research` only for format benchmarks. See the design for strict
+configuration bundles, limits, uncertainty and reporting conventions.
 
 ## Verify
 
@@ -105,14 +138,16 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
   [local evidence](docs/I3-EVIDENCE.md) distinguish public, mocked and private coverage.
 - [I4 approved plan](docs/I4-PLAN.md), [execution design](docs/I4-DESIGN.md) and
   [local evidence](docs/I4-EVIDENCE.md) cover mock sends, scoped identities and recovery.
-- [I5 proposal](docs/I5-PLAN.md) is the next review gate; it is not authorization.
+- [I5 approved plan](docs/I5-PLAN.md), [research design](docs/I5-DESIGN.md) and
+  [local evidence](docs/I5-EVIDENCE.md) cover data validation, replay and sample storage.
+- [I6 proposal](docs/I6-PLAN.md) is the next review gate; it is not authorization.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)
 identifies fixed releases; a matching version is only one prerequisite, not
 proof of safe storage, approved production build provenance or live readiness.
 Mock ledger/restore tests do not certify a deployment filesystem or exchange
-reconciliation. I5 requires a separate approval.
+reconciliation. I6 requires a separate approval.
 
 Do not put credentials, account state, local configuration, research data or
 generated reports in Git. This repository does not request exchange credentials

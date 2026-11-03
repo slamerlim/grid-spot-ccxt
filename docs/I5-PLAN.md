@@ -1,7 +1,8 @@
 # I5 review proposal — historical validation and conservative Tier-A replay
 
-**Status: proposed, not authorized.** I4 approval ends after its review. This
-proposal uses local validation and GitHub Free only. Hosted CI remains pending.
+**Status: approved on 2026-11-04.** The owner explicitly selected "Approve I5
+with local validation" for this plan. Approval ends after I5 review. Use local
+validation and GitHub Free only. Hosted CI remains pending.
 
 ## Proposed authorization
 

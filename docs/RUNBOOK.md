@@ -323,5 +323,43 @@ identity rows or uncertain intents to force startup. No deployed database was
 created or migrated by I4.
 
 See `I4-DESIGN.md` and `I4-EVIDENCE.md` for synthetic contracts, actual tests and
-remaining account/venue limitations. All live gates stay closed. `I5-PLAN.md`
-requires separate approval before historical processing starts.
+remaining account/venue limitations. All live gates stay closed. The owner
+subsequently approved I5 with local validation; see the section below.
+
+## I5 offline history and replay
+
+Use `python -m grid.research --help` and the bounded examples in README. The
+research module has no exchange transport and never creates a financial database.
+Keep source archives immutable and place new outputs outside Git. Do not run the
+legacy converter/downloader or rewrite original files to make validation pass.
+Supply the clean Git commit as `--code-revision`; uncommitted experiments need an
+explicit source fingerprint and must not be labeled as a clean commit.
+
+`validate` returns 0 for a fully eligible selection, 1 for reported blockers and
+2 for an error/refusal. Unknown identity/collection provenance remains a blocker
+even if all OHLC bytes are structurally valid. Resolve provenance with independent
+evidence, not by supplying invented assertion strings. Gap-free contiguous
+windows may be selected explicitly, but do not conceal gaps in the original
+archive or present a selected window as a whole-file certification.
+
+The `demo` command emits synthetic input/configuration; edit research bundles via
+the typed Python API and `config.bundle`, preserving quoted Decimal values and
+explicit finite capital. `replay` requires complete matching UTC coverage and
+publishes only after all sources have passed the second checksum/identity pass.
+Use a distinct result path for each execution scenario. Result hashes bind the
+scenario, source window, constraints, fees, configuration and code reference.
+
+`benchmark` writes a unique small sample directory beside its result. Review
+the original/derived byte-equivalence hash, reader timings, memory scope and
+cache/device evidence together. Cached CPU/hash timings do not establish storage
+throughput. Do not convert the archive because compressed Parquet is smaller.
+
+If a run fails or is killed, leave originals intact. Temporary `.grid-research-*`
+siblings and incomplete format sample directories are diagnostic artifacts, not
+published results. Restart from the immutable input/config into a new output
+name. Automatic deletion or overwrite is not part of recovery. No checkpointed
+live execution or power-loss durability is claimed for research JSON.
+
+See `I5-DESIGN.md` and `I5-EVIDENCE.md` for the precise model and measured scope.
+I6 requires separate approval of `I6-PLAN.md`. Hosted CI remains pending; do not
+retry the known account lock or use paid GitHub features to unblock this work.

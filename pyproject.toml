@@ -19,6 +19,7 @@ gridctl = "grid.cli:main"
 
 [dependency-groups]
 dev = [
+  { include-group = "research" },
   "bandit==1.9.4",
   "detect-secrets==1.5.0",
   "hypothesis==6.170.14",
@@ -28,6 +29,9 @@ dev = [
   "pytest-socket==0.8.1",
   "ruff==0.17.3",
   "types-PyYAML==6.0.12.20261103",
+]
+research = [
+  "pyarrow==26.0.1",
 ]
 
 [tool.uv]
