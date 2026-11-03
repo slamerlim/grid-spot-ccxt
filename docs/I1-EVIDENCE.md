@@ -1,5 +1,10 @@
 # I1 evidence — pure strategy and mock events
 
+**Latest review:** the follow-up at the end of this file records implementation
+`b8e02210370334b013248781e32079f7b233b0bf` and **182 passing tests** on each
+supported Python version. The original 176-test delivery evidence below is
+retained as history.
+
 Validation completed 2026-11-03 UTC (2026-11-04 Europe/Moscow). The owner
 explicitly selected **"Proceed with local validation for I1"**, replacing the
 earlier condition to wait for hosted I0 CI. Hosted CI remains pending. Imported
@@ -136,3 +141,33 @@ Rollback uses normal reviewed revert commits for the I1 implementation, followed
 by `uv sync --locked` and the prior checks. No migrations, deployed process or
 wallet state need rollback. Preserve GitHub Free guidance, approval history,
 immutable specifications and unrelated files; never reset published history.
+
+## Post-delivery review — 2026-11-04 Europe/Moscow
+
+Reviewed base: `773b21899e513198b06b2ff9110afd6a73d3df82`.
+Corrective implementation: `b8e02210370334b013248781e32079f7b233b0bf`.
+
+Four regression tests initially failed against the delivered code. Actual
+quote/base fee overruns could reduce the reserve reported for unfilled principal;
+a tiny quote fee could round out of a minimum-BUY budget; and an intermediate
+rounded quotient could under-reserve a third-token fee. The fixes separate
+principal from fee allowance, reject inexact financial planning, and quantize
+fee conversion from exact integer ratios. Additional tests cover base-fee
+ownership precision and DRAINING cancellation after a fee breach.
+
+Funding shortfalls now preserve the full obligation, request cancellation of
+known working orders and prevent reconciliation from clearing the block while
+the shortfall remains. A cancellation acknowledgement still releases nothing.
+This is a correction within I1; no new trading strategy or I2 code was added.
+
+Final reruns: **182 passed, 0 failed, 0 skipped** on Python 3.12.3 and 3.13.18;
+the 104 earlier cases plus 78 domain cases. Ruff lint/format, strict mypy (17
+source/test files), Bandit, secret scanning without verification, locked
+dependency audit, source/wheel build and diff checks passed. The full suite
+retains the offline boundary and unchanged specification-hash checks. No
+dependency, workflow, credential, database or live configuration changed.
+
+The next concrete scope is proposed in `I2-PLAN.md`. I2 is not implemented or
+authorized by this review. The plan requests local mock/database validation
+while retaining GitHub Free only and hosted CI pending; it leaves exchange
+access, live financial state, execution and deployment outside that scope.

@@ -84,6 +84,8 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
 - [Runbook](docs/RUNBOOK.md) covers offline checks and rollback of I0/I1.
 - [I0 evidence](docs/I0-EVIDENCE.md) records executed checks and remaining gates.
 - [I1 design](docs/I1-DESIGN.md) defines math, fee reserves, event contracts and bounds.
+- [I2 review plan](docs/I2-PLAN.md) proposes the single-owner ledger and mock
+  crash/restore tests; I2 implementation awaits separate approval.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)

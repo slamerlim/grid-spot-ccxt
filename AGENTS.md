@@ -15,6 +15,7 @@ approval again. Hosted CI remains pending, not passed. Record local checks
 and remaining coverage precisely. Stop after I1 review; I2, exchange calls,
 exchange credentials, execution, database creation and deployment remain
 outside this approval. Live remains unavailable under every configuration.
+`docs/I2-PLAN.md` is the concrete next review proposal, not an authorization.
 
 ## Invariants for subsequent approved iterations
 
