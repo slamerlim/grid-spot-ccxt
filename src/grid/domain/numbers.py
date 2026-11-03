@@ -67,12 +67,19 @@ def exact[**P, T](function: Callable[P, T]) -> Callable[P, T]:
 @exact
 def units(value: Decimal, quantum: Decimal, *, up: bool) -> Decimal:
     """Round to an arbitrary positive increment using exact integer division."""
-    decimal(value)
+    return ratio_units(value, ONE, quantum, up=up)
+
+
+@exact
+def ratio_units(numerator: Decimal, denominator: Decimal, quantum: Decimal, *, up: bool) -> Decimal:
+    """Round a ratio directly to quanta without an intermediate Decimal division."""
+    decimal(numerator)
+    decimal(denominator, positive=True)
     decimal(quantum, positive=True)
-    n, d = value.as_integer_ratio()
+    n, d = numerator.as_integer_ratio()
+    dn, dd = denominator.as_integer_ratio()
     qn, qd = quantum.as_integer_ratio()
-    numerator, denominator = n * qd, d * qn
-    count, remainder = divmod(numerator, denominator)
+    count, remainder = divmod(n * dd * qd, d * dn * qn)
     return Decimal(count + int(up and remainder != 0)) * quantum
 
 

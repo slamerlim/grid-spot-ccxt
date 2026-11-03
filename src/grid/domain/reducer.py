@@ -80,15 +80,15 @@ def reserved(state: State, currency: str) -> Decimal:
                     ),
                     ZERO,
                 )
-                allowance = reserve.amount - max(ZERO, paid)
                 if currency != order.principal_currency:
-                    total += max(ZERO, allowance)
+                    total += max(ZERO, reserve.amount - max(ZERO, paid))
                 elif order.side is Side.BUY:
-                    # Quote principal is released exactly with each execution;
-                    # unused fee allowance remains until terminal settlement.
-                    total += max(ZERO, allowance - order.filled * order.price)
+                    principal = order.amount * order.price
+                    unused_fee = max(ZERO, reserve.amount - principal - max(ZERO, paid))
+                    total += order.remaining * order.price + unused_fee
                 else:
-                    total += max(ZERO, allowance - order.filled)
+                    unused_fee = max(ZERO, reserve.amount - order.amount - max(ZERO, paid))
+                    total += order.remaining + unused_fee
     return total
 
 
@@ -102,6 +102,21 @@ def available_quote(state: State, context: Context) -> Decimal:
 
 def _token_balance(state: State, currency: str) -> Decimal:
     return next((money.amount for money in state.fee_balances if money.currency == currency), ZERO)
+
+
+def _funding_shortfall(state: State, context: Context) -> bool:
+    currencies = {money.currency for order in state.working for money in order.reserves}
+    for currency in currencies:
+        funds = (
+            state.quote_cash
+            if currency == context.market.quote
+            else state.owned_base
+            if currency == context.market.base
+            else _token_balance(state, currency)
+        )
+        if reserved(state, currency) > funds:
+            return True
+    return False
 
 
 def _active_sell(state: State) -> Order | None:
@@ -270,7 +285,7 @@ def _report(state: State, report: OrderReport) -> State:
     )
 
 
-@arithmetic
+@exact
 def _new_order(
     state: State,
     context: Context,
@@ -315,7 +330,7 @@ def _new_order(
     return result, PlaceLimit(state.scope, order)
 
 
-@arithmetic
+@exact
 def _buy(
     state: State, context: Context, price: Decimal, level: int | None
 ) -> tuple[State, PlaceLimit]:
@@ -534,6 +549,22 @@ def _plan(state: State, context: Context) -> Transition:
     return Transition(state, tuple(commands), tuple(notices))
 
 
+def _fee_breach(state: State, context: Context, reason: str) -> Transition:
+    blocked = _block(state, reason, accepted=True)
+    state = blocked.state
+    commands = list(blocked.commands)
+    if _funding_shortfall(state, context):
+        # Confirmed facts may reveal a shortage. Preserve the obligation in
+        # full and cancel known working orders; an ack cannot free reserves.
+        for order in state.working:
+            if order.acknowledged and not order.unknown:
+                state, emitted = _cancel(state, order)
+                commands.extend(emitted)
+    # Even a fee breach cannot skip DRAINING/retirement cancellation duties.
+    planned = _plan(state, context)
+    return replace(planned, commands=(*commands, *planned.commands))
+
+
 @arithmetic
 def reduce(state: State, event: Event, context: Context) -> Transition:
     """Apply one normalized fact and return deterministic proposed commands."""
@@ -558,7 +589,7 @@ def reduce(state: State, event: Event, context: Context) -> Transition:
             order = _order(state, event.order_id)
             posted = tuple(fill for fill in state.fills if fill.order_id == order.id)
             if len(posted) > order.fee_rule.max_settlements:
-                return _block(state, "fee settlement bound exceeded", accepted=True)
+                return _fee_breach(state, context, "fee settlement bound exceeded")
             expected_fee = order.fee_rule.estimate(context.market, order.price, order.amount)
             totals: dict[str, Decimal] = {}
             for fill in posted:
@@ -568,7 +599,7 @@ def reduce(state: State, event: Event, context: Context) -> Transition:
                 amount > (expected_fee.amount if currency == expected_fee.currency else ZERO)
                 for currency, amount in totals.items()
             ):
-                return _block(state, "actual fee exceeds forecast", accepted=True)
+                return _fee_breach(state, context, "actual fee exceeds forecast")
         elif isinstance(event, OrderReport):
             before = state
             state = _report(state, event)
@@ -613,6 +644,8 @@ def reduce(state: State, event: Event, context: Context) -> Transition:
                 for order in state.working
             ):
                 return _block(state, "reconciliation incomplete")
+            if _funding_shortfall(state, context):
+                return _block(state, "outstanding reservation exceeds allocated funds")
             state = replace(
                 state,
                 reconcile_reason=None,

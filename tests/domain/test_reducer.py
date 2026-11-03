@@ -618,3 +618,60 @@ def test_buy_fill_earns_one_replenishment_after_sell_replacement(
     assert placed(replaced, Side.BUY)[0].level == 4
     assert replaced.state.ladder_credits == 0
     assert sum(order.side is Side.BUY for order in replaced.state.working) == 3
+
+
+def test_quote_fee_overrun_never_releases_unfilled_buy_principal(
+    state: State, context: Context
+) -> None:
+    start = reduce(state, Start(state.scope), context)
+    seed = placed(start)[0]
+    result = reduce(
+        start.state,
+        execution(state, seed, "overrun", D("0.4"), fees=(ActualFee("QUOTE", D("2"), None),)),
+        context,
+    )
+    assert result.accepted and result.state.reconcile_reason == "actual fee exceeds forecast"
+    assert result.state.quote_cash == D("958")
+    assert reserved(result.state, "QUOTE") == D("60")
+    assert available_quote(result.state, context) == D("888")
+    assert not placed(result)
+
+
+def test_base_fee_overrun_never_releases_unfilled_sell_principal(
+    state: State, context: Context
+) -> None:
+    active = acknowledge(seeded(state, context), context)
+    sell = next(order for order in active.working if order.side is Side.SELL)
+    result = reduce(
+        active,
+        execution(state, sell, "overrun", D("0.4"), fees=(ActualFee("BASE", D("0.1"), None),)),
+        context,
+    )
+    assert result.accepted and result.state.reconcile_reason == "actual fee exceeds forecast"
+    assert result.state.owned_base == D("0.5")
+    assert reserved(result.state, "BASE") == D("0.6")
+    assert not placed(result)
+    assert any(
+        isinstance(command, Cancel) and command.order_id == sell.id for command in result.commands
+    )
+    premature = reduce(result.state, reconciled(result.state), context)
+    assert not premature.accepted and not placed(premature)
+    assert premature.state.reconcile_reason == "outstanding reservation exceeds allocated funds"
+    ack = reduce(premature.state, CancelAcknowledged(state.scope, sell.id), context)
+    assert reserved(ack.state, "BASE") == D("0.6")
+
+
+def test_fee_breach_on_full_sell_still_cancels_draining_buys(
+    state: State, context: Context
+) -> None:
+    active = acknowledge(seeded(state, context), context)
+    sell = next(order for order in active.working if order.side is Side.SELL)
+    result = reduce(
+        active,
+        execution(state, sell, "fee-at-close", fees=(ActualFee("QUOTE", D("2"), None),)),
+        context,
+    )
+    assert result.accepted and result.state.phase is Phase.DRAINING
+    assert sum(isinstance(command, Cancel) for command in result.commands) == 3
+    assert result.state.reconcile_reason == "actual fee exceeds forecast"
+    assert not placed(result)

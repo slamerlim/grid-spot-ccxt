@@ -263,3 +263,25 @@ def test_very_small_coin_price_and_notional_minimum(context: Context) -> None:
     )
     assert plan.amount == D("5e12") and plan.quote_required == D("5")
     assert plan.prospective_sell.price == D("1.01e-12")
+
+
+def test_minimum_buy_cannot_round_away_a_fee_to_fit_budget(context: Context) -> None:
+    fee = FeeRule("QUOTE", D("1e-96"), D("1e-96"), None, 1)
+    with pytest.raises(DomainError, match="exact supported precision"):
+        minimum_buy(D(1), context.market, fee, context.sell_fee, D("0.1"), D("0.01"), D(1))
+
+
+def test_fee_conversion_rounds_up_without_an_intermediate_rounded_quotient(
+    context: Context,
+) -> None:
+    # The exact token charge is just above 1; a 96-digit intermediate division
+    # rounds it to 1. Rounding that result would under-reserve a whole token.
+    conversion = D("9" * 96)
+    fee = FeeRule("TOKEN", D("0.5"), D(1), conversion, 1)
+    assert fee.estimate(context.market, D("2e96"), D(1)).amount == D(2)
+
+
+def test_aggregate_sell_cannot_round_away_base_fee_ownership(context: Context) -> None:
+    fee = FeeRule("BASE", D("1e-96"), D("1e-96"), None, 1)
+    with pytest.raises(DomainError, match="exact supported precision"):
+        aggregate_take_profit(D(1), D(100), context.market, D("0.1"), D("0.01"), fee)

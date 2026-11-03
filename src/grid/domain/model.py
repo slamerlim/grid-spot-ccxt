@@ -11,7 +11,6 @@ from grid.domain.market import FeeRule, Market, Money
 from grid.domain.numbers import (
     ZERO,
     DomainError,
-    arithmetic,
     bounded_int,
     decimal,
     exact,
@@ -238,7 +237,7 @@ class Order:
         )
 
     @property
-    @arithmetic
+    @exact
     def remaining(self) -> Decimal:
         return self.amount - self.filled
 

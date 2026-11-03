@@ -13,7 +13,9 @@ from grid.domain.numbers import (
     arithmetic,
     bounded_int,
     decimal,
+    exact,
     identifier,
+    ratio_units,
     units,
 )
 
@@ -124,7 +126,7 @@ class Market:
         ):
             raise DomainError("explicit normalized precision and limits required")
 
-    @arithmetic
+    @exact
     def valid(self, price: Decimal, amount: Decimal, *, buy: bool) -> bool:
         decimal(price, positive=True)
         decimal(amount, positive=True)
@@ -175,23 +177,30 @@ class FeeRule:
         if self.quote_per_token is not None:
             decimal(self.quote_per_token, positive=True)
 
-    @arithmetic
+    @exact
     def estimate(self, market: Market, price: Decimal, amount: Decimal) -> Money:
+        decimal(price, positive=True)
+        decimal(amount)
+        conversion = ONE
         if self.currency == market.base:
             raw = amount * self.rate
         elif self.currency == market.quote:
             raw = amount * price * self.rate
         elif self.quote_per_token is not None:
-            raw = amount * price * self.rate / self.quote_per_token
+            raw = amount * price * self.rate
+            conversion = self.quote_per_token
         else:
             raise DomainError("missing fee-token conversion")
         # ceil(sum(raw_i)) + (n - 1) increments bounds sum(ceil(raw_i)).
         # The explicit settlement bound must be verified by the future adapter;
         # the reducer freezes new exposure if actual execution exceeds it.
         rounding_reserve = self.increment * (self.max_settlements - 1) if self.rate > ZERO else ZERO
-        return Money(self.currency, units(raw, self.increment, up=True) + rounding_reserve)
+        return Money(
+            self.currency,
+            ratio_units(raw, conversion, self.increment, up=True) + rounding_reserve,
+        )
 
-    @arithmetic
+    @exact
     def quote_cost(self, market: Market, fee: Money, price: Decimal) -> Decimal:
         if fee.currency != self.currency:
             raise DomainError("fee currency mismatch")
@@ -266,18 +275,27 @@ def aggregate_take_profit(
     decimal(cost)
     decimal(spacing, positive=True)
     decimal(net_target, positive=True)
+
+    @exact
+    def base_required(candidate: Decimal) -> Decimal:
+        return candidate + (
+            fee_rule.estimate(market, ONE, candidate).amount
+            if fee_rule.currency == market.base
+            else ZERO
+        )
+
     # A base fee is rounded at settlement; division by (1 + rate) alone is
     # insufficient. Find the largest precision-valid amount whose fee fits.
     amount = market.amount.round(owned, up=False)
     if fee_rule.currency == market.base and fee_rule.rate > ZERO:
         amount = market.amount.round(owned / (ONE + fee_rule.rate), up=False)
-        if amount + fee_rule.estimate(market, ONE, amount).amount > owned:
+        if base_required(amount) > owned:
             lower, upper = ZERO, amount
             for _ in range(1024):
                 midpoint = market.amount.round((lower + upper) / Decimal(2), up=False)
                 if midpoint <= lower:
                     break
-                if midpoint + fee_rule.estimate(market, ONE, midpoint).amount <= owned:
+                if base_required(midpoint) <= owned:
                     lower = midpoint
                 else:
                     upper = midpoint
@@ -294,6 +312,7 @@ def aggregate_take_profit(
         target = max(target, (cost + net_target) / amount)
     price = market.price.round(target, up=True)
 
+    @exact
     def evaluate(candidate: Decimal) -> tuple[Decimal, Money]:
         estimated = fee_rule.estimate(market, candidate, amount)
         cost_of_fee = (
@@ -318,9 +337,18 @@ def aggregate_take_profit(
         price = successor if successor > price else market.price.next(price)
     else:
         raise DomainError("SELL price search bound exceeded")
-    if profit < net_target or price < geometric or not market.valid(price, amount, buy=False):
+
+    @exact
+    def geometric_admitted() -> bool:
+        return price * owned >= cost * (ONE + spacing)
+
+    if (
+        profit < net_target
+        or not geometric_admitted()
+        or not market.valid(price, amount, buy=False)
+    ):
         raise DomainError("no valid profitable aggregate SELL")
-    reserved = amount + (fee.amount if fee.currency == market.base else ZERO)
+    reserved = base_required(amount)
     if reserved > owned:
         raise DomainError("SELL fee exceeds owned base")
     return TakeProfit(
@@ -337,6 +365,11 @@ def aggregate_take_profit(
 
 
 @arithmetic
+def _buy_floor(price: Decimal, market: Market) -> Decimal:
+    return max(market.buy_amount.minimum, market.buy_cost.minimum / price)
+
+
+@exact
 def minimum_buy(
     price: Decimal,
     market: Market,
@@ -348,7 +381,7 @@ def minimum_buy(
 ) -> MinimumBuy:
     decimal(price, positive=True)
     decimal(available_quote)
-    lower = max(market.buy_amount.minimum, market.buy_cost.minimum / price)
+    lower = _buy_floor(price, market)
     if lower == ZERO:
         if market.amount.tick is None:
             raise DomainError("no provable smallest BUY")

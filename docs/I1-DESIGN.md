@@ -10,7 +10,10 @@ Money is `Decimal`, never float. Constructors reject nonfinite values, unknown
 required constraints and unsupported ranges. General calculations use an
 explicit 96-digit Decimal context, independent of the ambient process context.
 Financial posting, reservation arithmetic and multiplication back from integer
-quanta reject inexact results rather than silently losing digits. Inputs support
+quanta reject inexact results rather than silently losing digits. BUY budget
+checks, fee products and TP financial predicates do the same. Third-token fee
+conversion rounds the exact integer ratio directly to its settlement increment;
+an intermediate rounded quotient cannot reduce its fee allowance. Inputs support
 up to 96 coefficient digits and adjusted exponents from -96 through 96; not
 every combination fits exact posting, so range/precision failures block it.
 
@@ -64,6 +67,11 @@ Actual price improvements release quote headroom. Rebates increase actual owned
 funds without manufacturing additional fee allowance. New BUYs must fit allocated
 cash after quote reserve, acquisition-cost cap, lot and order caps. Third-token
 exit funding is checked before a BUY, as well as when proposing its SELL.
+An overrun consumes only fee allowance, never the principal reserved for an
+unfilled order. If confirmed fees expose a funding shortfall, preserve the full
+outstanding obligation and propose cancellation of known working orders.
+Reconciliation cannot clear the block while reserves exceed owned funds. A fee
+breach on a fully filled SELL still performs DRAINING cancellations.
 
 Each confirmed BUY adds its net base and actual acquisition cost. Nonbase fees
 and rebates are added to cost in quote units using supplied conversion facts.
