@@ -35,13 +35,13 @@ class DoctorReport:
 
     @property
     def ready(self) -> bool:
-        """Live readiness cannot be granted by an I0 diagnostic."""
+        """Live readiness cannot be granted by an offline diagnostic."""
         return False
 
     def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": 1,
-            "iteration": "I0",
+            "iteration": "I1",
             "mode": "offline",
             "live": "DISABLED",
             "ready": self.ready,
@@ -56,7 +56,7 @@ class DoctorReport:
 
     def to_text(self) -> str:
         lines = [
-            "GRID doctor — I0 offline diagnostics",
+            "GRID doctor — I1 offline diagnostics",
             "LIVE: DISABLED",
             "Live readiness: BLOCKED",
             f"Python: {self.python_version}",
@@ -84,7 +84,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
     sqlite_threshold_met = sqlite3.sqlite_version_info >= SQLITE_VERSION_THRESHOLD
     missing = config.missing_prerequisites()
     checks = (
-        Check("i0_boundary", "BLOCKED", "I0 has no trading runtime; live mode is unavailable."),
+        Check("offline_boundary", "BLOCKED", "I1 is pure domain logic; no trading runtime exists."),
         Check(
             "live_request",
             "BLOCKED" if live_requested else "PASS",
@@ -133,7 +133,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "strategy_and_execution",
             "NOT_TESTED",
-            "Strategy, ledger, recovery and limit-order executor are not implemented in I0.",
+            "Pure strategy exists; ledger, recovery and limit-order executor remain unimplemented.",
         ),
         Check(
             "venue_capabilities",
@@ -158,7 +158,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "operator_signoff",
             "BLOCKED",
-            "I1 approval and separate live canary approval are required; flags are not approval.",
+            "I1 local validation is authorized; later iterations and live canary need approval.",
         ),
     )
     return DoctorReport(

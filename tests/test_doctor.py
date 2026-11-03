@@ -37,7 +37,7 @@ def test_doctor_always_blocks_live_and_reports_only_offline_evidence() -> None:
     report = run_doctor(parse_config({}), environ={})
     checks = statuses(report)
     assert not report.ready
-    assert checks["i0_boundary"] == "BLOCKED"
+    assert checks["offline_boundary"] == "BLOCKED"
     assert checks["sqlite_version_threshold"] == "PASS"
     assert checks["sqlite_build_provenance"] == "NOT_TESTED"
     assert checks["venue_capabilities"] == "NOT_TESTED"

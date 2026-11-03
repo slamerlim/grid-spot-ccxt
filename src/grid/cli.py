@@ -1,4 +1,4 @@
-"""The only I0 command is an offline doctor."""
+"""The only executable command remains an offline doctor."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Return 0 for a report, 1 for blocked --check, or 2 for invalid config."""
-    parser = _ArgumentParser(prog="gridctl", description="GRID I0 offline diagnostics")
+    parser = _ArgumentParser(prog="gridctl", description="GRID I1 offline diagnostics")
     commands = parser.add_subparsers(dest="command", required=True)
     doctor = commands.add_parser("doctor", help="report offline live-readiness blockers")
     doctor.add_argument(
