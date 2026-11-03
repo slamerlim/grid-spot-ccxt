@@ -101,6 +101,28 @@ there is no financial state, simulated fill engine or order path yet.
 
 ## Publication, rollback and next gate
 
+Implementation commit: `51f1fad9f2a5210fdeaf5f58623759e68198ff8d`
+(`chore(i0): bootstrap the specified offline CCXT grid project`). A subsequent
+documentation-only commit records the publication result below; `git log -2`
+identifies both revisions. Commits use the explicit local agent identity
+`Codex <codex@localhost>`, not an assumed personal GitHub author identity.
+
+Actual attempted publication command:
+
+```sh
+GIT_TERMINAL_PROMPT=0 git push --set-upstream origin i0/specification-bootstrap
+```
+
+Result: exit **128**, `fatal: could not read Username for 'https://github.com':
+terminal prompts disabled`. Subsequent public GitHub API reads returned an
+empty branch list and **zero Actions runs**. No remote branch, commit, PR,
+deployment or hosted CI pass is claimed. Install/connect GitHub with repository
+write authority or configure a credential helper through a trusted interactive
+mechanism; do not paste tokens into chat, files or shell history. After access is
+confirmed, push this existing branch, inspect the actual CI result and fix any
+failures. The empty repository has no base branch for a PR yet; establish its
+default-branch/review flow without inventing existing history or force pushing.
+
 The local implementation is reviewable; authenticated push, PR creation and an
 observed hosted CI run remain separate evidence. GitHub is publicly readable,
 but this workspace has no configured Git credential helper/token/SSH agent and
