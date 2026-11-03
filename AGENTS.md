@@ -9,9 +9,10 @@ record clarifications separately with evidence and approval requirements.
 
 This increment establishes packaging, offline diagnostics, safe configuration,
 tests, documentation and CI. No strategy/executor, exchange network calls,
-credentials, deployment or database creation. Explicit user approval is required
-before I1, per the attached master prompt. Live remains unavailable even when a
-user sets an environment variable. Never claim future Q01–Q20 gates have passed.
+exchange credentials, deployment or database creation. Explicit user approval
+is required before I1, per the attached master prompt. Live remains unavailable
+even when a user sets an environment variable. Never claim future Q01–Q20 gates
+have passed.
 
 ## Invariants for subsequent approved iterations
 
@@ -36,3 +37,23 @@ Do not modify `/opt/module_1_multi` or `/opt/datasets`.
 
 Parallel work is allowed with disjoint file ownership. Report actual evidence;
 unavailable repository access or capabilities are BLOCKED/NOT TESTED, not PASS.
+
+## GitHub access for workspace agents
+
+The user authorized reusable GitHub access and ordinary commits/pushes for work
+within an approved task. This does not authorize I1 or live trading. Use the
+existing `origin` for `slamerlim/grid-spot-ccxt`; do not force-push or rewrite
+published history as part of routine development.
+
+In the prepared `/opt/grid` checkout, repository-local Git configuration selects
+a dedicated SSH deploy key outside the repository. Agents running as the same
+OS account on this host can reuse it after the owner enables write access in
+GitHub. A different host, account or fresh clone needs its own authentication.
+Never copy the private key into project files, logs, messages or commits.
+
+The local default author is `GRID Automation <grid-automation@localhost>`, a
+neutral automation identity, not the owner's personal GitHub identity. Follow
+the checks above, review the staged changes, commit with a descriptive message,
+then use `git push --set-upstream origin HEAD`. Check the command's result and
+remote commit before reporting publication. See `docs/RUNBOOK.md` for setup,
+verification and revocation; a configured remote alone is not proof of access.

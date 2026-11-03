@@ -76,6 +76,68 @@ remain future work; see the trace and capability registry.
   A public readable repository does not prove push authority. Do not claim a
   remote commit, PR or hosted CI run unless verified.
 
+## GitHub publishing from this workspace
+
+The owner requested reusable Git access for agents working in `/opt/grid`.
+The prepared checkout uses these repository-local settings:
+
+- `origin`: `git@github.com:slamerlim/grid-spot-ccxt.git`.
+- Default commit author: `GRID Automation <grid-automation@localhost>`; this
+  identifies automation without attributing commits to the owner's account.
+- `core.sshCommand`: selects `/root/.ssh/grid-spot-ccxt_ed25519`, disables
+  interactive authentication and SSH-agent fallback, and requires the pinned
+  GitHub Ed25519 host key in `/root/.ssh/grid-spot-ccxt_known_hosts`.
+- `push.default=simple`, `push.autoSetupRemote=true`, and
+  `remote.pushDefault=origin`.
+
+The private key is outside the repository with mode `0600`. The host key was
+checked against [GitHub's published SSH key fingerprint](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints).
+The owner must add the corresponding `.pub` file under repository **Settings >
+Deploy keys**, with **Allow write access** enabled. See
+[GitHub's deploy-key instructions](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys).
+Local preparation does not prove that GitHub authorization has been completed.
+
+This setup is reusable by agents running as the same OS account in this host's
+checkout. It is not transferred by cloning the repository and does not grant
+access to other users, hosts or containers. The deploy key grants Git access to
+this repository; API operations such as opening PRs require separate API
+authentication. A ChatGPT plugin is not required for terminal Git operations.
+
+After owner authorization, check access without changing the remote:
+
+```sh
+git remote -v
+git var GIT_AUTHOR_IDENT
+git ls-remote --heads origin
+git push --dry-run origin HEAD
+```
+
+Public read access or a successful dry run is not proof that a real push,
+including workflow-file changes and branch rules, will succeed. Follow the
+checks above, review and commit only the intended files, then publish the
+current branch and compare its remote commit:
+
+```sh
+git status --short --branch
+git diff --cached --check
+git diff --cached
+git commit -m "Describe the approved change and its purpose"
+git push --set-upstream origin HEAD
+git rev-parse HEAD
+git ls-remote --heads origin "$(git branch --show-current)"
+```
+
+Do not force-push or alter repository protections as part of routine publishing.
+If authentication fails, retain local commits and report the exact failure.
+Never print private keys or paste tokens into chat. Existing I0 publication
+evidence records historical failures; do not reinterpret them as successful
+pushes. Report hosted CI separately from local validation.
+
+To revoke this workspace's GitHub access, remove its deploy key in the repository
+settings. Treat a compromised host as requiring key replacement. If GitHub
+changes its SSH host key, verify the replacement against its official guidance
+before updating the pinned host key; do not disable host-key checking.
+
 ## Rollback and next gate
 
 I0 has no migrations, financial database, service or deployed orders. To undo an
