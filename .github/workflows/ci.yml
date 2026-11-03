@@ -1,0 +1,57 @@
+name: I0 checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    env:
+      LIVE: "false"
+      GRID_LIVE: "false"
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.13.7"
+          python-version: ${{ matrix.python }}
+          enable-cache: false
+      - run: uv sync --locked --python ${{ matrix.python }}
+      - run: uv lock --check
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
+      - run: uv run --locked mypy
+      - run: uv run --locked pytest
+      - run: uv run --locked gridctl doctor --config config.example.yaml --json
+      - name: Assert live remains blocked
+        shell: bash
+        run: |
+          set +e
+          uv run --locked gridctl doctor --config config.example.yaml --check
+          code=$?
+          set -e
+          test "$code" -eq 1
+      - run: uv run --locked bandit -q -r src
+      - name: Scan tracked files for secrets without verifying credentials
+        run: git ls-files -z | xargs -0 uv run --locked detect-secrets-hook --no-verify --cores 2 --baseline .secrets.baseline
+      - name: Audit locked dependencies
+        run: |
+          uv export --locked --all-groups --no-emit-project --no-hashes --output-file /tmp/grid-audit-requirements.txt
+          uv run --locked pip-audit --strict --disable-pip --no-deps -r /tmp/grid-audit-requirements.txt
+      - run: uv build --no-sources

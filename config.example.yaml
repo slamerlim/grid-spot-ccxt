@@ -1,0 +1,88 @@
+# I0 is offline diagnostics only. No credentials belong in this file.
+# null means UNCONFIGURED: these are blockers, not safe default trading limits.
+# Monetary values and ratios, when chosen later, must be quoted decimal strings.
+# These venue names are configuration identities, not verified CCXT class IDs.
+live: false
+quote_currency: null
+
+venues:
+  okx:
+    enabled: false
+    account_id: null
+    allocated_quote: null
+    max_quote_spent: null
+  htx:
+    enabled: false
+    account_id: null
+    allocated_quote: null
+    max_quote_spent: null
+  gate:
+    enabled: false
+    account_id: null
+    allocated_quote: null
+    max_quote_spent: null
+  xt:
+    enabled: false
+    account_id: null
+    allocated_quote: null
+    max_quote_spent: null
+  bingx:
+    enabled: false
+    account_id: null
+    allocated_quote: null
+    max_quote_spent: null
+  kucoin:
+    enabled: false
+    account_id: null
+    allocated_quote: null
+    max_quote_spent: null
+  bitfinex:
+    enabled: false
+    account_id: null
+    allocated_quote: null
+    max_quote_spent: null
+
+grid:
+  spacing: null
+  pending_buy_levels: null
+  max_lots: null
+  max_quote_committed: null
+  quote_reserve: null
+  minimum_net_target: null
+  seed_policy: null # passive_limit | bounded_marketable_limit
+  min_price: null
+  max_price: null
+  order_ttl_seconds: null
+  retirement_policy: null # manage_existing | cancel_buys_and_hold | bounded_limit_exit
+
+risk:
+  max_quote_spent_global: null
+  max_quote_spent_per_symbol: null
+  max_active_symbols: null
+  max_open_orders: null
+  residual_dust_quote_ceiling: null
+  fee_buffer: null
+  max_source_age_seconds: null
+  max_nav_age_seconds: null
+
+exit:
+  # The +10% net-NAV trigger is fixed in the PRD; execution profit is not guaranteed.
+  price_policy: null # passive_limit | bounded_marketable_limit
+  max_price_deviation: null # fractional deviation below one
+  minimum_after_fee_quote: null # reporting-currency amount; later per-allocation policy
+  max_retries: null
+  order_ttl_seconds: null
+  dust_policy: null # block_until_resolved | operator_approved (never approval by itself)
+
+resources:
+  event_queue_capacity: null
+  cache_capacity: null
+  worker_count: null
+  reconciliation_interval_seconds: null
+  discovery_interval_seconds: null
+
+universe:
+  mode: null # manual | automatic | hybrid
+  allow: []
+  deny: []
+  pin: []

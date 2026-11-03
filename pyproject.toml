@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "grid-spot-ccxt"
+version = "0.0.1"
+description = "Offline bootstrap for a spot-only, limit-only CCXT grid system"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "ccxt==4.5.91",
+  "PyYAML==6.0.3",
+]
+
+[project.scripts]
+gridctl = "grid.cli:main"
+
+[dependency-groups]
+dev = [
+  "bandit==1.9.4",
+  "detect-secrets==1.5.0",
+  "mypy==2.4.1",
+  "pip-audit==2.10.1",
+  "pytest==9.2.0",
+  "pytest-socket==0.8.1",
+  "ruff==0.17.3",
+  "types-PyYAML==6.0.12.20261103",
+]
+
+[tool.uv]
+required-version = "==0.13.7"
+default-groups = ["dev"]
+index-url = "https://pypi.org/simple"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/grid"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --disable-socket"
+filterwarnings = ["error"]

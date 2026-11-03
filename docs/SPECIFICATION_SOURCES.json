@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "provenance": "User-provided pasted-text-1.txt through pasted-text-4.txt, imported verbatim in that order.",
+  "documents": [
+    {
+      "path": "PRD_GRID_SPOT_CCXT_FINAL_v2.md",
+      "source_attachment": "pasted-text-1.txt",
+      "sha256": "df7603f5a7e04c7a964a5a22142dd92a41ab8f37d48f603f3a40f145db052337"
+    },
+    {
+      "path": "ADR-0001-NVMe-Storage-and-Caching.md",
+      "source_attachment": "pasted-text-2.txt",
+      "sha256": "71c2da866e932f7d408b256a5d6c62ef0ee41da052e4f34d6694ee96541e6d6d"
+    },
+    {
+      "path": "ITERATIONS_AND_ACCEPTANCE_FINAL.md",
+      "source_attachment": "pasted-text-3.txt",
+      "sha256": "c70ce521708bb93037fd065823aeb850358ee5f7c362d80177d037a6b0a67c56"
+    },
+    {
+      "path": "MASTER_IMPLEMENTATION_PROMPT.md",
+      "source_attachment": "pasted-text-4.txt",
+      "sha256": "7810a8f50ee043e57c9ef12e300f26f5c969d5cf9b25d747d7b12db48bde0ea3"
+    }
+  ]
+}
