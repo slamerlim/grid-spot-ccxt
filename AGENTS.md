@@ -5,20 +5,16 @@ under `docs/` before editing. They are authoritative over the legacy simulator.
 User instructions take precedence. Preserve imported specifications verbatim;
 record clarifications separately with evidence and approval requirements.
 
-## Current boundary: I0; I1 approved after CI
+## Current boundary: I1 with local validation
 
-This increment establishes packaging, offline diagnostics, safe configuration,
-tests, documentation and CI. Until I0 hosted CI passes, do not implement the
-strategy or executor, make exchange network calls, use exchange credentials,
-deploy or create a database.
-
-On 2026-11-03 the owner explicitly approved `docs/I1-PLAN.md`, including its
-sellable-partial-seed rule, **after I0 hosted CI passes**. Once that condition is
-verified, proceed with I1 pure Decimal strategy code and mock-event tests;
-do not request the same approval again. Record the passing I0 workflow run and
-commit before starting I1. This approval excludes I2, exchange integration and
-live trading. Live remains unavailable even when a user sets an environment
-variable. Never claim future Q01–Q20 gates have passed.
+On 2026-11-03 the owner approved `docs/I1-PLAN.md`, including its partial-seed
+rule, then explicitly selected "Proceed with local validation for I1" to
+replace the hosted-CI prerequisite for starting this iteration. Implement I1
+pure Decimal strategy code and mock-event tests; do not request the same
+approval again. Hosted CI remains pending, not passed. Record local checks
+and remaining coverage precisely. Stop after I1 review; I2, exchange calls,
+exchange credentials, execution, database creation and deployment remain
+outside this approval. Live remains unavailable under every configuration.
 
 ## Invariants for subsequent approved iterations
 
@@ -60,15 +56,15 @@ message does not establish that an upgrade or payment is needed. Do not retry
 a known lock without evidence of changed access; report local checks separately
 and use free support/account review when needed. While the lock is unchanged,
 use the documented `[skip ci]` commit directive for necessary authorized pushes
-so publication does not retry it. A skipped run is not a CI pass. The I1 CI
-condition above remains in force. See `docs/RUNBOOK.md` for sources and recovery
+so publication does not retry it. A skipped run is not a CI pass. Use the I1
+local-validation authorization above. See `docs/RUNBOOK.md` for sources and recovery
 guidance.
 
 ## GitHub access for workspace agents
 
 The user authorized reusable GitHub access and ordinary commits/pushes for work
 within an approved task. Git access alone does not authorize new iterations or
-live trading; the conditional I1 authorization is recorded above. Use the
+live trading; the I1 authorization is recorded above. Use the
 existing `origin` for `slamerlim/grid-spot-ccxt`; do not force-push or rewrite
 published history as part of routine development.
 

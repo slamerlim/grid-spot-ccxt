@@ -1,10 +1,11 @@
 # I1 review plan — deterministic strategy and Decimal math
 
-**Status: approved on 2026-11-03, conditional on I0 hosted CI passing.** The
-owner selected: "Approve this I1 plan after CI passes" in response to the
-explicit scope and partial-seed decision below. Implementation has not started.
-Once a successful I0 hosted run is verified, this approval permits I1 without
-another permission request. Record that run and its commit in the I1 evidence.
+**Status: approved on 2026-11-03 with local validation.** The owner initially
+selected "Approve this I1 plan after CI passes", then explicitly selected
+"Proceed with local validation for I1" after the hosted account lock persisted.
+This replaces the prerequisite for starting I1; hosted CI stays pending and
+must not be reported as passed. The scope and partial-seed decision below remain
+approved. Record local execution evidence and hosted limitations separately.
 
 I1 is pure domain code using fake metadata and confirmed mock events. It adds
 no CCXT client, network request, credential access, database, executor or deployment.
@@ -19,16 +20,15 @@ weighted-execution anchor and admitting lower BUYs. When the aggregate SELL
 fully fills, unresolved seed orders participate in DRAINING alongside ladder
 BUYs; reconcile their cancellation and late fills before a new round.
 
-The approval condition is a successful I0 hosted CI run. A local test pass,
-queued workflow, billing-blocked job or generic continuation request does not
-satisfy it. Imported specifications remain unchanged; this approval records
-the owner's clarification separately. I2 and later iterations are outside this
+The revised approval permits local validation for I1 while hosted CI is
+unavailable. Imported specifications remain unchanged; this records the owner's
+explicit exception separately. I2 and later iterations are outside this
 approval, and live trading remains prohibited.
 
 The owner also requires GitHub Free only: never activate or use paid GitHub
-features to satisfy this gate. Use the verified free CI configuration and local
-validation described in the runbook. An account lock is not authorization to
-pay, and local-only validation does not replace the agreed hosted-CI condition.
+features. Use local validation and preserve the verified free CI configuration.
+An account lock is not authorization to pay; the local-validation exception
+does not turn skipped or blocked hosted runs into successful runs.
 
 All live policy values remain unconfigured. Tests use explicitly synthetic
 fixtures for spacing, budgets, caps, precision, fees, ranges, freshness and
