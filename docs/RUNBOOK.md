@@ -1,9 +1,10 @@
-# I0/I1 developer runbook
+# I0–I2 developer runbook
 
 I0 provides an offline configuration/diagnostic CLI; I1 adds pure strategy
-functions and mock-event tests. There is no daemon, exchange client, database
-or live path. This is not a production operating runbook. No exchange credentials
-are needed. See `I1-DESIGN.md` for the proposed-command boundary.
+functions and mock-event tests. I2 adds a single-owner ledger tested only with
+temporary synthetic databases. There is no daemon, exchange client or live path.
+This is not a production operating runbook. No exchange credentials are needed.
+See `I1-DESIGN.md` and `I2-DESIGN.md` for the command and persistence contracts.
 
 ## Install and diagnose
 
@@ -111,8 +112,9 @@ in the commit message for necessary pushes, after confirming all workflows use
 only the supported `push`/`pull_request` events. This avoids another hosted
 attempt; it does not satisfy CI or authorize bypassing a release gate.
 The owner explicitly replaced I1's earlier hosted-CI prerequisite by selecting
-"Proceed with local validation for I1". This permits the I1 scope only. Hosted
-CI remains pending, and the original I0 hosted acceptance gate is not reported
+"Proceed with local validation for I1", then explicitly selected "Approve I2
+with local validation" for the published I2 plan. Hosted CI remains pending,
+and the original I0 hosted acceptance gate is not reported
 as passed. A skipped/private job is not a CI pass.
 
 ## GitHub publishing from this workspace
@@ -187,12 +189,72 @@ remote reset or secret rotation is part of I0 rollback.
 
 The owner approved `I1-PLAN.md` and its partial-seed anchor decision, then
 explicitly authorized local validation for I1 despite the hosted account lock.
-I1 is ready for review after its recorded local checks. Stop at this boundary:
-I2 requires separate authorization. Future operational commands, systemd
-hardening, backup/restore drills, alerts and live arming belong to later accepted
-iterations; none can be exercised through this CLI.
+I1 was published and I2 subsequently approved with local validation. I2's mock
+ledger/restore work is covered by that approval. Stop after I2 review: I3 requires
+separate authorization. Operational commands, systemd hardening, deployment
+storage drills, alerts and live arming belong to later accepted iterations;
+none can be exercised through this CLI.
 
 I1 adds no migration or external side effect. To roll it back, revert its scoped
 implementation and documentation commits on a branch, then run `uv sync --locked`
 and the I0 checks. Retain the GitHub Free preference and the approval history;
 do not reset published history or change the imported specifications.
+
+## I2 local ledger validation and recovery
+
+Use isolated interpreters, leaving system Python unchanged. On the prepared
+host, uv is at `/tmp/grid-tooling/uv`; substitute its installed path elsewhere.
+The following commands explicitly select each environment, avoiding an ambient
+`UV_PYTHON` silently switching the linked SQLite runtime:
+
+```sh
+UV_PYTHON=3.12.16 UV_PROJECT_ENVIRONMENT=/tmp/grid-i2-py312 uv sync --locked
+UV_PYTHON=3.12.16 UV_PROJECT_ENVIRONMENT=/tmp/grid-i2-py312 uv run --locked pytest
+UV_PYTHON=3.13.18 UV_PROJECT_ENVIRONMENT=/tmp/grid-i2-py313 uv sync --locked
+UV_PYTHON=3.13.18 UV_PROJECT_ENVIRONMENT=/tmp/grid-i2-py313 uv run --locked pytest
+```
+
+Run the README's remaining checks in an explicitly selected environment too.
+Do not use a SQLite version number alone as production certification. The test
+source ID is an explicit fixture approval for these isolated builds. Full build
+provenance, local NVMe/fsync behavior and operational performance remain future
+gates. Overlay/tmpfs are admitted only with the explicit mock-storage flag.
+
+The internal API is `AsyncWriter.open(..., bounds, approved_sources,
+mock_storage=True)`, then `submit` with a short ledger operation. It creates,
+uses and closes its SQLite connection in one worker thread. The synchronous
+`Ledger` core exists for integration and fault tests. Neither API sends orders.
+Provide an existing owner-only directory and explicit bounds; never use an
+operator wallet path for tests. The normal CLI never invokes these APIs.
+
+Keep the exact request ID and inputs until an operation's outcome is known.
+On cancellation, lost response or an exception after commit, call `lookup(id)`.
+A found receipt means that operation committed; replaying the identical request
+returns it. It does not grant permission to resend an intent. A missing receipt
+means no commit for that request, but external uncertainty still needs I4
+reconciliation. A full queue refuses admission explicitly. Do not drop a private
+fact or invent a new request ID to work around uncertainty. No automatic retry
+loop is provided for BUSY, FULL, I/O failure or an excessive pinned-reader WAL.
+
+For the mock restore drill, call `ledger.backup(new_path)`, retain the returned
+hash/watermark, then `storage.restore(backup, separate_new_path, ...)`. Both paths
+must be new owner-only files in suitable directories. Restore uses the online
+backup API, validates integrity/foreign keys and compares the business-record
+hash before any restored owner is granted. Startup also verifies schema and
+financial projections/journal totals. A restored owner always requires explicit
+normalized reconciliation. Never erase an uncertain intent or copy only an
+active database file while ignoring WAL. A failed backup/restore artifact is
+retained for inspection and is not reported as successful; do not reuse it.
+
+Call `compact` before in-memory order/fill history reaches its configured bound.
+It keeps working-order fee evidence, live lot provenance, the current seed,
+the lowest current-round ladder price and monotonic identity/reconciliation
+counters. SQLite retains all history and deduplication keys. If these facts
+cannot fit, the system blocks rather than evicting financial evidence. The
+checkpoint result records bounded WAL progress; pinned readers must be released
+before a refused operation can be considered again.
+
+I2 introduces schema version 1 only in temporary fixtures; there is no deployed
+ledger to migrate or restore. Roll back code with normal scoped revert commits
+and the matching lock. There is no automatic downgrade or destructive migration.
+Preserve diagnostic failure artifacts outside Git when investigating a fault.

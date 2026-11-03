@@ -28,6 +28,7 @@ config.local.*
 # Financial state and research inputs/outputs never belong in this repository
 *.db
 *.db-*
+*.owner
 *.sqlite
 *.sqlite-*
 *.sqlite3

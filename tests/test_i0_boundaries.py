@@ -81,7 +81,18 @@ def test_i0_application_contains_no_exchange_or_process_execution_paths() -> Non
                     if isinstance(called, ast.Attribute)
                     else ""
                 )
-                assert name not in forbidden_calls, (source.name, node.lineno, name)
+                approved_sqlite = (
+                    source == ROOT / "src/grid/persistence/storage.py"
+                    and isinstance(called, ast.Attribute)
+                    and isinstance(called.value, ast.Name)
+                    and called.value.id == "sqlite3"
+                    and called.attr == "connect"
+                )
+                assert approved_sqlite or name not in forbidden_calls, (
+                    source.name,
+                    node.lineno,
+                    name,
+                )
 
 
 def test_gitignore_excludes_private_state_and_keeps_reviewable_inputs() -> None:

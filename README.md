@@ -1,14 +1,16 @@
 # GRID Spot CCXT
 
-**I1 pure strategy implemented. LIVE: DISABLED. No exchange order path exists.**
+**I2 local ledger implemented. LIVE: DISABLED. No exchange order path exists.**
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and a deterministic Decimal
-strategy core for a spot grid bot. I1 returns proposed limit/cancel/reconcile
-commands from synthetic metadata and normalized events. It has no executor or
-financial database and is not ready for live or sandbox trading. The owner
-explicitly authorized local validation for I1 while hosted CI is unavailable;
-see [the approved plan](docs/I1-PLAN.md) and [I1 evidence](docs/I1-EVIDENCE.md).
+strategy core for a spot grid bot. The single-owner SQLite ledger assigns
+dedicated funds, posts normalized fills and fees, and persists reservations and
+command uncertainty atomically. Tests use synthetic funds and temporary databases.
+There is no executor, exchange connection or live/sandbox trading mode. The owner
+explicitly approved I2 with local validation while hosted CI remains pending;
+see [the approved plan](docs/I2-PLAN.md), [design](docs/I2-DESIGN.md) and
+[evidence](docs/I2-EVIDENCE.md).
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
@@ -62,6 +64,15 @@ CI runs the same checks on Python 3.12 and 3.13 with read-only repository
 permissions and no live secrets. Do not equate local checks with an observed
 GitHub Actions run; actual evidence is recorded per iteration.
 
+The I2 integration tests require an approved patched linked SQLite build.
+The isolated test environments used Python **3.12.16** and **3.13.18**, both
+linking SQLite **3.53.1** with the source ID pinned in the synthetic fixture.
+An older system Python can run doctor but must refuse ledger creation. Set both
+`UV_PYTHON` and `UV_PROJECT_ENVIRONMENT` explicitly when testing another interpreter;
+see the [runbook](docs/RUNBOOK.md). An unfamiliar build fails the fixture gate;
+inspect its provenance before updating that test approval. Do not skip positive
+integration tests or weaken the runtime guard.
+
 **GitHub Free only:** no paid GitHub features, trials, runners or usage overages
 are authorized. This public repository uses standard Ubuntu runners, which
 [GitHub documents as free](https://docs.github.com/en/actions/concepts/billing-and-usage).
@@ -81,17 +92,18 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
   behavior from installed library metadata.
 - [Legacy review](docs/LEGACY_REVIEW.md) records the prior review's provenance and
   limitations; no legacy executable or dataset is imported into Git.
-- [Runbook](docs/RUNBOOK.md) covers offline checks and rollback of I0/I1.
+- [Runbook](docs/RUNBOOK.md) covers offline checks and rollback through I2.
 - [I0 evidence](docs/I0-EVIDENCE.md) records executed checks and remaining gates.
 - [I1 design](docs/I1-DESIGN.md) defines math, fee reserves, event contracts and bounds.
-- [I2 review plan](docs/I2-PLAN.md) proposes the single-owner ledger and mock
-  crash/restore tests; I2 implementation awaits separate approval.
+- [I2 approved plan](docs/I2-PLAN.md), [ledger design](docs/I2-DESIGN.md) and
+  [local evidence](docs/I2-EVIDENCE.md) cover transactions, crash tests and restore.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)
 identifies fixed releases; a matching version is only one prerequisite, not
-proof of safe storage, approved build provenance or live readiness. A ledger,
-backup/restore, controller lock and recovery tests belong to later iterations.
+proof of safe storage, approved production build provenance or live readiness.
+Mock ledger/restore tests do not certify a deployment filesystem or exchange
+reconciliation. I3 requires a separate approval.
 
 Do not put credentials, account state, local configuration, research data or
 generated reports in Git. This repository does not request exchange credentials

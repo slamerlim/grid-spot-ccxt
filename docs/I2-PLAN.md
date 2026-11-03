@@ -1,11 +1,12 @@
 # I2 review plan — single-owner ledger and crash recovery
 
-**Status: proposed; implementation not authorized yet.** I1 was authorized with
-local validation only. This plan is prepared for review under the existing
-iteration gate; it does not itself authorize I2, a database, exchange access or
-live operation. Imported specifications remain unchanged.
+**Status: approved for implementation with local validation.** The owner replied
+"Approve I2 with local validation" to the approval request for this published
+plan. Temporary mock databases and the scope below are authorized. Hosted CI
+remains pending; exchange access and live operation remain outside approval.
+Imported specifications remain unchanged.
 
-## Approval requested
+## Approved scope
 
 Approve I2's single-owner SQLite ledger, deterministic mock/fault tests and
 temporary test databases, using local validation while hosted GitHub CI remains
