@@ -9,9 +9,9 @@ record clarifications separately with evidence and approval requirements.
 
 On 2026-11-03 the owner approved `docs/I1-PLAN.md`, including its partial-seed
 rule, then explicitly selected "Proceed with local validation for I1" to
-replace the hosted-CI prerequisite for starting this iteration. Implement I1
-pure Decimal strategy code and mock-event tests; do not request the same
-approval again. I1 implementation and review have been published.
+replace the hosted-CI prerequisite for starting this iteration. I1
+pure Decimal strategy code and mock-event tests were covered by that approval.
+Do not request it again. I1 implementation and review have been published.
 
 The owner subsequently explicitly selected "Approve I2 with local validation"
 for `docs/I2-PLAN.md`. Implement the single-owner SQLite ledger, atomic funding,
@@ -21,6 +21,8 @@ remains pending, not passed. Record local checks and remaining coverage precisel
 Stop after I2 review; I3, exchange calls, credentials, live execution, deployment
 and live financial databases remain outside approval. Live remains unavailable
 under every configuration. Do not request the I2 approval again.
+I2 implementation and local evidence are recorded in `docs/I2-EVIDENCE.md`.
+`docs/I3-PLAN.md` is a concrete next review proposal, not authorization.
 
 ## Invariants for subsequent approved iterations
 

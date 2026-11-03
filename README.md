@@ -97,6 +97,8 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
 - [I1 design](docs/I1-DESIGN.md) defines math, fee reserves, event contracts and bounds.
 - [I2 approved plan](docs/I2-PLAN.md), [ledger design](docs/I2-DESIGN.md) and
   [local evidence](docs/I2-EVIDENCE.md) cover transactions, crash tests and restore.
+- [I3 proposal](docs/I3-PLAN.md) describes the next read-only adapter scope;
+  implementation and public probes await separate approval.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)

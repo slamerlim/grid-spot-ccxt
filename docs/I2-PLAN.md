@@ -1,14 +1,16 @@
 # I2 review plan — single-owner ledger and crash recovery
 
-**Status: approved for implementation with local validation.** The owner replied
+**Status: implemented and locally validated; ready for review.** The owner replied
 "Approve I2 with local validation" to the approval request for this published
 plan. Temporary mock databases and the scope below are authorized. Hosted CI
 remains pending; exchange access and live operation remain outside approval.
 Imported specifications remain unchanged.
+See `I2-DESIGN.md` and `I2-EVIDENCE.md` for the implementation, actual checks and
+remaining limitations. I3 remains separately gated.
 
 ## Approved scope
 
-Approve I2's single-owner SQLite ledger, deterministic mock/fault tests and
+The approved scope is I2's single-owner SQLite ledger, deterministic mock/fault tests and
 temporary test databases, using local validation while hosted GitHub CI remains
 pending. Retain GitHub Free only and `[skip ci]` while the known account lock is
 unchanged. Stop after the I2 evidence/review handoff; I3 and later work remain
