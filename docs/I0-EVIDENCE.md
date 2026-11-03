@@ -192,7 +192,10 @@ instructions to pay or upgrade.
 Recommendation: **GitHub publication is verified and local I0 checks pass;
 HOLD the full I0 release gate until hosted CI executes successfully.** On
 2026-11-03 the owner explicitly approved `I1-PLAN.md`, including its sellable
-partial-seed anchoring rule, conditional on I0 hosted CI passing. I1 remains
-unimplemented until that condition is verified; approval need not be requested
-again. Live and sandbox trading remain outside this run under every
-configuration.
+partial-seed anchoring rule, initially conditional on I0 hosted CI passing.
+The owner subsequently selected **"Proceed with local validation for I1"**,
+explicitly replacing that start prerequisite. This leaves the I0 hosted gate
+pending and authorizes only I1 pure strategy/mock tests. See `I1-EVIDENCE.md`
+for the implementation and local results. Live and sandbox trading remain
+outside this run under every configuration. Earlier statements in this evidence
+file describe the historical I0 snapshot.

@@ -1,12 +1,14 @@
 # GRID Spot CCXT
 
-**I0 bootstrap only. LIVE: DISABLED. No trading engine or exchange order path exists.**
+**I1 pure strategy implemented. LIVE: DISABLED. No exchange order path exists.**
 
 This repository establishes the specification, reproducible Python environment,
-strict safe configuration, offline diagnostics and CI for a spot grid bot. It is
-not ready for live or sandbox trading. The owner approved I1 conditional on
-successful I0 hosted CI; see [the I1 plan](docs/I1-PLAN.md). I1 implementation
-remains pending that condition.
+strict safe configuration, offline diagnostics and a deterministic Decimal
+strategy core for a spot grid bot. I1 returns proposed limit/cancel/reconcile
+commands from synthetic metadata and normalized events. It has no executor or
+financial database and is not ready for live or sandbox trading. The owner
+explicitly authorized local validation for I1 while hosted CI is unavailable;
+see [the approved plan](docs/I1-PLAN.md) and [I1 evidence](docs/I1-EVIDENCE.md).
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
@@ -73,13 +75,15 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
 - [PRD v2](docs/PRD_GRID_SPOT_CCXT_FINAL_v2.md),
   [storage ADR](docs/ADR-0001-NVMe-Storage-and-Caching.md), and
   [acceptance gates](docs/ITERATIONS_AND_ACCEPTANCE_FINAL.md) are imported unchanged.
-- [Requirements trace](docs/I0-REQUIREMENTS-TRACE.md) maps future functionality to tests.
+- [I0 requirements trace](docs/I0-REQUIREMENTS-TRACE.md) records the original mapping;
+  [I1 evidence](docs/I1-EVIDENCE.md) maps the implemented pure-domain checks.
 - [Exchange capability plan](docs/EXCHANGE_CAPABILITIES.md) distinguishes untested
   behavior from installed library metadata.
 - [Legacy review](docs/LEGACY_REVIEW.md) records the prior review's provenance and
   limitations; no legacy executable or dataset is imported into Git.
-- [Runbook](docs/RUNBOOK.md) covers safe operation and rollback of I0.
+- [Runbook](docs/RUNBOOK.md) covers offline checks and rollback of I0/I1.
 - [I0 evidence](docs/I0-EVIDENCE.md) records executed checks and remaining gates.
+- [I1 design](docs/I1-DESIGN.md) defines math, fee reserves, event contracts and bounds.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)

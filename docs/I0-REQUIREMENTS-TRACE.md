@@ -1,7 +1,9 @@
 # I0 requirements trace
 
 The four imported specifications remain unchanged. This trace records their
-implementation destinations; it does not replace them. I0 supplies packaging,
+original I0 implementation destinations; it does not replace them. Current I1
+implementation and partial gate coverage are recorded in `I1-EVIDENCE.md`.
+The statements below describe the historical I0 snapshot. I0 supplies packaging,
 strict configuration, offline diagnostics, tests and CI only. I1–I9 remain
 unimplemented and require their stated approval gates. Every Q01–Q20 test below
 is **NOT IMPLEMENTED / NOT RUN** in I0; scaffold tests are not substitutes.
@@ -125,6 +127,7 @@ runtime for every deployment interpreter; a CLI `sqlite3` version is insufficien
    the previous chat audit, not a fabricated verbatim attachment or a fresh
    data certification.
 
-None of these observations changes the imported specifications or authorizes
-I1 execution. The partial-seed policy requires a concrete decision during I1
-plan review. All future financial behavior remains unimplemented in I0.
+These observations did not themselves authorize I1 or change the imported
+specifications. The owner subsequently approved the partial-seed rule in
+`I1-PLAN.md` and explicitly authorized local validation for I1. The current
+implementation evidence is separate from this historical I0 trace.

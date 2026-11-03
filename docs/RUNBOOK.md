@@ -1,8 +1,9 @@
-# I0 developer runbook
+# I0/I1 developer runbook
 
-I0 provides an offline configuration/diagnostic CLI and reproducible development
-checks. It has no daemon, strategy, exchange client, database or live path. This
-is not a production operating runbook. No exchange credentials are needed.
+I0 provides an offline configuration/diagnostic CLI; I1 adds pure strategy
+functions and mock-event tests. There is no daemon, exchange client, database
+or live path. This is not a production operating runbook. No exchange credentials
+are needed. See `I1-DESIGN.md` for the proposed-command boundary.
 
 ## Install and diagnose
 
@@ -55,8 +56,9 @@ sample config, imported text specifications and lockfile tracked.
 
 The application/test checks run without exchange credentials or exchange
 networking. Synthetic configuration fixtures and mocked metadata must be clearly
-distinguished from observed venue behavior. All Q01–Q20 financial/execution gates
-remain future work; see the trace and capability registry.
+distinguished from observed venue behavior. I1 covers parts of Q01–Q11 and Q17
+in pure domain tests; it does not pass the complete financial/execution gates.
+See `I1-EVIDENCE.md`, the trace and the capability registry.
 
 ## Diagnostic findings and failures
 
@@ -108,8 +110,10 @@ While the lock is unchanged, include the documented
 in the commit message for necessary pushes, after confirming all workflows use
 only the supported `push`/`pull_request` events. This avoids another hosted
 attempt; it does not satisfy CI or authorize bypassing a release gate.
-The owner's existing I1 approval is still conditional on a successful I0 CI
-run; a skipped/private job or local test run does not satisfy that condition.
+The owner explicitly replaced I1's earlier hosted-CI prerequisite by selecting
+"Proceed with local validation for I1". This permits the I1 scope only. Hosted
+CI remains pending, and the original I0 hosted acceptance gate is not reported
+as passed. A skipped/private job is not a CI pass.
 
 ## GitHub publishing from this workspace
 
@@ -181,9 +185,14 @@ matching locked environment using `uv sync --locked --dev`. Preserve unrelated
 work and the immutable legacy/data paths. No database restore, asset liquidation,
 remote reset or secret rotation is part of I0 rollback.
 
-The owner approved `I1-PLAN.md` and its partial-seed anchor decision on
-2026-11-03, conditional on I0 hosted CI passing. Verify and record that passing
-workflow run and commit before implementing I1; do not ask for the same approval
-again. Future operational commands, systemd hardening, backup/restore
-drills, alerts and live arming belong to their later accepted iterations; none
-can be exercised through this I0 CLI.
+The owner approved `I1-PLAN.md` and its partial-seed anchor decision, then
+explicitly authorized local validation for I1 despite the hosted account lock.
+I1 is ready for review after its recorded local checks. Stop at this boundary:
+I2 requires separate authorization. Future operational commands, systemd
+hardening, backup/restore drills, alerts and live arming belong to later accepted
+iterations; none can be exercised through this CLI.
+
+I1 adds no migration or external side effect. To roll it back, revert its scoped
+implementation and documentation commits on a branch, then run `uv sync --locked`
+and the I0 checks. Retain the GitHub Free preference and the approval history;
+do not reset published history or change the imported specifications.
