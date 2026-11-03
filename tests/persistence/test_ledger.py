@@ -458,3 +458,46 @@ def test_recovery_rejects_corrupted_fee_and_journal_evidence(
     funded.close()
     with pytest.raises(LedgerError, match=message):
         Ledger(path, bounds, SOURCES, mock_storage=True)
+
+
+@pytest.mark.parametrize("page_size", [1, 2])
+def test_restart_reconciles_multiple_allocations_without_pinning_reader(
+    ledger: Ledger,
+    state: State,
+    context: Context,
+    bounds: Bounds,
+    page_size: int,
+) -> None:
+    ledger.credit("fund-all", state.scope.venue, state.scope.account, Money("QUOTE", D(3000)))
+    scopes = []
+    for index, base in enumerate(("BASE", "OTHER", "THIRD")):
+        scope = replace(state.scope, allocation=f"allocation-{index}", symbol=f"{base}/QUOTE")
+        scoped_context = replace(
+            context, market=replace(context.market, symbol=scope.symbol, base=base)
+        )
+        ledger.start(f"seed-{index}", scope, (Money("QUOTE", D(1000)),), scoped_context)
+        scopes.append(scope)
+    before = {scope: ledger.snapshot(scope) for scope in scopes}
+    path = ledger.storage.path
+    ledger.close()
+
+    recovered = Ledger(path, replace(bounds, read_rows=page_size), SOURCES, mock_storage=True)
+    try:
+        for scope in scopes:
+            snapshot = recovered.snapshot(scope)
+            restored = current(snapshot)
+            assert restored.quote_cash == current(before[scope]).quote_cash == 1000
+            assert restored.orders == current(before[scope]).orders
+            assert reserved(restored, "QUOTE") == 100
+            assert restored.reconcile_reason == "ledger owner recovery"
+            assert version(snapshot) == version(before[scope]) + 1
+            assert recovered.db.execute(
+                "SELECT recovery FROM allocations WHERE id=?", (codec.digest(scope),)
+            ).fetchone() == (1,)
+        assert recovered.db.execute(
+            "SELECT count(*) FROM intents WHERE kind='reconcile' AND status='queued'"
+        ).fetchone() == (3,)
+        assert recovered.pool(state.scope.venue, state.scope.account, "QUOTE") == 0
+        recovered.storage.checkpoint()
+    finally:
+        recovered.close()

@@ -93,6 +93,10 @@ projections, and exact journal totals against owned funds. Corruption refuses
 the ledger. Normalized `Reconciled` facts must match current revisions and resolve
 unknown order evidence; startup does not produce them on the caller's behalf.
 
+Recovery enumerates allocation IDs with bounded keyset pages (`read_rows`). Each
+SELECT finishes before a recovery write or WAL checkpoint starts on that same
+connection. An open multi-row reader must not pin the writer's own checkpoint.
+
 No queue, transaction or storage failure is silently retried. Queue overflow is
 an explicit admission refusal; the future intake/controller must retain the
 fact and pause exposure. BUSY/FULL/I/O errors propagate. A caller must check its

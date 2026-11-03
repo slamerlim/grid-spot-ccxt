@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -127,8 +127,7 @@ class Ledger:
                 ):
                     raise LedgerError("unassigned funds journal differs from pool")
             # Bounded streaming validation; history is not hydrated into one giant state.
-            cursor = self.db.execute("SELECT id FROM allocations ORDER BY id")
-            for (allocation,) in cursor:
+            for allocation in self._allocation_ids():
                 state, context, version, recovery = self._load(allocation)
                 self._verify_projection(allocation, state, context)
                 if recovery and state.reconcile_reason is None:
@@ -162,6 +161,17 @@ class Ledger:
         except BaseException:
             self.storage.close()
             raise
+
+    def _allocation_ids(self) -> Iterator[str]:
+        """Finish each bounded SELECT before recovery writes/checkpoints on this connection."""
+        after = ""
+        while rows := self.db.execute(
+            "SELECT id FROM allocations WHERE id>? ORDER BY id LIMIT ?",
+            (after, self.bounds.read_rows),
+        ).fetchall():
+            for (allocation,) in rows:
+                yield allocation
+            after = rows[-1][0]
 
     def _text(self, value: object) -> str:
         return codec.dumps(value, limit=self.bounds.snapshot_bytes)
