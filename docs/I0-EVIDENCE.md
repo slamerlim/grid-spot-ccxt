@@ -101,6 +101,12 @@ there is no financial state, simulated fill engine or order path yet.
 
 ## Publication, rollback and next gate
 
+### Initial publication attempt (historical)
+
+The following records the initial HTTPS attempt before SSH access was
+configured. The successful publication update below supersedes its access
+status; the original failure remains part of the evidence.
+
 Implementation commit: `51f1fad9f2a5210fdeaf5f58623759e68198ff8d`
 (`chore(i0): bootstrap the specified offline CCXT grid project`). A subsequent
 documentation-only commit records the publication result below; `git log -2`
@@ -136,7 +142,40 @@ Rollback is a reviewed `git revert` of the scoped I0 commit(s), followed by
 `uv sync --locked`; no database migration or order cancellation is involved.
 Preserve existing legacy/data files and unrelated work.
 
-Recommendation: **local I0 checks pass; HOLD the full I0 release gate until
-publication and hosted CI are verified.** I1 remains a plan only until explicit
-user approval, including a decision on sellable partial-seed anchoring. Live and
-sandbox trading remain outside this run under every configuration.
+### SSH access and publication verified
+
+On 2026-11-03, the owner authorized a repository-specific SSH deploy key with
+write access for agents in this workspace. The private key is stored outside
+Git with mode `0600`; repository-local configuration selects it and pins
+GitHub's officially published Ed25519 host key. `AGENTS.md` and the runbook
+describe the same-host, same-OS-account scope and ordinary publishing commands.
+The default author for subsequent commits is
+`GRID Automation <grid-automation@localhost>`.
+
+Observed results:
+
+- SSH authenticated as `slamerlim/grid-spot-ccxt`.
+- `git push --dry-run origin HEAD` succeeded.
+- `git push --set-upstream origin HEAD` created
+  `refs/heads/i0/specification-bootstrap` and configured its upstream.
+- `git ls-remote` confirmed that the remote branch matched local commit
+  `45671b2d9bafedd593fcc33a9e3f0fb03288354f`, including the original I0 commits.
+- GitHub reported `i0/specification-bootstrap` as the repository's default
+  branch after this first push. No force push or history rewrite was used.
+- Local checks were repeated: lockfile consistency, Ruff lint/format, mypy,
+  **104 tests on Python 3.12.3**, Bandit, tracked-file secret scan, dependency
+  audit and package build all passed. This repeat did not rerun Python 3.13;
+  the earlier Python 3.13 evidence above remains historical.
+
+The resulting [hosted I0 workflow](https://github.com/slamerlim/grid-spot-ccxt/actions/runs/41713360115)
+reported failure for both matrix jobs before any steps ran. Both job annotations
+state: **"The job was not started because your account is locked due to a
+billing issue."** This is a GitHub account blocker, not an executed test failure.
+No hosted test pass is claimed. The owner must resolve the GitHub billing lock
+before a new push or an authorized workflow rerun can validate hosted CI.
+
+Recommendation: **GitHub publication is verified and local I0 checks pass;
+HOLD the full I0 release gate until hosted CI executes successfully.** I1
+remains a plan only until explicit user approval, including a decision on
+sellable partial-seed anchoring. Live and sandbox trading remain outside this
+run under every configuration.
