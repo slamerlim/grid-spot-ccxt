@@ -5,7 +5,7 @@ under `docs/` before editing. They are authoritative over the legacy simulator.
 User instructions take precedence. Preserve imported specifications verbatim;
 record clarifications separately with evidence and approval requirements.
 
-## Current boundary: I2 with local validation
+## Current boundary: I3 with local validation
 
 On 2026-11-03 the owner approved `docs/I1-PLAN.md`, including its partial-seed
 rule, then explicitly selected "Proceed with local validation for I1" to
@@ -18,11 +18,19 @@ for `docs/I2-PLAN.md`. Implement the single-owner SQLite ledger, atomic funding,
 reservations/fill posting and mock crash/backup/restore tests using temporary
 databases. This approval replaces the hosted-CI prerequisite for I2. Hosted CI
 remains pending, not passed. Record local checks and remaining coverage precisely.
-Stop after I2 review; I3, exchange calls, credentials, live execution, deployment
-and live financial databases remain outside approval. Live remains unavailable
-under every configuration. Do not request the I2 approval again.
+I2 is implemented and reviewed. Do not request the I2 approval again.
 I2 implementation and local evidence are recorded in `docs/I2-EVIDENCE.md`.
-`docs/I3-PLAN.md` is a concrete next review proposal, not authorization.
+
+On 2026-11-04 the owner explicitly selected "Approve I3 with local validation"
+for `docs/I3-PLAN.md`. Implement read-only CCXT adapters, mock tests and bounded
+public market/order-book probes on the seven target venues. This supersedes the
+previous stop-after-I2 gate. Do not request I3 approval again. Authenticated
+probes require separately authorized account access; do not discover credentials.
+Stop after I3 review. I4, orders, cancellations, transfers, deployment and live
+financial databases remain outside approval. Live remains unavailable under
+every configuration. Hosted CI remains pending; use local validation only.
+I3 implementation, validation and the bounded public pass are recorded in
+`docs/I3-EVIDENCE.md`. `docs/I4-PLAN.md` is the next review proposal, not approval.
 
 ## Invariants for subsequent approved iterations
 
@@ -64,7 +72,7 @@ message does not establish that an upgrade or payment is needed. Do not retry
 a known lock without evidence of changed access; report local checks separately
 and use free support/account review when needed. While the lock is unchanged,
 use the documented `[skip ci]` commit directive for necessary authorized pushes
-so publication does not retry it. A skipped run is not a CI pass. Use the I2
+so publication does not retry it. A skipped run is not a CI pass. Use the I3
 local-validation authorization above. See `docs/RUNBOOK.md` for sources and recovery
 guidance.
 
@@ -72,7 +80,7 @@ guidance.
 
 The user authorized reusable GitHub access and ordinary commits/pushes for work
 within an approved task. Git access alone does not authorize new iterations or
-live trading; the I2 authorization is recorded above. Use the
+live trading; the I3 authorization is recorded above. Use the
 existing `origin` for `slamerlim/grid-spot-ccxt`; do not force-push or rewrite
 published history as part of routine development.
 

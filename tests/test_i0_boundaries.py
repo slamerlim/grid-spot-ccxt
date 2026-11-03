@@ -28,7 +28,7 @@ def test_imported_specifications_match_recorded_source_hashes() -> None:
         assert hashlib.sha256(source.read_bytes()).hexdigest() == entry["sha256"]
 
 
-def test_i0_application_contains_no_exchange_or_process_execution_paths() -> None:
+def test_application_limits_network_imports_and_has_no_exchange_writes() -> None:
     """Guard this increment's scope; static inspection is not full effect analysis."""
     forbidden_modules = {
         "aiohttp",
@@ -68,6 +68,11 @@ def test_i0_application_contains_no_exchange_or_process_execution_paths() -> Non
             elif isinstance(node, ast.ImportFrom):
                 imports = [node.module or ""]
             for name in imports:
+                if source == ROOT / "src/grid/exchange/ccxt_transport.py" and name in {
+                    "aiohttp",
+                    "ccxt.pro",
+                }:
+                    continue
                 assert not any(
                     name == forbidden or name.startswith(f"{forbidden}.")
                     for forbidden in forbidden_modules

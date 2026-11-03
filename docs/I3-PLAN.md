@@ -1,8 +1,11 @@
 # I3 review proposal — read-only CCXT venue discovery
 
-**Status: proposed, not authorized.** I2 approval ends at its review handoff.
-This proposal does not authorize a network probe, credential access or order.
+**Status: approved with local validation on 2026-11-04.** The owner explicitly
+selected "Approve I3 with local validation", including bounded public probes.
+Credential access and orders remain outside this approval.
 Hosted CI remains pending; retain local validation and GitHub Free only.
+Implementation and actual local/public evidence are recorded in `I3-EVIDENCE.md`;
+remaining venue/account gaps are explicit in `EXCHANGE_CAPABILITIES.md`.
 
 ## Proposed authorization
 

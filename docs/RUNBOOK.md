@@ -1,10 +1,36 @@
-# I0–I2 developer runbook
+# I0–I3 developer runbook
 
 I0 provides an offline configuration/diagnostic CLI; I1 adds pure strategy
 functions and mock-event tests. I2 adds a single-owner ledger tested only with
-temporary synthetic databases. There is no daemon, exchange client or live path.
+temporary synthetic databases. I3 adds an explicitly invoked public CCXT client;
+there is no daemon, authenticated client or live path.
 This is not a production operating runbook. No exchange credentials are needed.
 See `I1-DESIGN.md` and `I2-DESIGN.md` for the command and persistence contracts.
+
+## Explicit public discovery
+
+The approved I3 pass is complete; do not run it automatically as a check, retry,
+daemon or CI job. Within a separately authorized bounded discovery session, the
+reproduction command is:
+
+```sh
+uv run --locked python -m grid.exchange.probe --public
+```
+
+It selects BTC/USDT only, at most two public GET attempts on each of seven venues,
+with finite time/response/depth budgets and no retries. It creates no database,
+loads no credentials and supports no private/write method. Normal `gridctl doctor`
+and pytest remain offline. Keep generated probe reports outside Git; publish
+curated, sanitized findings in the capability/evidence documents.
+
+Inspect per-venue statuses, not just process exit zero: a completed evidence
+report can contain rejected or unavailable observations. XT's first public book
+was rejected; its precise cause is unresolved. Do not rerun to turn it green.
+Account-specific authentication and fee/event semantics remain NOT_TESTED.
+
+I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
+database or external order requires rollback. Preserve the GitHub Free preference
+and approval history. `I4-PLAN.md` is the next authorization gate.
 
 ## Install and diagnose
 
@@ -113,7 +139,8 @@ only the supported `push`/`pull_request` events. This avoids another hosted
 attempt; it does not satisfy CI or authorize bypassing a release gate.
 The owner explicitly replaced I1's earlier hosted-CI prerequisite by selecting
 "Proceed with local validation for I1", then explicitly selected "Approve I2
-with local validation" for the published I2 plan. Hosted CI remains pending,
+with local validation" for the published I2 plan and "Approve I3 with local
+validation" for the public read-only I3 plan. Hosted CI remains pending,
 and the original I0 hosted acceptance gate is not reported
 as passed. A skipped/private job is not a CI pass.
 
@@ -190,8 +217,9 @@ remote reset or secret rotation is part of I0 rollback.
 The owner approved `I1-PLAN.md` and its partial-seed anchor decision, then
 explicitly authorized local validation for I1 despite the hosted account lock.
 I1 was published and I2 subsequently approved with local validation. I2's mock
-ledger/restore work is covered by that approval. Stop after I2 review: I3 requires
-separate authorization. Operational commands, systemd hardening, deployment
+ledger/restore work is covered by that approval. I3 was subsequently explicitly
+approved with local validation and bounded public probes. Stop after I3 review:
+I4 requires separate authorization. Operational commands, systemd hardening, deployment
 storage drills, alerts and live arming belong to later accepted iterations;
 none can be exercised through this CLI.
 

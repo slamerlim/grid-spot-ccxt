@@ -1,10 +1,95 @@
 # Exchange capability registry and I3 probe procedure
 
-I0 makes no exchange network calls and uses no trading credentials. No venue
-behavior below has been tested. A package import or advertised CCXT `has` flag
-is not an observed venue/account capability. The reproducible package version
-is recorded in `uv.lock` and the iteration evidence; every future probe must
-also record its installed distribution version and upstream source identity.
+Current evidence is the approved I3 public pass below. The I0 table is retained
+as historical evidence. A package import or advertised CCXT `has` flag is not
+an observed venue/account capability. All authenticated and trading behavior
+remains NOT_TESTED; every venue remains NOT_READY.
+
+## I3 observed public pass
+
+One serial pass, **2026-11-03 22:23:12–22:23:20 UTC** (2026-11-04 locally),
+Python 3.12.16, official CCXT **4.5.91**, selected unified symbol **BTC/USDT**.
+Exactly **14 HTTP GET attempts**, all HTTP 200, no retry, credentials or WS.
+Each client was reused for metadata/book and explicitly closed. Detailed bounds,
+source identity and reproducibility are in `I3-DESIGN.md` / `I3-EVIDENCE.md`.
+
+| Venue | Raw market ID | Metadata | Book validation | Spot account/options | Private reads / WS | Trading readiness |
+| --- | --- | --- | --- | --- | --- | --- |
+| OKX | BTC-USDT | OBSERVED | OBSERVED, 20/20 levels | Public spot profile; account UNKNOWN | NOT_TESTED | NOT_READY |
+| HTX | btcusdt | OBSERVED | OBSERVED, 20/20 | Public spot profile; account UNKNOWN | NOT_TESTED | NOT_READY |
+| Gate | BTC_USDT | OBSERVED | OBSERVED, 20/20 | Public spot profile; account UNKNOWN | NOT_TESTED | NOT_READY |
+| XT | btc_usdt | OBSERVED | REJECTED: MALFORMED | Public spot profile; account UNKNOWN | NOT_TESTED | NOT_READY |
+| BingX | BTC-USDT | OBSERVED | OBSERVED, 20/20 | Public spot profile; account UNKNOWN | NOT_TESTED | NOT_READY |
+| KuCoin | BTC-USDT | OBSERVED | OBSERVED, 20/20 | Classic public spot profile; account/UTA UNKNOWN | NOT_TESTED | NOT_READY |
+| Bitfinex | tBTCUST | OBSERVED | OBSERVED, 25/25 P0; source timestamp UNKNOWN | Public spot profile; exchange account UNKNOWN | NOT_TESTED | NOT_READY |
+
+OBSERVED means this individual response passed the stated public checks. It does
+not establish account eligibility, sustained availability, freshness under an
+operator policy, executable minimum-lot depth, complete rules or correct fees.
+XT returned HTTP 200 and parsed metadata, but its book failed normalized validation.
+The sanitized run did not retain the rejected raw book or detailed shape, so its
+precise cause is **not established**. Do not silently truncate it or label it a
+venue outage. Further targeted diagnostics need a new explicit bounded probe
+scope; no additional request was made during this pass.
+
+### Public rule observations
+
+These are the selected fields surfaced by pinned CCXT, not complete verified
+trading rules. `?` means unknown, including missing maxima. Fees are unverified
+CCXT estimates and may be library defaults; none is an actual account fee source.
+
+| Venue | Price precision | Amount precision | Generic amount min / max | Generic cost min / max | Maker / taker estimate |
+| --- | --- | --- | --- | --- | --- |
+| OKX | tick 0.1 | tick 1e-8 | 0.00001 / 9999999999 | ? / 1000000 | ? / ? |
+| HTX | tick 0.01 | tick 0.000001 | 0.00001 / 1000 | 1 / ? | .002 / .002, hardcoded |
+| Gate | tick 0.1 | tick 0.000001 | 0.000001 / ? | 3 / ? | .002 / .002, unverified |
+| XT | tick 0.01 | tick 0.00001 | ? / ? | 1 / ? | .002 / .002, unverified |
+| BingX | tick 0.01 | tick 0.000001 | ? / ? | .5 / 7588825.16352942 | .001 / .001, library default |
+| KuCoin | tick 0.1 | tick 1e-8 | 0.00001 / 10000000000 | .1 / 99999999 | ? / ? |
+| Bitfinex | 5 significant digits AND at most 8 decimals | 8 decimal places | .00004 / 2000 | ? / ? | ? / ? |
+
+Bitfinex's precision row includes a **post-probe correction from installed source
+and offline formatter tests**: its amount formatter overrides the global
+significant-digit mode. Its compound price constraint is not representable by
+the I1 Precision type, so strategy conversion is blocked. The raw/unified quote
+mapping UST → USDT is retained. See the official
+[Bitfinex precision rules](https://docs.bitfinex.com/docs/introduction#price-precision).
+HTX's additional side-specific LIMIT fields are projected by the final mapper
+and mock-tested; the public pass above reports only its captured generic fields.
+XT offset/protection filters and other venue-specific price bands remain review
+gaps. No invented zero minimum, unbounded maximum or fee currency fills these gaps.
+
+### Request evidence and budgets
+
+The actual endpoint paths/query-key allowlist is in `ccxt_transport.py`. Markets
+use `load_markets` with spot-only adaptations; books use `fetch_order_book` with
+20 levels (Bitfinex: 25/P0). No pagination. The small total-attempt cap and one-second
+minimum interval apply in addition to CCXT's limiter. Costs below were inspected
+with the pinned SDK and synthetic responses; they are **library cost units**,
+not independently observed venue/account quota allowances.
+
+| Venue | Market/book CCXT costs | Base interval ms | Catalog rows received → retained | Response bytes market / book | Elapsed ms market / book |
+| --- | --- | --- | --- | --- | --- |
+| OKX | 1 / .5 | 110 | 1 → 1 | 1083 / 1364 | 33 / 905 |
+| HTX | 1 / 1 | 100 | 2175 → 1 | 1459898 / 910 | 113 / 796 |
+| Gate | 1 / 1 | 50 | 1 → 1 | 514 / 951 | 68 / 888 |
+| XT | 1 / 10 | 100 | 1 → 1 | 1409 / 4736 | 154 / 825 |
+| BingX | 1 / 1 | 100 | 1 → 1 | 356 / 1071 | 99 / 884 |
+| KuCoin | 4 / 4 | 7.5 | 978 → 1 | 699357 / 1080 | 86 / 901 |
+| Bitfinex | 2.7 / 1 | 250 | 194 → 1 | 17615 / 1047 | 26 / 548 |
+
+Elapsed values include the application's minimum-interval wait, not just network
+latency. HTX/KuCoin/Bitfinex returned bounded spot catalogs; only one selected row
+entered the market cache. BingX adds a public `timestamp` query field to both
+requests; the original report omitted that key from its parameter-name summary,
+which the final recorder corrects. No query value is printed in diagnostics.
+
+All seven installed classes advertise fetchMarkets, fetchOrderBook, fetchBalance,
+fetchOpenOrders, fetchMyTrades, watchOrders and watchMyTrades. fetchTradingFee is
+advertised for six and false for Bitfinex. This is **advertised only**, including
+XT private WS. No authenticated read, subscription, fill replay or account fee
+lookup was performed. The intended bounded REST recovery policy is documented
+in `I3-DESIGN.md`; its private runtime and fault supervision belong to I4.
 
 ## I0 baseline
 

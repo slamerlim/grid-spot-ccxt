@@ -41,7 +41,7 @@ class DoctorReport:
     def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": 1,
-            "iteration": "I2",
+            "iteration": "I3",
             "mode": "offline",
             "live": "DISABLED",
             "ready": self.ready,
@@ -56,7 +56,7 @@ class DoctorReport:
 
     def to_text(self) -> str:
         lines = [
-            "GRID doctor — I2 offline diagnostics",
+            "GRID doctor — I3 offline diagnostics",
             "LIVE: DISABLED",
             "Live readiness: BLOCKED",
             f"Python: {self.python_version}",
@@ -85,7 +85,9 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
     missing = config.missing_prerequisites()
     checks = (
         Check(
-            "offline_boundary", "BLOCKED", "I2 ledger is mock-tested; no trading runtime exists."
+            "offline_boundary",
+            "BLOCKED",
+            "I3 read-only discovery exists; no trading runtime exists.",
         ),
         Check(
             "live_request",
@@ -104,7 +106,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "ccxt_metadata",
             "PASS" if ccxt_version else "BLOCKED",
-            "Installed distribution metadata found; exchange functionality is untested."
+            "Installed distribution metadata found; this diagnostic performs no venue probe."
             if ccxt_version
             else "The pinned CCXT distribution is not installed.",
         ),
@@ -162,7 +164,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "operator_signoff",
             "BLOCKED",
-            "I2 local validation is authorized; I3 onward and live canary need separate approval.",
+            "I3 local validation is authorized; I4 onward and live canary need separate approval.",
         ),
     )
     return DoctorReport(
