@@ -30,13 +30,32 @@ async def main() -> None:
         lambda: (10000, 10000000000),
         case.prepare,
     )
-    liquidation = data.get("action") == "limit-liquidate"
+    releasing = data.get("action") == "resume-allocation"
+    liquidation = data.get("action") in ("limit-liquidate", "allocation-exit") or releasing
+    exit_action = (
+        Action.LIQUIDATE_ALLOCATION
+        if data.get("action") == "allocation-exit"
+        else Action.LIMIT_LIQUIDATE
+    )
     approval = None
     if liquidation:
         await owner.observe(case.facts(10000, 1))
         await owner.step()
         await owner.portfolio.begin("cycle", 0, "cycle", case.portfolio, "tester", "fixture")
         approval = ExitApproval("cycle", codec.digest(case.portfolio))
+    if releasing:
+        await owner.control(
+            "scoped",
+            1,
+            Command(
+                Action.LIQUIDATE_ALLOCATION, case.scopes, "tester", "exit fixture", 10000, True
+            ),
+            exit_approval=approval,
+        )
+        assert await owner.executor.service(case.scopes[0], owner.contexts[case.scopes[0]])
+        cycle = await owner.portfolio.status()
+        assert cycle is not None
+        await owner.portfolio.advance("complete", cycle.revision, "tester", "zero fixture")
 
     def install(ledger: Ledger) -> None:
         def crash(stage: str) -> None:
@@ -47,17 +66,17 @@ async def main() -> None:
 
     await owner.writer.submit(install)
     await owner.control(
-        "liquidate" if liquidation else "cancel",
-        1,
+        "release" if releasing else "liquidate" if liquidation else "cancel",
+        2 if releasing else 1,
         Command(
-            Action.LIMIT_LIQUIDATE if liquidation else Action.CANCEL_BUYS,
+            Action.RESUME if releasing else exit_action if liquidation else Action.CANCEL_BUYS,
             case.scopes,
             "tester",
             "crash fixture",
             10000,
             liquidation,
         ),
-        exit_approval=approval,
+        exit_approval=None if releasing else approval,
     )
     raise RuntimeError("crash boundary not reached")
 

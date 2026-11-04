@@ -20,7 +20,7 @@ loader, remote listener, service installation or live arming path is added.
 | `retire` | Retire selected allocations while retaining supervision of orders/inventory |
 | `resume` | Explicit reviewed resume, subject to existing fresh-evidence/recovery guards |
 | `halt` | Emergency admission halt; full supervised roster required |
-| `limit-liquidate` | Reviewed full-cycle manual LIMIT exit under the current exit policy |
+| `limit-liquidate` | Reviewed LIMIT exit: `--all` for the whole cycle, explicit allocation IDs for scoped exits |
 
 Mutations require the current **operational** revision, a printable reason up to
 128 characters, explicit `--all` or `--allocation ID` targets, and a new private
@@ -45,10 +45,11 @@ Responses include current revision/halt state alongside historical receipts so
 replaying an old resume cannot be mistaken for clearing a subsequent halt.
 
 Manual liquidation additionally requires `--cycle` and `--policy-sha256` from
-status and accepts only the full roster. It records an operator cause without
-claiming the +10% threshold was met, preserves existing halts/holds, and reuses
-bounded LIMIT exit supervision. See `I8-MANUAL-EXIT.md` for transaction boundaries,
-record compatibility, confirmation, preflight refusals and remaining scope.
+status. `--all` records a global operator cause without claiming +10% was met;
+explicit allocation IDs retain an active portfolio and record scoped approvals.
+Both preserve existing halts/holds and reuse bounded LIMIT exit supervision.
+See `I8-MANUAL-EXIT.md` and `I8-ALLOCATION-EXIT.md` for transaction boundaries,
+global handoff, record compatibility, confirmation, preflight and remaining scope.
 
 Exit codes: 0 for a successful view or committed/replayed command; 2 for refusal
 or an unknown outcome; 3 for confirmation required; 130 for keyboard interruption.
@@ -118,7 +119,7 @@ session, not editing the journal marker or bypassing the resume guard.
 
 ## Remaining work and rollback
 
-This is not completion of PRD section 10. Per-allocation manual liquidation,
+This is not completion of PRD section 10. Scoped dust completion,
 audited hot configuration CLI, owner-mediated backup and
 restore verification commands, and unified research/storage command aliases remain
 to implement. Existing research and backup APIs are still available only through

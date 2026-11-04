@@ -619,9 +619,12 @@ the exact command with `--confirm`. A first invocation already containing
 `--confirm` is refused. Routine NAV sampling does not invalidate the approved
 policy; a changed policy or cycle does. A stale operational revision is a conflict.
 
-This command requests exit of the entire registered portfolio cycle, including
-draining allocations and its explicit pools. Partial selections are refused;
-they never expand into an account-wide liquidation. Existing halts and held
+With `--all`, this command requests exit of the entire registered portfolio
+cycle, including draining allocations and its explicit pools. Replacing `--all`
+with one or more `--allocation ID` selectors requests only those allocations'
+principal inventory exits. Explicit selectors retain this meaning even when
+they happen to cover the full roster or the roster contains only one allocation.
+Existing halts and held
 scopes remain in effect; a separate reviewed resume may be required for exit
 sends. Missing/stale valuations or unknown ownership can refuse the request:
 inspect status and use the distinct pause/cancel/reconcile controls as needed.
@@ -636,5 +639,23 @@ explicit exact repeat retrieves the same receipt without starting a second exit.
 
 The additive manual snapshot cannot be interpreted by older runtimes. Preserve
 the ledger and use a compatible reader; never remove manual audit records to
-make a downgrade appear valid. See `I8-MANUAL-EXIT.md` for compatibility tests,
-rollback scope and the still-unfinished per-allocation/configuration interfaces.
+make a downgrade appear valid. See `I8-MANUAL-EXIT.md` and `I8-ALLOCATION-EXIT.md`
+for compatibility, rollback and validation evidence.
+
+For scoped exits, inspect `data.cycle.allocation_exits`: each entry records its
+approval, actor/reason, phase, timestamps and order slot. The global cycle stays
+`active`; its global cause/target/final fields do not report scoped completion.
+Exit proceeds and fee balances remain in their original allocation. Completion
+requires zero base and no outstanding orders or reconciliation. Nonzero residuals
+remain `exit_blocked`, including dust; this increment does not write them off.
+After zero-base completion, a separately prepared and confirmed `resume` may
+release the selected latch. Resume of an unresolved exit only clears operational
+holds; it cannot reactivate the grid or reset the exit's deadline/order budget.
+
+Global NAV evaluation continues independently. A later +10% trigger or confirmed
+`--all` request takes over the scoped exit, preserving its anchor, used order
+count and earlier absolute deadline. Its still-valid SELL can remain working
+while other allocations cancel ordinary orders; no replacement is placed before
+the global reconciliation barrier clears. After takeover, the global `slots`
+are authoritative and `allocation_exits` retain the handoff provenance. Unreachable
+prices, stale data, uncertain orders and exhausted budgets remain visible blocks.

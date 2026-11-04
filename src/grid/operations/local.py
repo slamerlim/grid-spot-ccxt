@@ -250,7 +250,9 @@ class LocalControl:
             request["request_id"],
             request["revision"],
             Command(
-                ACTIONS[op],
+                Action.LIQUIDATE_ALLOCATION
+                if op == "limit-liquidate" and targets != "all"
+                else ACTIONS[op],
                 scopes,
                 f"local-uid-{uid}",
                 request["reason"],

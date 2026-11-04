@@ -1,5 +1,9 @@
 # I8 offline follow-up — explicit manual portfolio LIMIT exit
 
+Historical increment: subsequent per-allocation selection and global handoff
+are documented in [I8-ALLOCATION-EXIT.md](I8-ALLOCATION-EXIT.md). The evidence
+below records the original full-cycle implementation.
+
 Scope: continued mock development authorized after the completed public hour.
 Base: `a7d2017a60ac32332541b3b44825101fc06b6c86`, branch `i8/public-paper-hour`.
 This adds `gridctl operator limit-liquidate` for the **whole current bot-owned

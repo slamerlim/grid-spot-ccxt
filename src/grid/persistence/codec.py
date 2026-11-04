@@ -75,6 +75,7 @@ _CLASSES = (
     portfolio.ExitSlot,
     portfolio.Residual,
     portfolio.ExitApproval,
+    portfolio.AllocationExit,
     portfolio.Cycle,
     portfolio.PortfolioPermit,
     portfolio.Cashflow,
@@ -164,8 +165,13 @@ def _encode(value: object, depth: int = 0) -> object:
             item = getattr(value, field.name)
             if not _matches(item, hints[field.name]):
                 raise DomainError("snapshot field type mismatch")
-            # Narrow additive extension: preserve every pre-manual-exit Cycle byte.
-            if type(value) is portfolio.Cycle and field.name == "manual_exit" and item is None:
+            # Narrow extensions preserve earlier Cycle bytes, hashes and receipts.
+            if type(value) is portfolio.Cycle and (
+                field.name == "manual_exit"
+                and item is None
+                or field.name == "allocation_exits"
+                and item == ()
+            ):
                 continue
             values[field.name] = _encode(item, depth + 1)
         return {"type": type(value).__name__, "fields": values}
@@ -209,12 +215,13 @@ def _decode(value: Any, depth: int = 0) -> object:
         raw = value["fields"]
         if record is not None and isinstance(raw, dict):
             names = {field.name for field in fields(record)}
-            optional = {"manual_exit"} if record is portfolio.Cycle else set()
+            optional = {"manual_exit", "allocation_exits"} if record is portfolio.Cycle else set()
             if not names - optional <= set(raw) <= names:
                 raise DomainError("snapshot fields differ from schema")
             decoded = {key: _decode(item, depth + 1) for key, item in raw.items()}
-            if record is portfolio.Cycle and "manual_exit" not in decoded:
-                decoded["manual_exit"] = None
+            if record is portfolio.Cycle:
+                decoded.setdefault("manual_exit", None)
+                decoded.setdefault("allocation_exits", ())
             hints = get_type_hints(record)
             if not all(_matches(item, hints[key]) for key, item in decoded.items()):
                 raise DomainError("snapshot field type mismatch")

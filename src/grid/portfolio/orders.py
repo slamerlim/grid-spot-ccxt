@@ -11,10 +11,12 @@ from grid.portfolio.valuation import sell_quantity
 
 
 def plan_cancellations(
-    state: State, context: Context, unsent: frozenset[int]
+    state: State, context: Context, unsent: frozenset[int], *, keep: int | None = None
 ) -> tuple[State, tuple[Command, ...]]:
     commands: list[Command] = []
     for order in tuple(state.working):
+        if order.id == keep:
+            continue
         if order.id in unsent and order.filled == ZERO and not order.unknown:
             result = reduce(
                 state, OrderReport(state.scope, order.id, "canceled", ZERO, True), context
@@ -27,6 +29,28 @@ def plan_cancellations(
             state, emitted = _cancel(state, order)
             commands.extend(emitted)
     return state, tuple(commands)
+
+
+def retain_exit(
+    state: State, context: Context, rule: ExitRule, slot: ExitSlot, ms: int, deadline: int
+) -> int | None:
+    """A global handoff may retain one valid scoped SELL, never an uncertain order."""
+    order = next((o for o in state.working if o.id == slot.order_id), None)
+    if (
+        state.reconcile_reason is not None
+        or order is None
+        or order.side is not Side.SELL
+        or order.role != "portfolio_exit"
+        or order.unknown
+        or order.cancel_requested
+        or slot.created_ms is None
+        or not 0 <= ms - slot.created_ms < rule.ttl_ms
+        or ms >= deadline
+        or (order.config_revision, order.market_generation, order.fee_rule)
+        != (context.config_revision, context.market.generation, context.sell_fee)
+    ):
+        return None
+    return order.id
 
 
 @arithmetic

@@ -33,7 +33,7 @@ from grid.portfolio.model import (
     Residual,
     ValuationFacts,
 )
-from grid.portfolio.orders import plan_cancellations, plan_exit
+from grid.portfolio.orders import plan_cancellations, plan_exit, retain_exit
 from grid.portfolio.valuation import Conversions, fresh, market_facts, sell_quantity, valuation
 from grid.universe.model import MarketKey
 
@@ -246,18 +246,28 @@ def latch_exit(
     after = dict(rows)
     commands: dict[Scope, tuple[Command, ...]] = {}
     slots: list[ExitSlot] = []
-    for scope, (state, context, version, recovery) in rows.items():
-        safe = replace(context, allow_new_exposure=False)
+    for scope, (state, _context, version, recovery) in rows.items():
+        observation = next(f for f in facts.markets if f.key == MarketKey.of(scope))
+        safe = replace(observation.context, now_ms=ms, allow_new_exposure=False)
         state = replace(
             state, mode=Mode.PORTFOLIO_EXIT, control_revision=state.control_revision + 1
         )
         unsent = frozenset(o.id for o in state.working if not ledger.attempted(scope, o.id))
-        state, commands[scope] = plan_cancellations(state, safe, unsent)
-        after[scope] = state, safe, version, recovery
-        observation = next(f for f in facts.markets if f.key == MarketKey.of(scope))
-        slots.append(
-            ExitSlot(scope, observation.book.bids[0][0], 0, None, None, "cancel and reconcile")
+        local = next((e for e in cycle.allocation_exits if e.slot.scope == scope), None)
+        slot = (
+            local.slot
+            if local
+            else ExitSlot(scope, observation.book.bids[0][0], 0, None, None, "cancel and reconcile")
         )
+        rule = next(r for r in cycle.policy.exits if r.scope == scope)
+        keep = (
+            retain_exit(state, safe, rule, slot, ms, cycle.deadline_ms(scope))
+            if local and not recovery
+            else None
+        )
+        state, commands[scope] = plan_cancellations(state, safe, unsent, keep=keep)
+        after[scope] = state, safe, version, recovery
+        slots.append(slot)
     save_rows(ledger, request_id, rows, after, commands)
     return replace(
         cycle,
@@ -289,7 +299,7 @@ def request_manual_exit(
         or cycle.phase is not CyclePhase.ACTIVE
     ):
         raise Conflict("reviewed active cycle and exit policy required")
-    if ms < cycle.last_evaluation_ms or cycle.pending_flows:
+    if ms < cycle.observation_ms or cycle.pending_flows:
         raise LedgerError("regressed clock or unclassified cashflow blocks manual exit")
     rows = load(ledger, cycle.policy)
     value = nav(ledger, rows, facts, cycle.policy, ms, ns)
@@ -320,6 +330,8 @@ def evaluate(
         cycle = require(ledger, expected)
         if cycle.phase is not CyclePhase.ACTIVE:
             raise Conflict("portfolio exit already latched")
+        if ms < cycle.observation_ms:
+            raise DomainError("portfolio clock regressed")
         if not at_claim and ms - cycle.last_evaluation_ms < cycle.policy.evaluation_interval_ms:
             raise LedgerError("portfolio evaluation rate budget")
         if cycle.pending_flows:
@@ -495,7 +507,7 @@ def advance(
         cycle = require(ledger, expected)
         if cycle.phase in (CyclePhase.ACTIVE, CyclePhase.COMPLETE) or cycle.started_exit_ms is None:
             raise Conflict("no unresolved portfolio exit")
-        if ms < cycle.last_evaluation_ms:
+        if ms < cycle.observation_ms:
             raise DomainError("portfolio clock regressed")
         rows = load(ledger, cycle.policy)
         after = dict(rows)
@@ -515,7 +527,24 @@ def advance(
                 o.id for o in state.working if not ledger.attempted(slot.scope, o.id)
             )
             if ordinary or cycle.pending_flows:
-                state, commands[slot.scope] = plan_cancellations(state, context, unsent)
+                keep = None
+                if (
+                    not recovery
+                    and not cycle.pending_flows
+                    and any(e.slot.scope == slot.scope for e in cycle.allocation_exits)
+                ):
+                    try:
+                        fresh(facts, cycle.policy, ms, ns)
+                        observed = market_facts(state, context, facts, cycle.policy, ms, ns)
+                        context = replace(observed.context, now_ms=ms, allow_new_exposure=False)
+                        Conversions(facts, cycle.policy, ms, ns).check_fee(state, context)
+                        rule = next(r for r in cycle.policy.exits if r.scope == slot.scope)
+                        keep = retain_exit(
+                            state, context, rule, slot, ms, cycle.deadline_ms(slot.scope)
+                        )
+                    except (DomainError, ReadError):
+                        pass
+                state, commands[slot.scope] = plan_cancellations(state, context, unsent, keep=keep)
                 slot = replace(slot, reason="global cancellation/reconciliation barrier")
             else:
                 try:
@@ -530,7 +559,7 @@ def advance(
                         rule,
                         slot,
                         ms,
-                        cycle.started_exit_ms + cycle.policy.exit_duration_ms,
+                        cycle.deadline_ms(slot.scope),
                         unsent,
                     )
                 except (DomainError, ReadError) as exc:

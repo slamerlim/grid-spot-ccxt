@@ -14,6 +14,7 @@ from pathlib import Path
 
 from grid.domain.model import Context, Scope
 from grid.domain.numbers import DomainError, bounded_int
+from grid.exchange.models import ReadError
 from grid.execution.executor import MockExecutor
 from grid.execution.models import Evidence, ExecutionError, Notice
 from grid.execution.models import Limits as ExecutionLimits
@@ -312,6 +313,10 @@ class MockSupervisor:
                 self._alert(AlertCode.RETRIES, row.scope)
         if cycle is not None and cycle.phase is CyclePhase.BLOCKED:
             self._alert(AlertCode.EXIT)
+        if cycle is not None and cycle.phase is CyclePhase.ACTIVE:
+            for entry in cycle.allocation_exits:
+                if entry.phase is CyclePhase.BLOCKED:
+                    self._alert(AlertCode.EXIT, entry.slot.scope)
         wal = self.path.with_name(self.path.name + "-wal")
         result = Health(
             ms,
@@ -399,8 +404,27 @@ class MockSupervisor:
                         )
                 except StorageFault:
                     raise
-                except (DomainError, LedgerError, ExecutionError):
+                except (DomainError, LedgerError, ExecutionError, ReadError):
                     self._alert(AlertCode.STALE)
+                # Scoped exits use a separate cadence; they must neither reset the
+                # global NAV sampling clock nor depend on unrelated fresh books.
+                cycle = await self.portfolio.status()
+                if (
+                    cycle is not None
+                    and cycle.phase is CyclePhase.ACTIVE
+                    and any(e.phase is not CyclePhase.COMPLETE for e in cycle.allocation_exits)
+                ):
+                    try:
+                        await self.portfolio.advance(
+                            identity("allocation-exit"),
+                            cycle.revision,
+                            "mock-supervisor",
+                            "scheduled allocation exit",
+                        )
+                    except StorageFault:
+                        raise
+                    except (DomainError, LedgerError, ExecutionError, ReadError):
+                        self._alert(AlertCode.STALE)
             latest = await self.status()
             for scope in ready:
                 row = next(r for r in latest.allocations if r.scope == scope)

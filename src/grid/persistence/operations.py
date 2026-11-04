@@ -4,15 +4,15 @@ from collections.abc import Callable
 from dataclasses import replace
 
 from grid.domain.model import Command as DomainCommand
-from grid.domain.model import Control, Mode, OrderReport, Scope, Side
+from grid.domain.model import Control, Mode, OrderReport, Phase, Scope, Side
 from grid.domain.numbers import ZERO, bounded_int
 from grid.domain.reducer import _cancel, reduce
 from grid.operations.model import Action, AllocationStatus, BackupStamp, Command, Operations
-from grid.persistence import codec
+from grid.persistence import allocation_exit, codec
 from grid.persistence.ledger import Ledger
 from grid.persistence.portfolio import request_manual_exit, save_rows
 from grid.persistence.records import Conflict, LedgerError, Outcome
-from grid.portfolio.model import CyclePhase, ExitApproval, ValuationFacts
+from grid.portfolio.model import ExitApproval, ValuationFacts
 
 
 def current(ledger: Ledger) -> Operations | None:
@@ -31,7 +31,7 @@ def commit(
     exit_evidence: tuple[ValuationFacts, int, int] | None = None,
 ) -> Outcome:
     bounded_int(expected, 0, 2**63 - 2)
-    is_exit = command.action is Action.LIMIT_LIQUIDATE
+    is_exit = command.action in (Action.LIMIT_LIQUIDATE, Action.LIQUIDATE_ALLOCATION)
     if is_exit != (exit_approval is not None) or not is_exit and exit_evidence is not None:
         raise LedgerError("exit approval is required only for manual limit liquidation")
 
@@ -52,6 +52,7 @@ def commit(
             raise LedgerError("startup halt required")
         halted = previous.halted if previous else True
         held = set(previous.held if previous else ())
+        released: frozenset[Scope] = frozenset()
         if command.action in (Action.START, Action.HALT, Action.SHUTDOWN):
             if set(command.scopes) != set(roster):
                 raise LedgerError("global halt requires full roster")
@@ -60,24 +61,56 @@ def commit(
             held.update(command.scopes)
         elif command.action is Action.RESUME:
             resume_check()
+            released = allocation_exit.release_completed(ledger, request_id, command.scopes)
+            if released:
+                ledger.storage.fault("operations:after_release")
             held.difference_update(command.scopes)
             if set(command.scopes) == set(roster):
                 halted = False
         if is_exit:
-            if set(command.scopes) != set(roster) or exit_approval is None or exit_evidence is None:
-                raise LedgerError("manual portfolio exit needs full roster and fresh evidence")
+            if (
+                command.action is Action.LIMIT_LIQUIDATE
+                and set(command.scopes) != set(roster)
+                or exit_approval is None
+                or exit_evidence is None
+            ):
+                raise LedgerError(
+                    "manual exit needs fresh evidence; whole-cycle exit needs full roster"
+                )
             facts, ms, ns = exit_evidence
-            request_manual_exit(
-                ledger, request_id, exit_approval, facts, ms, ns, command.actor, command.reason
-            )
+            if command.action is Action.LIQUIDATE_ALLOCATION:
+                allocation_exit.request(
+                    ledger,
+                    request_id,
+                    command.scopes,
+                    exit_approval,
+                    facts,
+                    ms,
+                    ns,
+                    command.actor,
+                    command.reason,
+                )
+            else:
+                request_manual_exit(
+                    ledger, request_id, exit_approval, facts, ms, ns, command.actor, command.reason
+                )
             ledger.storage.fault("operations:after_liquidation")
         rows = {} if is_exit else {s: ledger._load(codec.digest(s)) for s in roster}
         after = dict(rows)
         commands: dict[Scope, tuple[DomainCommand, ...]] = {}
         cycle = ledger.portfolio()
-        latched = cycle is not None and cycle.phase is not CyclePhase.ACTIVE
         for scope in () if is_exit else command.scopes:
+            latched = cycle is not None and cycle.protects(scope)
             state, context, version, recovery = rows[scope]
+            if scope in released:
+                state = replace(
+                    state,
+                    phase=Phase.INACTIVE,
+                    seed_id=None,
+                    anchor=None,
+                    round_id=state.round_id + 1,
+                    ladder_credits=0,
+                )
             context = replace(context, now_ms=command.observed_ms, allow_new_exposure=False)
             desired = {
                 Action.PAUSE: Mode.PAUSED,

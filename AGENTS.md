@@ -120,8 +120,11 @@ starts halted; sensitive commands need a saved request and second confirmation.
 The full-cycle manual LIMIT exit is recorded in `docs/I8-MANUAL-EXIT.md`. Its
 approval is bound to cycle identity and exit-policy digest; operator audit and
 exit latch commit atomically. It retains explicit halts and uses an additive
-snapshot extension without rewriting old financial records. Continue offline
-implementation of per-allocation manual exit, hot configuration and
+snapshot extension without rewriting old financial records. The scoped follow-up
+is recorded in `docs/I8-ALLOCATION-EXIT.md`: explicit allocation selectors retain
+an active portfolio, while global takeover inherits exit budgets and deadlines.
+Completed zero-base scopes require confirmed resume; nonzero dust remains owned
+and blocked. Continue offline hot configuration, scoped dust handling and
 backup/restore/research CLI integration. No new exchange or deployment
 authorization is implied.
 

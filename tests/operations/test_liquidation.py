@@ -333,8 +333,9 @@ def test_unknown_manual_exit_survives_restart_without_resubmission(
 @pytest.mark.parametrize(
     "boundary", ["after_liquidation", "after_posting", "before_commit", "after_commit"]
 )
+@pytest.mark.parametrize("scoped", [False, True])
 def test_sigkill_keeps_manual_latch_revocations_and_control_audit_atomic(
-    tmp_path: Path, boundary: str
+    tmp_path: Path, boundary: str, scoped: bool
 ) -> None:
     path = tmp_path / "crash.db"
     result = subprocess.run(
@@ -343,7 +344,7 @@ def test_sigkill_keeps_manual_latch_revocations_and_control_audit_atomic(
             {
                 "path": str(path),
                 "sources": sorted(SOURCES),
-                "action": "limit-liquidate",
+                "action": "allocation-exit" if scoped else "limit-liquidate",
                 "boundary": boundary,
             }
         ),
@@ -359,14 +360,58 @@ def test_sigkill_keeps_manual_latch_revocations_and_control_audit_atomic(
         state = ledger.snapshot(fixture(1, 1).scopes[0]).state
         assert cycle is not None and operations is not None and state is not None
         committed = boundary == "after_commit"
-        assert (cycle.phase is CyclePhase.REQUESTED) == committed
-        assert (cycle.manual_exit is not None) == committed
-        assert (operations.command.action is Action.LIMIT_LIQUIDATE) == committed
+        assert (cycle.phase is CyclePhase.REQUESTED) == (committed and not scoped)
+        assert (cycle.manual_exit is not None) == (committed and not scoped)
+        assert bool(cycle.allocation_exits) == (committed and scoped)
+        action = Action.LIQUIDATE_ALLOCATION if scoped else Action.LIMIT_LIQUIDATE
+        assert (operations.command.action is action) == committed
         assert (ledger.lookup("liquidate") is not None) == committed
         assert (state.mode is Mode.PORTFOLIO_EXIT) == committed
         assert state.orders[0].terminal == committed
         assert state.quote_cash == 1000 and state.owned_base == 0
         assert operations.halted  # Liquidation never impersonates resume.
+        ledger.storage.integrity()
+    finally:
+        ledger.close()
+
+
+@pytest.mark.parametrize(
+    "boundary", ["after_release", "after_posting", "before_commit", "after_commit"]
+)
+def test_sigkill_keeps_scoped_release_and_resume_audit_atomic(
+    tmp_path: Path, boundary: str
+) -> None:
+    path = tmp_path / "release.db"
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).with_name("crash_child.py"))],
+        input=json.dumps(
+            {
+                "path": str(path),
+                "sources": sorted(SOURCES),
+                "action": "resume-allocation",
+                "boundary": boundary,
+            }
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=20,
+    )
+    assert result.returncode == -signal.SIGKILL, result.stderr
+    ledger = Ledger(path, STORAGE, SOURCES, mock_storage=True)
+    try:
+        cycle, operations = ledger.portfolio(), ledger.operations()
+        state = ledger.snapshot(fixture(1, 1).scopes[0]).state
+        assert cycle and operations and state
+        committed = boundary == "after_commit"
+        assert cycle.phase is CyclePhase.ACTIVE
+        assert bool(cycle.allocation_exits) is not committed
+        assert (state.mode is Mode.ACTIVE) == committed
+        assert (operations.command.action is Action.RESUME) == committed
+        assert operations.halted is not committed
+        assert (ledger.lookup("release") is not None) == committed
+        assert ledger.lookup("scoped") is not None
+        assert not state.working and state.owned_base == 0 and state.quote_cash == 1000
         ledger.storage.integrity()
     finally:
         ledger.close()

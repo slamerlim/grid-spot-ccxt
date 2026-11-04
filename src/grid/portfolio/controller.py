@@ -8,7 +8,7 @@ from grid.domain.model import Context, Order, Scope, Side
 from grid.domain.numbers import DomainError, arithmetic, bounded_int
 from grid.execution.executor import MockExecutor
 from grid.execution.models import ExecutionError
-from grid.persistence import codec
+from grid.persistence import allocation_exit, codec
 from grid.persistence import portfolio as records
 from grid.persistence.ledger import Ledger
 from grid.persistence.records import Outcome
@@ -44,7 +44,7 @@ class PortfolioController:
 
     def _current(self, ledger: Ledger) -> Cycle | None:
         cycle = records.current(ledger)
-        if cycle is not None and self._last_ms < cycle.last_evaluation_ms:
+        if cycle is not None and self._last_ms < cycle.observation_ms:
             raise ExecutionError("portfolio clock precedes durable observation")
         if cycle is not None and {r.scope for r in cycle.policy.exits} != set(self.executor.scopes):
             raise ExecutionError("portfolio supervision roster cannot shrink")
@@ -118,10 +118,13 @@ class PortfolioController:
     async def advance(self, request_id: str, expected: int, actor: str, reason: str) -> Outcome:
         def update(ledger: Ledger) -> Outcome:
             ms, ns = self._now()
-            self._current(ledger)
-            return records.advance(
-                ledger, request_id, expected, self._evidence(), ms, ns, actor, reason
+            cycle = self._current(ledger)
+            advance = (
+                allocation_exit.advance
+                if cycle and cycle.phase is CyclePhase.ACTIVE
+                else records.advance
             )
+            return advance(ledger, request_id, expected, self._evidence(), ms, ns, actor, reason)
 
         return await self.writer.submit(update)
 
@@ -165,11 +168,7 @@ class PortfolioController:
         ):
             raise ExecutionError("send context differs from portfolio evidence")
         if order.side is Side.BUY:
-            if (
-                cycle.phase is not CyclePhase.ACTIVE
-                or cycle.pending_flows
-                or scope in cycle.policy.sinks
-            ):
+            if cycle.protects(scope) or cycle.pending_flows or scope in cycle.policy.sinks:
                 raise ExecutionError("portfolio freezes new BUYs")
             value = records.nav(ledger, rows, facts, cycle.policy, ms, ns)
             if value.net <= 0 or facts.liabilities:
@@ -189,22 +188,22 @@ class PortfolioController:
                 )
                 raise ExecutionError("NAV threshold latched portfolio exit before BUY claim")
         else:
-            slot = next((s for s in cycle.slots if s.scope == scope), None)
+            slot = cycle.exit_slot(scope)
             rule = next(r for r in cycle.policy.exits if r.scope == scope)
+            guarded = {scope: rows[scope]} if cycle.phase is CyclePhase.ACTIVE else rows
             if (
-                cycle.phase in (CyclePhase.ACTIVE, CyclePhase.COMPLETE)
+                cycle.phase is CyclePhase.COMPLETE
                 or cycle.pending_flows
-                or cycle.started_exit_ms is None
                 or slot is None
                 or slot.order_id != order.id
                 or slot.created_ms is None
                 or not 0 <= ms - slot.created_ms < rule.ttl_ms
-                or ms >= cycle.started_exit_ms + cycle.policy.exit_duration_ms
+                or ms >= cycle.deadline_ms(scope)
                 or any(
                     recovery
                     or s.reconcile_reason is not None
                     or any(o.role != "portfolio_exit" or o.unknown for o in s.working)
-                    for s, _, _, recovery in rows.values()
+                    for s, _, _, recovery in guarded.values()
                 )
             ):
                 raise ExecutionError("exit order no longer authorized")

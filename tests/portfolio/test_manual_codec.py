@@ -80,14 +80,18 @@ def test_manual_loss_does_not_weaken_threshold_proof_or_clear_exit_latch() -> No
         replace(manual, manual_exit=ExitApproval("other", codec.digest(cycle.policy)))
 
 
-@pytest.mark.parametrize("mutation", ["missing_required", "unknown", "explicit_null"])
+@pytest.mark.parametrize(
+    "mutation", ["missing_required", "unknown", "explicit_null", "empty_scoped"]
+)
 def test_cycle_extension_does_not_permit_unreviewed_snapshot_fields(mutation: str) -> None:
     encoded = json.loads(codec.dumps(legacy_cycle(triggered=True)))
     if mutation == "missing_required":
         del encoded["fields"]["trigger_baseline"]
     elif mutation == "unknown":
         encoded["fields"]["bypass"] = True
-    else:
+    elif mutation == "explicit_null":
         encoded["fields"]["manual_exit"] = None  # Noncanonical redundant field.
+    else:
+        encoded["fields"]["allocation_exits"] = {"tuple": []}
     with pytest.raises(DomainError):
         codec.loads(json.dumps(encoded, sort_keys=True, separators=(",", ":")), Cycle)

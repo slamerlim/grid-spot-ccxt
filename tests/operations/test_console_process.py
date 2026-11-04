@@ -121,8 +121,10 @@ def test_operator_parser_does_not_echo_untrusted_arguments(
     assert "do-not-reflect-this-input" not in output.out + output.err
 
 
+@pytest.mark.parametrize("scoped", [False, True])
 def test_process_limit_liquidation_requires_reviewed_policy_and_second_confirmation(
     tmp_path_factory: pytest.TempPathFactory,
+    scoped: bool,
 ) -> None:
     root = tmp_path_factory.mktemp("liquidate")
     child, ready = start(root / "session", resume=False)
@@ -134,7 +136,7 @@ def test_process_limit_liquidation_requires_reviewed_policy_and_second_confirmat
             ready["socket"],
             "--revision",
             str(status["revision"]),
-            "--all",
+            *(["--allocation", "allocation-0"] if scoped else ["--all"]),
             "--reason",
             "process-test",
             "--request",
@@ -162,13 +164,19 @@ def test_process_limit_liquidation_requires_reviewed_policy_and_second_confirmat
             )
         assert result.returncode == 0, result.stderr
         accepted = json.loads(result.stdout)["data"]
-        assert accepted["exit_cause"] == "operator" and accepted["admission_halted"]
+        assert accepted["exit_cause"] == (None if scoped else "operator")
+        assert accepted["admission_halted"]
         replay = command(*args, "--confirm")
         assert replay.returncode == 0, replay.stderr
         assert json.loads(replay.stdout)["data"]["receipt"] == accepted["receipt"]
         assert (root / "exit.json").read_bytes() == prepared
         final = json.loads(command("status", "--socket", ready["socket"]).stdout)["data"]
-        assert final["exit_cause"] == "operator" and final["target_reached_at_exit"] is False
+        assert final["exit_cause"] == (None if scoped else "operator")
+        assert final["target_reached_at_exit"] is (None if scoped else False)
+        assert bool(final["cycle"]["allocation_exits"]) == scoped
+        if scoped:
+            assert final["cycle"]["phase"] == "active"
+            assert final["last_action"] == "liquidate_allocation"
     finally:
         if child.poll() is None:
             child.kill()

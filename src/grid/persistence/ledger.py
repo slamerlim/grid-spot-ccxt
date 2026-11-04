@@ -621,7 +621,7 @@ class Ledger:
             if (
                 isinstance(event, Control)
                 and cycle is not None
-                and cycle.phase is not CyclePhase.ACTIVE
+                and cycle.protects(event.scope)
                 and event.mode not in (Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED)
             ):
                 raise LedgerError("portfolio exit control cannot be overridden")
@@ -877,7 +877,7 @@ class Ledger:
                 raise LedgerError("intent order is no longer working")
             cycle = self.portfolio()
             if row[1] == "place" and cycle is not None:
-                if cycle.phase is not CyclePhase.ACTIVE and order.role != "portfolio_exit":
+                if cycle.protects(scope) and order.role != "portfolio_exit":
                     raise LedgerError("portfolio exit freezes ordinary placements")
                 if (order.side is Side.BUY or order.role == "portfolio_exit") and (
                     portfolio is None
@@ -897,9 +897,9 @@ class Ledger:
                         )
                     )
                     or order.role == "portfolio_exit"
-                    and cycle.phase in (CyclePhase.ACTIVE, CyclePhase.COMPLETE)
+                    and (cycle.phase is CyclePhase.COMPLETE or cycle.exit_slot(scope) is None)
                     or order.side is Side.BUY
-                    and (cycle.phase is not CyclePhase.ACTIVE or scope in cycle.policy.sinks)
+                    and (cycle.protects(scope) or scope in cycle.policy.sinks)
                 ):
                     raise LedgerError("current portfolio admission required")
             if row[1] == "place" and order.side is Side.BUY:
@@ -968,10 +968,13 @@ class Ledger:
         cycle = codec.loads(row[1], Cycle, limit=self.bounds.snapshot_bytes)
         if cycle.revision != row[0]:
             raise LedgerError("portfolio revision projection differs")
-        if cycle.manual_exit is not None and (
-            cycle.manual_exit.policy_sha256 != codec.digest(cycle.policy)
-        ):
-            raise LedgerError("manual exit policy differs from operator approval")
+        approvals = [e.approval for e in cycle.allocation_exits]
+        if cycle.manual_exit is not None:
+            approvals.append(cycle.manual_exit)
+        if approvals:
+            policy_digest = codec.digest(cycle.policy)
+            if any(a.policy_sha256 != policy_digest for a in approvals):
+                raise LedgerError("manual exit policy differs from operator approval")
         return cycle
 
     def operations(self) -> Operations | None:

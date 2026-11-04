@@ -20,6 +20,7 @@ class Action(StrEnum):
     RESUME = "resume"
     HALT = "emergency_halt"
     LIMIT_LIQUIDATE = "limit_liquidate"
+    LIQUIDATE_ALLOCATION = "liquidate_allocation"
     SHUTDOWN = "shutdown_halt"
 
 
@@ -59,7 +60,10 @@ class Command:
             raise DomainError("duplicate control scope")
         if self.action is Action.RESUME and not self.confirmed:
             raise DomainError("resume requires explicit confirmation")
-        if self.action is Action.LIMIT_LIQUIDATE and not self.confirmed:
+        if (
+            self.action in (Action.LIMIT_LIQUIDATE, Action.LIQUIDATE_ALLOCATION)
+            and not self.confirmed
+        ):
             raise DomainError("limit liquidation requires explicit confirmation")
 
 

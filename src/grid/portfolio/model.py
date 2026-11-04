@@ -258,6 +258,27 @@ class ExitApproval:
 
 
 @dataclass(frozen=True)
+class AllocationExit:
+    """An operator's bounded exit of principal inventory, within an active cycle."""
+
+    slot: ExitSlot
+    approval: ExitApproval
+    phase: CyclePhase
+    started_ms: int
+    observed_ms: int
+    actor: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.phase, CyclePhase) or self.phase is CyclePhase.ACTIVE:
+            raise DomainError("allocation exit must remain latched")
+        bounded_int(self.started_ms, 0, 2**53 - 1)
+        bounded_int(self.observed_ms, self.started_ms, 2**53 - 1)
+        identifier(self.actor)
+        identifier(self.reason)
+
+
+@dataclass(frozen=True)
 class Cycle:
     id: str
     revision: int
@@ -276,6 +297,7 @@ class Cycle:
     actor: str
     trigger_baseline: Decimal | None = None
     manual_exit: ExitApproval | None = None
+    allocation_exits: tuple[AllocationExit, ...] = ()
 
     @arithmetic
     def __post_init__(self) -> None:
@@ -330,6 +352,43 @@ class Cycle:
             raise DomainError("unclassified cashflow prevents completion")
         if self.started_exit_ms is not None:
             bounded_int(self.started_exit_ms, self.baseline.now_ms, self.last_evaluation_ms)
+        if (
+            not isinstance(self.allocation_exits, tuple)
+            or len(self.allocation_exits) > len(self.policy.exits)
+            or len({e.slot.scope for e in self.allocation_exits}) != len(self.allocation_exits)
+            or not {e.slot.scope for e in self.allocation_exits}
+            <= {r.scope for r in self.policy.exits}
+            or any(
+                e.approval.cycle_id != self.id or e.started_ms < self.baseline.now_ms
+                for e in self.allocation_exits
+            )
+        ):
+            raise DomainError("invalid allocation exit ownership")
+
+    @property
+    def observation_ms(self) -> int:
+        return max(self.last_evaluation_ms, *(e.observed_ms for e in self.allocation_exits), 0)
+
+    def protects(self, scope: Scope) -> bool:
+        return self.phase is not CyclePhase.ACTIVE or any(
+            e.slot.scope == scope for e in self.allocation_exits
+        )
+
+    def exit_slot(self, scope: Scope) -> ExitSlot | None:
+        slots = (
+            self.slots
+            if self.phase is not CyclePhase.ACTIVE
+            else tuple(e.slot for e in self.allocation_exits if e.phase is not CyclePhase.COMPLETE)
+        )
+        return next((s for s in slots if s.scope == scope), None)
+
+    def deadline_ms(self, scope: Scope) -> int:
+        starts = [e.started_ms for e in self.allocation_exits if e.slot.scope == scope]
+        if self.started_exit_ms is not None:
+            starts.append(self.started_exit_ms)
+        if not starts:
+            raise DomainError("exit deadline requires a durable start")
+        return min(starts) + self.policy.exit_duration_ms
 
     @property
     def exit_cause(self) -> str | None:

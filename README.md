@@ -154,9 +154,12 @@ request. Sensitive actions require a second invocation with `--confirm` after
 review. See [the command procedure](docs/RUNBOOK.md#local-mock-operator-procedure),
 [design](docs/I8-OPERATOR-DESIGN.md) and [evidence](docs/I8-OPERATOR-EVIDENCE.md).
 The [manual portfolio LIMIT exit](docs/I8-MANUAL-EXIT.md) is available as
-`limit-liquidate`, with explicit cycle/policy approval and full-roster targeting.
-Per-allocation liquidation, hot configuration and backup/restore CLI integration
-remain unfinished. This fixture does not establish trading or I8 acceptance.
+`limit-liquidate --all`, with explicit cycle/policy approval. Use repeated
+`--allocation ID` selectors for [scoped exits](docs/I8-ALLOCATION-EXIT.md) while
+the portfolio remains active. Residual inventory stays supervised and blocked;
+only a confirmed resume can reopen a completed, zero-base allocation.
+Hot configuration and backup/restore CLI integration remain unfinished.
+This fixture does not establish trading or I8 acceptance.
 
 ## Verify
 
