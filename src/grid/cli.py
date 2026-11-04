@@ -1,4 +1,4 @@
-"""Offline diagnostics and read-only verification of finished paper evidence."""
+"""Offline diagnostics, paper evidence audits and explicitly local mock controls."""
 
 from __future__ import annotations
 
@@ -21,9 +21,15 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Return 0 for a report, 1 for blocked --check, or 2 for invalid config."""
+    """Dispatch diagnostics or the separately scoped mock operator command tree."""
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "operator":
+        from grid.operations.console import main as operator_main
+
+        return operator_main(arguments[1:])
     parser = _ArgumentParser(prog="gridctl", description="GRID I8 offline diagnostics")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("operator", help="local mock status and audited controls")
     doctor = commands.add_parser("doctor", help="report offline live-readiness blockers")
     doctor.add_argument(
         "--config", type=Path, help="explicit YAML path; no automatic config search"

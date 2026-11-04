@@ -29,6 +29,7 @@ config.local.*
 *.db
 *.db-*
 *.owner
+*.sock
 *.sqlite
 *.sqlite-*
 *.sqlite3

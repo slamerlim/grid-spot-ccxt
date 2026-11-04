@@ -122,11 +122,39 @@ Use new result filenames on each run. Reports distinguish observed wall time,
 simulated time, evaluated candidates and funded allocations, and always leave
 I8 acceptance incomplete. Fees/fills/financial settings are invented fixtures.
 
-`deploy/grid-mock.service` is an uninstalled, inert review template. The typed
-controls are an in-process mock API, not a remotely accessible trading service.
+`deploy/grid-mock.service` is an uninstalled, inert review template. Existing
+typed controls are also exposed by the finite local mock operator described below.
 The [observed-run plan](docs/I8-SOAK-PLAN.md) records the approved one-hour
 public-data scope. The original 48-hour acceptance run and private-account
 access require separate authorization.
+
+## Local mock operator
+
+`gridctl operator` adds status and audited controls for a running synthetic owner.
+It uses a private Linux Unix socket, keeps the existing single financial writer,
+and makes no exchange calls. Start a finite session in a new directory using the
+approved mock runtime above:
+
+```sh
+uv run --locked gridctl operator serve-mock --directory /tmp/grid-operator-session-new --seconds 120 --sqlite-source-id '2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9'
+```
+
+In another terminal, use the `socket` path printed in the ready JSON:
+
+```sh
+uv run --locked gridctl operator status --socket /path/from/ready.json
+uv run --locked gridctl operator --help
+```
+
+The owner starts halted and contains one invented 1,000-QUOTE allocation with no
+automatic fills. Views include `allocations`, `venues`, `symbols` and `markets`.
+Controls include `pause`, `cancel-buys`, `stop`, `reconcile`, `retire`, `resume`
+and `halt`; all require an observed revision, targets, reason and private saved
+request. Sensitive actions require a second invocation with `--confirm` after
+review. See [the command procedure](docs/RUNBOOK.md#local-mock-operator-procedure),
+[design](docs/I8-OPERATOR-DESIGN.md) and [evidence](docs/I8-OPERATOR-EVIDENCE.md).
+Manual limit liquidation, hot configuration and backup/restore CLI integration
+remain unfinished. This fixture does not establish trading or I8 acceptance.
 
 ## Verify
 

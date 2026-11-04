@@ -41,7 +41,7 @@ class DoctorReport:
     def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": 1,
-            "iteration": "I8 public-paper",
+            "iteration": "I8 offline continuation",
             "mode": "offline",
             "live": "DISABLED",
             "ready": self.ready,
@@ -166,8 +166,9 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "operator_signoff",
             "BLOCKED",
-            "A bounded one-hour OKX public-paper run is authorized; "
-            "the 48-hour acceptance gate, private account access and live signoff remain open.",
+            "The approved one-hour OKX public-paper run is complete; "
+            "further public runs, the 48-hour acceptance gate, private account access "
+            "and live signoff remain separately gated.",
         ),
     )
     return DoctorReport(

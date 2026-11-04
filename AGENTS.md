@@ -110,8 +110,16 @@ after review, with no automatic deletion. GitHub Free-only rules still apply.
 The offline monitoring follow-up is recorded in `docs/I8-MONITORING-EVIDENCE.md`.
 It adds early sampling, independent CPU windows and fail-closed timing evidence;
 it does not revalidate the completed public run. Continue toward the full PRD,
-including its still-missing local operator CLI over the existing mock supervisor.
+including the remaining local operator CLI over the existing mock supervisor.
 Keep one financial writer and do not treat partial mocks as completed live gates.
+
+The first local CLI increment is recorded in `docs/I8-OPERATOR-DESIGN.md` and
+`docs/I8-OPERATOR-EVIDENCE.md`. `gridctl operator` exposes mock status and existing
+audited controls through same-user AF_UNIX IPC. Its finite invented-account owner
+starts halted; sensitive commands need a saved request and second confirmation.
+Continue offline implementation of manual limit exit, hot configuration and
+backup/restore/research CLI integration. These are not completed merely by the
+status/control surface. No new exchange or deployment authorization is implied.
 
 ## Invariants for subsequent approved iterations
 

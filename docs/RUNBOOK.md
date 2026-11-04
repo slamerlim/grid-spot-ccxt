@@ -540,3 +540,64 @@ actual CPU window duration/completeness; a partial window is not a minute pass.
 Legacy run evidence retains its original version and measured gaps. See
 `I8-MONITORING-EVIDENCE.md` for the mock-only correction; it grants no new public
 run authorization.
+
+## Local mock operator procedure
+
+`gridctl operator serve-mock` creates a finite invented-account owner, using the
+approved patched mock SQLite runtime from the checks above. It accepts 1–300
+seconds and a new empty private directory outside Git/original datasets. The
+README contains a complete startup example. No service is installed and the
+command never constructs an exchange transport. It starts halted and prints one
+JSON readiness line containing its socket path and session ID.
+
+In another terminal, inspect `gridctl operator status --socket PATH` and record
+`data.revision`. The `venues`, `symbols`, `allocations` and `markets` commands
+inspect the current fixture; they do not discover markets or configure funding.
+Status `working` includes durable intents awaiting a synthetic send, not only
+acknowledged exchange orders. Financial values are serialized decimal strings.
+
+To prepare a resume, make an owner-only request directory and run the following
+with the **actual** socket path and revision from status. The placeholders are
+deliberate; do not guess a revision from an earlier session:
+
+```sh
+mkdir -m 700 /tmp/grid-operator-requests-new
+uv run --locked gridctl operator resume --socket SOCKET_PATH --revision CURRENT_REVISION --all --reason 'reviewed invented fixture' --request /tmp/grid-operator-requests-new/resume.json
+```
+
+Exit 3 means only that a request has been saved for review. Inspect the printed
+action, targets, session ID and revision; repeat that exact command with
+`--confirm`. Supplying `--confirm` before a request exists is refused. `cancel-buys`
+and `retire` follow the same procedure. Reasons are durable audit data and appear
+in previews: never include secrets. Actor is the OS UID, not a supplied username.
+
+Other controls use the same required revision, targets, reason and request path.
+Use a new request path for each new action. `--allocation ID` can replace `--all`
+and may repeat for distinct allocation IDs. Global halt needs the full roster.
+`pause` stops new BUY admission; `cancel-buys` separately requests cancellations;
+`stop` requests stop/reconciliation and leaves the supervisor running; `retire`
+retains responsibility for the allocation. None is a liquidation or market sell.
+
+On `conflict`, inspect current status and decide whether the intended action is
+still appropriate before creating a new request. On timeout or lost response,
+retain the existing request and inspect status. An explicit repeat with the same
+request retrieves the committed receipt if it exists. Do not regenerate the ID,
+change the saved revision/reason or infer that a timed-out operation was rolled
+back. The CLI performs no automatic retries. Receipt revision may precede the
+response's current revision; a replayed resume cannot clear a later halt.
+
+Normal duration expiry or Ctrl-C closes the owner. An abrupt kill leaves the
+journal, ledger and endpoint evidence. To test recovery, wait until that process
+is gone and invoke `serve-mock` with the same directory and `--resume`. The source
+digest, OS user and host boot must still match. Use its newly printed socket.
+Restart replays durable synthetic effects and reconciles with admission halted;
+a fresh reviewed resume requires the new operational revision and request ID.
+Do not delete an owner lock or stale endpoint to bypass a refusal. Stop when the
+bounded retained-endpoint capacity is reached and inspect the disposable session.
+
+This session generates no fills and uses a synthetic monotonic clock. Missing
+backup alerts are expected until the separate owner-mediated backup CLI exists;
+do not suppress them or treat the fixture as production-ready. It cannot provide
+UTC audit or observed-soak evidence. `paper-audit` refuses its different journal
+kind. Design, trust boundary, bounds and remaining commands are documented in
+`I8-OPERATOR-DESIGN.md`. Rollback preserves all generated state and request files.

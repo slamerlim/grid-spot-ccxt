@@ -68,6 +68,8 @@ def test_application_limits_network_imports_and_has_no_exchange_writes() -> None
             elif isinstance(node, ast.ImportFrom):
                 imports = [node.module or ""]
             for name in imports:
+                if source == ROOT / "src/grid/operations/local.py" and name == "socket":
+                    continue  # Same-user AF_UNIX only; runtime IPC tests reject IP sockets.
                 if source == ROOT / "src/grid/exchange/ccxt_transport.py" and name in {
                     "aiohttp",
                     "ccxt.pro",
@@ -125,6 +127,7 @@ def test_gitignore_excludes_private_state_and_keeps_reviewable_inputs() -> None:
         "ledger.db",
         "ledger.db-wal",
         "ledger.db-shm",
+        "operator.sock",
         "ledger.sqlite3",
         "ledger.sqlite3-wal",
         "ledger.sqlite3-shm",
@@ -153,3 +156,21 @@ def test_gitignore_excludes_private_state_and_keeps_reviewable_inputs() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert set(result.stdout.splitlines()) == private_paths
+
+
+def test_local_control_constructs_only_unix_stream_sockets() -> None:
+    tree = ast.parse((ROOT / "src/grid/operations/local.py").read_text())
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "socket"
+    ]
+    assert len(calls) == 2  # Client and listener; no extra socket factory.
+    for node in calls:
+        assert isinstance(node.func, ast.Attribute)
+        assert node.func.attr == "socket"
+        assert not node.keywords and len(node.args) == 2
+        assert [ast.unparse(arg) for arg in node.args] == ["socket.AF_UNIX", "socket.SOCK_STREAM"]

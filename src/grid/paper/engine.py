@@ -16,7 +16,7 @@ from grid.domain.market import FeeRule, Limits, Market, Money
 from grid.domain.model import ActualFee, Book, Context, Scope, Side
 from grid.domain.numbers import DomainError, exact, units
 from grid.exchange.models import BookObservation, MarketObservation
-from grid.execution.models import LimitRequest
+from grid.execution.replay import replay_gateway
 from grid.execution.synthetic import SyntheticExchange
 from grid.operations.experiment import control
 from grid.operations.model import Action
@@ -81,48 +81,6 @@ def contract(market: MarketObservation) -> Market:
     )
 
 
-async def replay_gateway(journal: Journal) -> SyntheticExchange:
-    gateway = SyntheticExchange(1000)
-    for row in journal.kinds("venue"):
-        kind, payload = row["payload"]["kind"], row["payload"]["value"]
-        if kind == "submit":
-            scope = Scope(**payload["scope"])
-            request = LimitRequest(
-                scope,
-                payload["order_id"],
-                payload["client_id"],
-                Side(payload["side"]),
-                payload["amount"],
-                payload["price"],
-                payload["config_revision"],
-                payload["market_generation"],
-            )
-            await gateway.submit_limit(request)
-        elif kind == "cancel":
-            await gateway.cancel_limit(gateway.orders[payload].request.scope, payload)
-        elif kind == "settle":
-            gateway.settle_cancel(payload)
-        elif kind == "fill":
-            fees = tuple(
-                ActualFee(
-                    f["currency"],
-                    D(f["amount"]),
-                    None if f["quote_value"] is None else D(f["quote_value"]),
-                )
-                for f in payload["fees"]
-            )
-            gateway.fill(
-                payload["external_order"],
-                payload["external_id"],
-                D(payload["amount"]),
-                D(payload["price"]),
-                fees,
-            )
-        else:
-            raise DomainError("unknown synthetic venue journal event")
-    return gateway
-
-
 @exact
 def cross(gateway: SyntheticExchange, book: BookObservation, sequence: int) -> None:
     """At most one full fill using strictly crossed visible depth, then cancellations.
@@ -184,7 +142,7 @@ class PaperEngine:
         sources: frozenset[str],
         now: Callable[[], tuple[int, int]] = clock,
     ) -> PaperEngine:
-        gateway = await replay_gateway(journal)
+        gateway = await replay_gateway(journal.kinds("venue"))
         engine = cls(journal, sources, gateway, now)
 
         def record(kind: str, value: object) -> None:
