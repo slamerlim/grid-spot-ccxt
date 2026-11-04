@@ -13,6 +13,7 @@ from grid.persistence.ledger import Ledger
 from grid.persistence.portfolio import request_manual_exit, save_rows
 from grid.persistence.records import Conflict, LedgerError, Outcome
 from grid.portfolio.model import ExitApproval, ValuationFacts
+from grid.universe.controls import Retirement, UniverseEdit
 
 
 def current(ledger: Ledger) -> Operations | None:
@@ -29,10 +30,18 @@ def commit(
     *,
     exit_approval: ExitApproval | None = None,
     exit_evidence: tuple[ValuationFacts, int, int] | None = None,
+    universe_edit: UniverseEdit | None = None,
+    configure: Callable[[], None] | None = None,
 ) -> Outcome:
     bounded_int(expected, 0, 2**63 - 2)
     is_exit = command.action in (Action.LIMIT_LIQUIDATE, Action.LIQUIDATE_ALLOCATION)
-    if is_exit != (exit_approval is not None) or not is_exit and exit_evidence is not None:
+    is_config = command.action is Action.CONFIGURE_UNIVERSE
+    if is_config != (universe_edit is not None) or is_config != (configure is not None):
+        raise LedgerError("universe configuration requires its reviewed edit")
+    needs_approval = (
+        is_exit or universe_edit is not None and universe_edit.retirement is Retirement.LIMIT
+    )
+    if needs_approval != (exit_approval is not None) or not is_exit and exit_evidence is not None:
         raise LedgerError("exit approval is required only for manual limit liquidation")
 
     def action() -> Outcome:
@@ -95,11 +104,15 @@ def commit(
                     ledger, request_id, exit_approval, facts, ms, ns, command.actor, command.reason
                 )
             ledger.storage.fault("operations:after_liquidation")
-        rows = {} if is_exit else {s: ledger._load(codec.digest(s)) for s in roster}
+        if is_config:
+            if set(command.scopes) != set(roster) or configure is None:
+                raise LedgerError("universe configuration must retain the complete roster")
+            configure()
+        rows = {} if is_exit or is_config else {s: ledger._load(codec.digest(s)) for s in roster}
         after = dict(rows)
         commands: dict[Scope, tuple[DomainCommand, ...]] = {}
         cycle = ledger.portfolio()
-        for scope in () if is_exit else command.scopes:
+        for scope in () if is_exit or is_config else command.scopes:
             latched = cycle is not None and cycle.protects(scope)
             state, context, version, recovery = rows[scope]
             if scope in released:
@@ -162,6 +175,8 @@ def commit(
     payload: tuple[object, ...] = ("operations", expected, command, roster)
     if exit_approval is not None:
         payload += (exit_approval,)
+    if universe_edit is not None:
+        payload += (universe_edit,)
     return ledger._request(request_id, payload, "operations", None, action)
 
 

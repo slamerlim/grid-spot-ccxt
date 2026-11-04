@@ -41,6 +41,7 @@ from grid.portfolio.controller import PortfolioController
 from grid.portfolio.model import Cycle, CyclePhase, ExitApproval, ValuationFacts
 from grid.portfolio.valuation import fresh
 from grid.universe.controller import UniverseController
+from grid.universe.controls import UniverseEdit
 from grid.universe.model import MarketKey
 
 
@@ -182,6 +183,7 @@ class MockSupervisor:
         command: Command,
         *,
         exit_approval: ExitApproval | None = None,
+        universe_edit: UniverseEdit | None = None,
     ) -> Outcome:
         ms, ns = self._now()
         if self._closing or self._closed or command.observed_ms > ms:
@@ -207,8 +209,23 @@ class MockSupervisor:
 
             first = ledger.lookup(request_id) is None
             exit_evidence = None
-            if exit_approval is not None and self.facts is not None:
+            if exit_approval is not None and self.facts is not None and universe_edit is None:
                 exit_evidence = (self.facts, *self._now())
+
+            def configure() -> None:
+                if universe_edit is None:
+                    raise DomainError("universe edit missing")
+                self.universe.edit(
+                    ledger,
+                    request_id,
+                    universe_edit,
+                    command.actor,
+                    command.reason,
+                    command.observed_ms,
+                    exit_approval,
+                    self.facts,
+                )
+
             return records.commit(
                 ledger,
                 request_id,
@@ -218,6 +235,8 @@ class MockSupervisor:
                 validate_resume,
                 exit_approval=exit_approval,
                 exit_evidence=exit_evidence,
+                universe_edit=universe_edit,
+                configure=configure if universe_edit is not None else None,
             ), first
 
         try:

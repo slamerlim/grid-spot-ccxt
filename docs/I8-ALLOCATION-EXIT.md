@@ -1,5 +1,9 @@
 # I8 offline follow-up — per-allocation LIMIT exits
 
+Subsequent universe CLI integration, including explicit bounded exits on
+deny/disable, is recorded in [I8-HOT-CONFIG.md](I8-HOT-CONFIG.md). The evidence
+below describes this earlier scoped-exit increment.
+
 Base: `0acd0271a90498c66b3473e9cb7530f2081d3fd3`, branch `i8/public-paper-hour`.
 Scope: the owner's approved continued offline/mock development after the completed
 public hour. No new exchange request, private account access, order, transfer or

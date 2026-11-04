@@ -147,7 +147,7 @@ uv run --locked gridctl operator --help
 ```
 
 The owner starts halted and contains one invented 1,000-QUOTE allocation with no
-automatic fills. Views include `allocations`, `venues`, `symbols` and `markets`.
+automatic fills. Views include `allocations`, `venues`, `symbols`, `markets` and `universe`.
 Controls include `pause`, `cancel-buys`, `stop`, `reconcile`, `retire`, `resume`
 and `halt`; all require an observed revision, targets, reason and private saved
 request. Sensitive actions require a second invocation with `--confirm` after
@@ -158,7 +158,11 @@ The [manual portfolio LIMIT exit](docs/I8-MANUAL-EXIT.md) is available as
 `--allocation ID` selectors for [scoped exits](docs/I8-ALLOCATION-EXIT.md) while
 the portfolio remains active. Residual inventory stays supervised and blocked;
 only a confirmed resume can reopen a completed, zero-base allocation.
-Hot configuration and backup/restore CLI integration remain unfinished.
+The [hot configuration commands](docs/I8-HOT-CONFIG.md) expose venue enable/disable,
+selection mode, allow/deny/pin/unpin, capacity and selection refresh. Each requires
+operational and universe revisions plus a second confirmation. Deny/disable must
+specify how existing inventory should be managed. Backup/restore CLI integration
+and scoped dust completion remain unfinished.
 This fixture does not establish trading or I8 acceptance.
 
 ## Verify

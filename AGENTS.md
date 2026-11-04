@@ -124,9 +124,12 @@ snapshot extension without rewriting old financial records. The scoped follow-up
 is recorded in `docs/I8-ALLOCATION-EXIT.md`: explicit allocation selectors retain
 an active portfolio, while global takeover inherits exit budgets and deadlines.
 Completed zero-base scopes require confirmed resume; nonzero dust remains owned
-and blocked. Continue offline hot configuration, scoped dust handling and
-backup/restore/research CLI integration. No new exchange or deployment
-authorization is implied.
+and blocked. `docs/I8-HOT-CONFIG.md` records the local universe CLI: both revisions
+are checked, every edit is confirmed, and deny/disable retirement is explicit.
+Inventory hold cancels outstanding orders and blocks new placements while retaining
+reconciliation. Configuration plus any new scoped exit commit in one transaction.
+Continue offline scoped dust handling and backup/restore/research CLI integration.
+No new exchange or deployment authorization is implied.
 
 ## Invariants for subsequent approved iterations
 

@@ -11,6 +11,7 @@ import struct
 from pathlib import Path
 from typing import Any
 
+from grid.domain.model import Scope
 from grid.domain.numbers import DomainError, bounded_int, identifier
 from grid.exchange.models import ReadError
 from grid.execution.models import ExecutionError
@@ -21,13 +22,15 @@ from grid.persistence import codec
 from grid.persistence.records import Backpressure, Conflict, LedgerError
 from grid.portfolio.model import ExitApproval
 from grid.research.artifacts import canonical, plain
+from grid.universe.controls import EditAction, Retirement, UniverseEdit
+from grid.universe.model import MarketKey, SelectionMode
 
 REQUEST_BYTES = 16 * 1024
 RESPONSE_BYTES = 1024 * 1024
 MAX_CLIENTS = 4
 READ_SECONDS = 2
 OPERATION_SECONDS = 10
-VIEWS = frozenset({"status", "allocations", "venues", "symbols", "markets"})
+VIEWS = frozenset({"status", "allocations", "venues", "symbols", "markets", "universe"})
 ACTIONS = {
     "pause": Action.PAUSE,
     "cancel-buys": Action.CANCEL_BUYS,
@@ -38,7 +41,37 @@ ACTIONS = {
     "halt": Action.HALT,
     "limit-liquidate": Action.LIMIT_LIQUIDATE,
 }
-SENSITIVE = frozenset({"resume", "cancel-buys", "retire", "limit-liquidate"})
+CONFIG_FIELDS = {
+    "enable-venue": {"venues"},
+    "disable-venue": {"venues", "retirement"},
+    "set-symbol-mode": {"mode"},
+    "allow": set(),
+    "deny": {"retirement"},
+    "pin": set(),
+    "unpin": set(),
+    "set-capacity": {"capacity"},
+    "refresh-universe": set(),
+}
+KEY_EDITS = frozenset({"allow", "deny", "pin", "unpin"})
+SENSITIVE = frozenset({"resume", "cancel-buys", "retire", "limit-liquidate"}) | CONFIG_FIELDS.keys()
+
+
+def universe_edit(request: dict[str, Any], scopes: tuple[Scope, ...]) -> UniverseEdit:
+    op = request["op"]
+    venues = request.get("venues", [])
+    if not isinstance(venues, list) or not all(isinstance(v, str) for v in venues):
+        raise DomainError("explicit venue identifiers required")
+    if op not in KEY_EDITS and request["targets"] != "all":
+        raise DomainError("universe-wide edit requires the complete roster")
+    return UniverseEdit(
+        request["universe_revision"],
+        EditAction(op),
+        tuple(MarketKey.of(s) for s in scopes) if op in KEY_EDITS else (),
+        tuple(venues),
+        SelectionMode(request["mode"]) if "mode" in request else None,
+        request.get("capacity"),
+        Retirement(request["retirement"]) if "retirement" in request else None,
+    )
 
 
 def decode(raw: bytes) -> dict[str, Any]:
@@ -172,6 +205,7 @@ class LocalControl:
                 raise DomainError("unknown read fields")
             health = await self.owner.status()
             if op == "status":
+                universe, _, _ = await self.owner.universe.status()
                 data: object = {
                     "observed_ms": health.observed_ms,
                     "revision": health.operations.revision,
@@ -180,6 +214,7 @@ class LocalControl:
                     "backup": health.operations.backup,
                     "held": health.operations.held,
                     "cycle": health.cycle,
+                    "universe": universe,
                     "cycle_policy_sha256": (
                         codec.digest(health.cycle.policy) if health.cycle else None
                     ),
@@ -199,6 +234,8 @@ class LocalControl:
                 }
             elif op == "allocations":
                 data = health.allocations
+            elif op == "universe":
+                data, _, _ = await self.owner.universe.status()
             elif op == "venues":
                 data = sorted({scope.venue for scope in self.owner.scopes})
             elif op == "symbols":
@@ -220,9 +257,15 @@ class LocalControl:
             "observed_ms",
             "confirmed",
         }
-        if op == "limit-liquidate":
+        configuring = op in CONFIG_FIELDS
+        if configuring:
+            fields |= CONFIG_FIELDS[op] | {"universe_revision"}
+        needs_exit = (
+            op == "limit-liquidate" or configuring and request.get("retirement") == Retirement.LIMIT
+        )
+        if needs_exit:
             fields |= {"cycle_id", "policy_sha256"}
-        if op not in ACTIONS or set(request) != fields:
+        if op not in ACTIONS and not configuring or set(request) != fields:
             raise DomainError("unknown local command fields")
         if request["session_id"] != self.session_id:
             raise DomainError("command belongs to a different mock session")
@@ -250,20 +293,21 @@ class LocalControl:
             request["request_id"],
             request["revision"],
             Command(
-                Action.LIQUIDATE_ALLOCATION
+                Action.CONFIGURE_UNIVERSE
+                if configuring
+                else Action.LIQUIDATE_ALLOCATION
                 if op == "limit-liquidate" and targets != "all"
                 else ACTIONS[op],
-                scopes,
+                self.owner.scopes if configuring else scopes,
                 f"local-uid-{uid}",
                 request["reason"],
                 request["observed_ms"],
                 request["confirmed"],
             ),
             exit_approval=(
-                ExitApproval(request["cycle_id"], request["policy_sha256"])
-                if op == "limit-liquidate"
-                else None
+                ExitApproval(request["cycle_id"], request["policy_sha256"]) if needs_exit else None
             ),
+            universe_edit=universe_edit(request, scopes) if configuring else None,
         )
         health = await self.owner.status()
         return self.envelope(

@@ -875,6 +875,8 @@ class Ledger:
             order = next((order for order in state.working if order.id == row[0]), None)
             if order is None:
                 raise LedgerError("intent order is no longer working")
+            if row[1] == "place" and state.mode is Mode.HOLD:
+                raise LedgerError("inventory hold prevents all new placements")
             cycle = self.portfolio()
             if row[1] == "place" and cycle is not None:
                 if cycle.protects(scope) and order.role != "portfolio_exit":

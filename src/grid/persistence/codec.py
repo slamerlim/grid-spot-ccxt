@@ -16,6 +16,7 @@ from grid.exchange.models import BookObservation
 from grid.operations import model as operations
 from grid.persistence.records import Outcome
 from grid.portfolio import model as portfolio
+from grid.universe.controls import EditAction, Retirement, UniverseEdit
 from grid.universe.model import (
     BuyAdmission,
     Facts,
@@ -61,6 +62,7 @@ _CLASSES = (
     Membership,
     UniverseSnapshot,
     BuyAdmission,
+    UniverseEdit,
     Facts,
     BookObservation,
     portfolio.PoolKey,
@@ -89,6 +91,8 @@ _ENUMS = {
         model.Phase,
         model.Mode,
         SelectionMode,
+        EditAction,
+        Retirement,
         portfolio.CyclePhase,
         operations.Action,
     )

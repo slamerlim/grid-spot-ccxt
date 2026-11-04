@@ -659,3 +659,42 @@ while other allocations cancel ordinary orders; no replacement is placed before
 the global reconciliation barrier clears. After takeover, the global `slots`
 are authoritative and `allocation_exits` retain the handoff provenance. Unreachable
 prices, stale data, uncertain orders and exhausted budgets remain visible blocks.
+
+## Local universe configuration
+
+Read `gridctl operator status --socket SOCKET_PATH` and
+`gridctl operator universe --socket SOCKET_PATH`. Review both the operational
+revision and `universe.revision`, policy, membership and existing inventory.
+Every edit requires both revisions, reason, a new private request file and a
+second confirmation. For example:
+
+```sh
+uv run --locked gridctl operator deny --socket SOCKET_PATH --revision OPERATIONS_REVISION --universe-revision UNIVERSE_REVISION --allocation ALLOCATION_ID --retirement manage-existing --reason 'reviewed exclusion' --request /tmp/grid-operator-requests-new/deny.json
+```
+
+Exit 3 is the saved preview. Review its exact targets and retirement choice, then
+repeat with `--confirm`. `disable-venue` uses repeated `--venue ID` instead of
+allocation selectors. `enable-venue`, `set-symbol-mode`, `allow`, `pin`, `unpin`,
+`set-capacity` and `refresh-universe` use the same confirmation procedure; see
+`gridctl operator COMMAND --help` and `I8-HOT-CONFIG.md` for their exact arguments.
+
+Choose retirement explicitly for deny/disable. `manage-existing` cancels BUYs
+while retaining take-profit management. `cancel-buys-and-hold` cancels outstanding
+BUY **and SELL** orders, retains late-fill supervision and blocks new placements.
+`bounded-limit-exit` additionally requires the reviewed `--cycle` and
+`--policy-sha256`; if new-exit preflight fails, the entire edit is refused. It does
+not silently record a partial exclusion or relax the exit bounds. Use a distinct
+reviewed manage/hold request if restriction is needed while ownership is uncertain.
+
+Allow removes explicit denial; pin never does. Confirmed readmission may reset
+an empty reconciled round owned by the universe, but it cannot clear a separate
+operational halt or override a scoped/global exit. A global exit can still sell
+owned inventory on disabled/held venues. Inspect command receipts, both revisions,
+allocation modes and orders after every edit. A successful edit is not proof that
+cancel requests have become terminal or inventory has sold.
+
+Retain a request after a lost response. Replaying it returns its historical receipt
+without clearing a new startup halt. A known revision conflict requires a fresh
+status review and a new request file; never alter an old request to bypass CAS.
+These commands configure the existing mock roster and do not discover accounts,
+allocate funds, change strategy/fee rules or enable live exchange access.

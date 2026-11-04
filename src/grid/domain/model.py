@@ -54,6 +54,7 @@ class Phase(StrEnum):
 
 class Mode(StrEnum):
     ACTIVE = "active"
+    HOLD = "hold_inventory"
     PAUSED = "paused"
     RETIRING = "retiring"
     PORTFOLIO_EXIT = "portfolio_exit"

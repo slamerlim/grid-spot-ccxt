@@ -12,10 +12,21 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from grid.domain.numbers import DomainError, bounded_int, identifier
-from grid.operations.local import ACTIONS, REQUEST_BYTES, SENSITIVE, VIEWS, call, decode
+from grid.operations.local import (
+    ACTIONS,
+    CONFIG_FIELDS,
+    KEY_EDITS,
+    REQUEST_BYTES,
+    SENSITIVE,
+    VIEWS,
+    call,
+    decode,
+)
 from grid.persistence.storage import private_path
 from grid.portfolio.model import ExitApproval
 from grid.research.artifacts import canonical, publish
+from grid.universe.controls import Retirement
+from grid.universe.model import SelectionMode
 
 
 class Parser(argparse.ArgumentParser):
@@ -46,9 +57,24 @@ async def execute(args: argparse.Namespace) -> tuple[int, object]:
         "reason": args.reason,
         "confirmed": args.op in SENSITIVE,
     }
-    if args.op == "limit-liquidate":
+    configuring = args.op in CONFIG_FIELDS
+    if configuring:
+        bounded_int(args.universe_revision, 1, 2**63 - 2)
+        desired["universe_revision"] = args.universe_revision
+        for field in CONFIG_FIELDS[args.op]:
+            desired[field] = sorted(args.venue) if field == "venues" else getattr(args, field)
+    needs_exit = (
+        args.op == "limit-liquidate"
+        or configuring
+        and desired.get("retirement") == Retirement.LIMIT
+    )
+    if needs_exit:
         approval = ExitApproval(args.cycle, args.policy_sha256)
         desired.update(cycle_id=approval.cycle_id, policy_sha256=approval.policy_sha256)
+    elif configuring and (
+        getattr(args, "cycle", None) is not None or getattr(args, "policy_sha256", None) is not None
+    ):
+        raise DomainError("exit approval only belongs to bounded-limit-exit")
     if args.request.exists() or args.request.is_symlink():
         packet = load_request(args.request)
         if any(packet.get(k) != v for k, v in desired.items()):
@@ -93,20 +119,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument("--sqlite-source-id", required=True)
     serve.add_argument("--seconds", type=int, required=True)
     serve.add_argument("--resume", action="store_true")
-    for name in sorted(VIEWS | ACTIONS.keys()):
+    for name in sorted(VIEWS | ACTIONS.keys() | CONFIG_FIELDS.keys()):
         command = commands.add_parser(name)
         command.add_argument("--socket", type=Path, required=True)
-        if name in ACTIONS:
+        if name not in VIEWS:
             command.add_argument("--revision", type=int, required=True)
             command.add_argument("--reason", required=True)
             command.add_argument("--request", type=Path, required=True)
             command.add_argument("--confirm", action="store_true")
-            if name == "limit-liquidate":
-                command.add_argument("--cycle", required=True)
-                command.add_argument("--policy-sha256", required=True)
-            targets = command.add_mutually_exclusive_group(required=True)
-            targets.add_argument("--all", action="store_true")
-            targets.add_argument("--allocation", action="append")
+            if name == "limit-liquidate" or name in ("deny", "disable-venue"):
+                command.add_argument("--cycle", required=name == "limit-liquidate")
+                command.add_argument("--policy-sha256", required=name == "limit-liquidate")
+            if name in CONFIG_FIELDS:
+                command.add_argument("--universe-revision", type=int, required=True)
+                for field in CONFIG_FIELDS[name]:
+                    if field == "venues":
+                        command.add_argument("--venue", action="append", required=True)
+                    elif field == "capacity":
+                        command.add_argument("--capacity", type=int, required=True)
+                    elif field == "mode":
+                        command.add_argument("--mode", choices=list(SelectionMode), required=True)
+                    else:
+                        command.add_argument(
+                            "--retirement", choices=list(Retirement), required=True
+                        )
+            if name not in CONFIG_FIELDS or name in KEY_EDITS:
+                targets = command.add_mutually_exclusive_group(required=True)
+                targets.add_argument("--all", action="store_true")
+                targets.add_argument("--allocation", action="append")
+            else:
+                command.set_defaults(all=True, allocation=None)
     args = parser.parse_args(argv)
     try:
         if args.op == "serve-mock":

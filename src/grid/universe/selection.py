@@ -36,7 +36,7 @@ def evaluate(
             r"(?:[235][LS]|BULL|BEAR|UP|DOWN)$", market.base
         ):
             raise DomainError("quote_or_product_excluded")
-        if state.mode in (Mode.PAUSED, Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED):
+        if state.mode in (Mode.PAUSED, Mode.HOLD, Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED):
             raise DomainError("higher_priority_control")
         if state.reconcile_reason is not None:
             raise DomainError("unreconciled_ownership")

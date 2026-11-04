@@ -399,6 +399,12 @@ def _plan(state: State, context: Context) -> Transition:
     notices: list[str] = []
     policy, market = context.policy, context.market
 
+    if state.mode is Mode.HOLD:
+        for order in tuple(state.working):
+            state, emitted = _cancel(state, order)
+            commands.extend(emitted)
+        return Transition(state, tuple(commands), ("inventory held; reconciliation continues",))
+
     if state.phase is Phase.DRAINING or state.mode in (
         Mode.RETIRING,
         Mode.PORTFOLIO_EXIT,

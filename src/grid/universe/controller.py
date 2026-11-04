@@ -10,10 +10,12 @@ from grid.domain.model import Context, Mode, Order, Scope, State
 from grid.domain.numbers import DomainError, bounded_int
 from grid.execution.executor import MockExecutor
 from grid.execution.models import ExecutionError
-from grid.persistence import codec
+from grid.persistence import allocation_exit, codec
 from grid.persistence.ledger import Ledger
-from grid.persistence.records import Outcome
-from grid.persistence.universe import commit, current
+from grid.persistence.records import Conflict, LedgerError, Outcome
+from grid.persistence.universe import commit, current, mutate
+from grid.portfolio.model import CyclePhase, ExitApproval, ValuationFacts
+from grid.universe.controls import Retirement, UniverseEdit
 from grid.universe.model import BuyAdmission, Facts, MarketKey, UniversePolicy, UniverseSnapshot
 from grid.universe.selection import Eligibility, evaluate, select
 
@@ -100,7 +102,7 @@ class UniverseController:
         if snapshot.state is None:
             raise DomainError("pre-funded supervised allocation required")
         state = snapshot.state
-        if state.mode is Mode.RETIRING:
+        if state.mode in (Mode.RETIRING, Mode.HOLD):
             owned = previous is not None and any(
                 m.scope == scope
                 and m.managed_retirement
@@ -112,8 +114,77 @@ class UniverseController:
         facts = self._facts.get(scope)
         if facts is None:
             return state, Eligibility(False, "missing_or_invalidated_facts")
-        result = evaluate(state, facts, policy, *now)
+        assessed = replace(state, mode=Mode.RETIRING) if state.mode is Mode.HOLD else state
+        result = evaluate(assessed, facts, policy, *now)
         return state, result
+
+    def edit(
+        self,
+        ledger: Ledger,
+        request_id: str,
+        change: UniverseEdit,
+        actor: str,
+        reason: str,
+        observed_ms: int,
+        approval: ExitApproval | None,
+        facts: ValuationFacts | None,
+    ) -> None:
+        """Join the supervisor's audited transaction; never perform network I/O."""
+        if not ledger.db.in_transaction:
+            raise LedgerError("universe edit requires an operational transaction")
+        now = self._now()
+        previous = self._snapshot(ledger)
+        if previous is None or previous.revision != change.revision:
+            raise Conflict("stale universe configuration revision")
+        if observed_ms > now[0]:
+            raise DomainError("configuration time is in the future")
+        policy = change.apply(previous.policy, self.scopes)
+        targets = change.targets(self.scopes)
+        exits: tuple[Scope, ...] = ()
+        if change.retirement is Retirement.LIMIT:
+            cycle = ledger.portfolio()
+            if (
+                cycle is None
+                or cycle.phase is not CyclePhase.ACTIVE
+                or approval is None
+                or approval.cycle_id != cycle.id
+                or approval.policy_sha256 != codec.digest(cycle.policy)
+                or facts is None
+            ):
+                raise LedgerError("bounded retirement needs reviewed active cycle and fresh facts")
+            exits = tuple(s for s in targets if not cycle.protects(s))
+            if exits:
+                allocation_exit.request(
+                    ledger, request_id, exits, approval, facts, *now, actor, reason
+                )
+                ledger.storage.fault("operations:after_configuration_exit")
+        elif approval is not None:
+            raise DomainError("exit approval only belongs to bounded-limit-exit")
+
+        def choose(before: UniverseSnapshot | None) -> tuple[Scope, ...]:
+            rows = tuple(self._assessment(ledger, s, policy, before, now) for s in self.scopes)
+            return tuple(
+                s.scope
+                for s in select(policy, rows, () if before is None else before.members, now[0])
+            )
+
+        mutate(
+            ledger,
+            request_id,
+            change.revision,
+            policy,
+            self.scopes,
+            actor,
+            reason,
+            now[0],
+            choose,
+            retirements={s: change.retirement for s in targets}
+            if change.retirement is not None
+            else {},
+            untouched=frozenset(exits),
+            restart_empty=True,
+        )
+        ledger.storage.fault("operations:after_configuration")
 
     async def configure(
         self,

@@ -558,7 +558,8 @@ class MockExecutor:
                         raise ExecutionError("allocation snapshot missing")
                     current = snapshot.state
                     if payload is not None and (
-                        (current.config_revision, current.market_generation)
+                        current.mode is Mode.HOLD
+                        or (current.config_revision, current.market_generation)
                         != (context.config_revision, context.market.generation)
                         or current.mode in (Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED)
                         and order.role != "portfolio_exit"

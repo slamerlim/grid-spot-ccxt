@@ -12,7 +12,7 @@ loader, remote listener, service installation or live arming path is added.
 |---|---|
 | `serve-mock` | Finite, 1–300-second invented-account session; starts halted |
 | `status` | Operational revision, admission halt, allocations, cycle, bounded alerts, writer/intake depth, RSS and WAL bytes |
-| `allocations`, `venues`, `symbols`, `markets` | Inspect the owner's existing fixture roster and current market facts |
+| `allocations`, `venues`, `symbols`, `markets`, `universe` | Inspect the owner's existing fixture roster, facts and durable selection policy |
 | `pause` | Pause new BUY admission for selected allocations |
 | `cancel-buys` | Request cancellation of selected BUYs through the existing mock executor |
 | `stop` | Stop admission and require reconciliation; does not terminate the owner process |
@@ -21,12 +21,14 @@ loader, remote listener, service installation or live arming path is added.
 | `resume` | Explicit reviewed resume, subject to existing fresh-evidence/recovery guards |
 | `halt` | Emergency admission halt; full supervised roster required |
 | `limit-liquidate` | Reviewed LIMIT exit: `--all` for the whole cycle, explicit allocation IDs for scoped exits |
+| `enable-venue`, `disable-venue`, `set-symbol-mode`, `allow`, `deny`, `pin`, `unpin`, `set-capacity`, `refresh-universe` | Confirmed edits of the existing universe; see `I8-HOT-CONFIG.md` |
 
 Mutations require the current **operational** revision, a printable reason up to
 128 characters, explicit `--all` or `--allocation ID` targets, and a new private
 `--request PATH`. The operational revision is distinct from allocation strategy,
-universe and portfolio configuration revisions. This increment does not expose
-their configuration mutations. Actor is derived from Linux peer credentials as
+universe and portfolio configuration revisions. Universe edits additionally
+require `--universe-revision`; their target arguments depend on the edit.
+Actor is derived from Linux peer credentials as
 `local-uid-N`; clients cannot supply an actor field.
 
 The client saves and fsyncs the exact request and its parent directory before
@@ -119,8 +121,7 @@ session, not editing the journal marker or bypassing the resume guard.
 
 ## Remaining work and rollback
 
-This is not completion of PRD section 10. Scoped dust completion,
-audited hot configuration CLI, owner-mediated backup and
+This is not completion of PRD section 10. Scoped dust completion, owner-mediated backup and
 restore verification commands, and unified research/storage command aliases remain
 to implement. Existing research and backup APIs are still available only through
 their documented modules/typed interfaces. The views inspect a fixed fixture;

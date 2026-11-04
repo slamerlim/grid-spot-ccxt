@@ -21,6 +21,7 @@ class Action(StrEnum):
     HALT = "emergency_halt"
     LIMIT_LIQUIDATE = "limit_liquidate"
     LIQUIDATE_ALLOCATION = "liquidate_allocation"
+    CONFIGURE_UNIVERSE = "configure_universe"
     SHUTDOWN = "shutdown_halt"
 
 
@@ -60,6 +61,8 @@ class Command:
             raise DomainError("duplicate control scope")
         if self.action is Action.RESUME and not self.confirmed:
             raise DomainError("resume requires explicit confirmation")
+        if self.action is Action.CONFIGURE_UNIVERSE and not self.confirmed:
+            raise DomainError("universe configuration requires explicit confirmation")
         if (
             self.action in (Action.LIMIT_LIQUIDATE, Action.LIQUIDATE_ALLOCATION)
             and not self.confirmed
