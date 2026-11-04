@@ -154,8 +154,11 @@ keeps its single aggregate SELL. See [reference conventions and limits](docs/I8-
 `backtest --study PLAN.json` evaluates declared chronological training/test folds,
 spacing candidates and separate fee/fill/latency scenarios. It selects spacing
 from training NAV only and retains every held-out result with fresh funds per
-window. It excludes the other comparison flags and `--portfolio`. See
-[study schema, selection rule and limitations](docs/I8-RESEARCH-STUDIES.md).
+window. Add `--portfolio` and optionally `--portfolio-cycles N` for consolidated
+cycles within each window, using a common endpoint and withholding selection
+when training NAV is unknown. It excludes the other comparison flags. See
+[basket study plans](docs/I8-RESEARCH-STUDIES.md) and
+[portfolio study rules and evidence](docs/I8-PORTFOLIO-STUDIES.md).
 
 ## Offline operational experiments
 

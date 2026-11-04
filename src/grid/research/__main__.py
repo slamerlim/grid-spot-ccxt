@@ -105,9 +105,7 @@ def main(
             max_cycles = 1 if args.portfolio_cycles is None else args.portfolio_cycles
             result: object
             if args.study is not None:
-                if settings is not None:
-                    raise DomainError("study runner has no portfolio exit model")
-                result = run_study(spec, load_study(args.study))
+                result = run_study(spec, load_study(args.study), settings, max_cycles=max_cycles)
             elif args.compare_lots:
                 if settings is not None:
                     raise DomainError("independent-lot comparison has no portfolio exit model")

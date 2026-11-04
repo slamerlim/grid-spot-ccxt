@@ -23,6 +23,8 @@ Per-allocation portfolio risk based on `a14d940` is recorded in
 `I8-ALLOCATION-RISK.md` and incorporated below.
 Bounded continuous portfolio replay based on `41138d5` is recorded in
 `I8-PORTFOLIO-SERIES.md` and incorporated below.
+Portfolio walk-forward integration based on `9eecbca` is recorded in
+`I8-PORTFOLIO-STUDIES.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -81,8 +83,10 @@ missing venue evidence or to enable live access.
    Series reporting preserves original-funding metrics and every cycle outcome;
    the three OHLC scenarios can each run a continuous series. This synthetic
    integration does not establish execution quality or the full study suite.
-   Historical conversion/rule/fee changes and portfolio walk-forward studies
-   remain undeveloped. Preserve ownership and reconciliation contracts.
+   Portfolio walk-forward studies now share a fixed evaluation endpoint,
+   including post-completion valuation of retained ownership. Historical
+   conversion/rule/fee changes remain undeveloped. Preserve ownership and
+   reconciliation contracts.
 2. **Scenario and comparison suite.** `--compare-scenarios` now runs
    `strict_skip_ambiguous`, `touch_buy_priority` and `touch_sell_priority` in fixed
    order through either engine. It retains complete results, checks common input
@@ -95,11 +99,12 @@ missing venue evidence or to enable live access.
    Its complete results are compared with the ordinary basket on common funds
    and manifests. It has no portfolio exit or automatic scenario cross-product.
    `--study` now evaluates declared chronological folds and spacing candidates
-   under separate fee/model/latency scenarios using the base basket engine.
-   Training total NAV chooses spacing before any test replay; all held-out
-   outcomes are retained with reset funding. Regime labels and universe evidence
-   are caller declarations. Point-in-time survivorship/delisting checks, verified
-   historical fee tiers, portfolio-series walk-forward and independent-lot study
+   under separate fee/model/latency scenarios using the basket or portfolio engine.
+   Portfolio cycles carry within each window; all candidate endpoint marks must
+   be known before selecting by training net NAV. Selection is frozen before test
+   replay; all outcomes remain visible with fresh funding per window. Regime labels
+   and universe evidence are caller declarations. Point-in-time survivorship/
+   delisting checks, verified historical fee tiers and independent-lot study
    integration remain missing. A plan hash is not proof of preregistration.
    No suite covers all these yet. Never select fills using future bars or treat
    touches as observed queue fills. Independent-lot comparison stays research-only.

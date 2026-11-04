@@ -404,8 +404,9 @@ paused. Values above 1 return `grid-portfolio-series-v1`, distinguishing per-cyc
 metrics from original-funding performance. Read `completed_cycles`, `stop_reason`
 and null completion returns before treating the requested series as finished.
 The interval bound includes completion points and all work/storage caps remain
-shared. It supports `--compare-scenarios`, while `--study` remains a separate
-basket-only runner. See `I8-PORTFOLIO-SERIES.md` for the exact interface and limits.
+shared. It supports `--compare-scenarios`; with `--study`, cycles carry within
+each independently funded study window. See `I8-PORTFOLIO-SERIES.md` and
+`I8-PORTFOLIO-STUDIES.md` for the interfaces and limits.
 
 `backtest --compare-lots` produces `grid-lot-comparison-v1` with complete basket
 and fixed-anchor independent-lot members on the configured OHLC model. Read the
@@ -414,13 +415,18 @@ difference. The flag excludes both `--portfolio` and `--compare-scenarios`;
 neither a portfolio-exit comparison nor a live policy switch is implemented.
 See `I8-INDEPENDENT-LOT-REFERENCE.md` for command, schemas, caps and evidence.
 
-`backtest --study PLAN.json` uses the base basket replay for declared walk-forward
+`backtest --study PLAN.json` uses basket replay by default for declared walk-forward
 spacing experiments. Each scenario fixes fees, latency and fill convention;
 selection uses training total NAV only, then every held-out candidate is retained.
 Each window starts fresh, so returns cannot be compounded into a continuous
 equity curve. `I8-RESEARCH-STUDIES.md` documents the strict plan, chronological
-boundaries, all-or-fail output and caps. It excludes other comparison flags and
-`--portfolio`. Treat regime/universe statements as unverified declarations;
+boundaries, all-or-fail output and caps. Other comparison flags remain excluded.
+Optional `--portfolio SETTINGS.json --portfolio-cycles N` uses controller NAV
+and continuous cycles within each fresh-funded window. Every candidate is valued
+through the same endpoint, including after its final allowed exit. Unknown
+training NAV withholds selection for the entire fold/scenario while preserving
+all outcomes; unknown selected test NAV stays null. See `I8-PORTFOLIO-STUDIES.md`.
+Treat regime/universe statements as unverified declarations;
 static complete histories do not resolve survivorship/delisting bias. Retain the
 plan and all outcomes, including unfavorable ones. There is no live policy export.
 

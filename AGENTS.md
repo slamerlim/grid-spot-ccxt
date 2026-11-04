@@ -212,6 +212,16 @@ keep cumulative risk/benchmark baselines unchanged. Account for extra completion
 intervals within existing bounds. This does not integrate portfolio walk-forward
 studies or authorize further exchange access, I9, paid GitHub or deployment.
 
+`docs/I8-PORTFOLIO-STUDIES.md` records portfolio walk-forward integration.
+Compare all candidates at the same declared window endpoint, continuing fresh
+valuation after the requested cycle cap while preserving completed exit receipts.
+Keep funding continuous within each window and reset explicitly between separate
+training/test experiments. Unknown training NAV withholds the whole fold/scenario
+selection; never discard the uncertain member or replace a winner from test data.
+Retain all outcomes, preflight every effective configuration and count EOF plus
+completion intervals in the risk bound. Static historical assumptions, independent-
+lot studies, resource/deployment evidence and external I8/I9 gates remain unfinished.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

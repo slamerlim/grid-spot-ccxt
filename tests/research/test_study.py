@@ -18,14 +18,12 @@ from grid.research import study
 from grid.research.artifacts import digest, publish
 from grid.research.config import bundle as replay_bundle
 from grid.research.history import MINUTE, RECORD
-from grid.research.portfolio_config import bundle as portfolio_bundle
 from grid.research.replay import MODELS, Replay
 from grid.research.replay import run as replay
 from grid.research.study import Candidate, Fold, Plan, Scenario, effective, run
 from grid.research.study_config import bundle, load
 
 from .conftest import MakeReplay
-from .test_portfolio_replay import settings_for
 
 
 def fixture(make_replay: MakeReplay) -> tuple[Replay, Plan]:
@@ -325,10 +323,6 @@ def test_strict_plan_and_separate_cli_process(make_replay: MakeReplay, tmp_path:
         with pytest.raises(SystemExit) as refused:
             main([*args, flag])
         assert refused.value.code == 2
-    portfolio = tmp_path / "portfolio.json"
-    publish(portfolio, portfolio_bundle(settings_for(spec)))
-    assert main([*args, "--portfolio", str(portfolio)]) == 2
-    assert not Path(args[-1]).exists()
     for content in (
         '{"schema": "grid-study-plan-v1", "schema": "grid-study-plan-v1"}',
         json.dumps({**bundle(plan), "unknown": True}),

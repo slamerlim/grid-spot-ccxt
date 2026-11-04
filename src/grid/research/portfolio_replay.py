@@ -295,6 +295,10 @@ class Engine:
         value = await self.nav()
         self.before_actions = value
         self.before_states = await self.states()
+        if cycle.phase is CyclePhase.COMPLETE:
+            # Fixed-horizon research keeps valuing retained ownership after the cycle cap.
+            # The completion receipt is immutable; fresh marks must use this bar's clock.
+            return value
         if cycle.phase is CyclePhase.ACTIVE:
             if (
                 value is not None
@@ -306,7 +310,7 @@ class Engine:
                     "research",
                     "synthetic close valuation",
                 )
-        elif cycle.phase is not CyclePhase.COMPLETE:
+        else:
             request_id = f"historical-advance-{self.index}"
             await self.owner.advance(
                 request_id,
@@ -347,7 +351,12 @@ class Engine:
 
 
 async def execute(
-    spec: Replay, settings: Settings, directory: Path, fault: Fault, max_cycles: int = 1
+    spec: Replay,
+    settings: Settings,
+    directory: Path,
+    fault: Fault,
+    max_cycles: int = 1,
+    through_end: bool = False,
 ) -> dict[str, object]:
     manifests = tuple(validate(a.source) for a in spec.allocations)
     if any(
@@ -372,6 +381,7 @@ async def execute(
     risk: Risk | None = None
     benchmark_point: dict[str, object] = {}
     cycles: list[Cycle] = []
+    held_bars = 0
     try:
         engine = Engine(spec, settings, writer, max_cycles)
         for index, (_, grouped) in enumerate(
@@ -381,15 +391,21 @@ async def execute(
             if tuple(i for i, _ in rows) != tuple(range(len(spec.allocations))):
                 raise DomainError("incomplete synchronous portfolio bar")
             consumed += 1
-            if complete:
+            if complete and not through_end:
                 # Still exhaust/validate each immutable source and its final checksum.
                 for allocation, (_, bar) in zip(spec.allocations, rows, strict=True):
                     check_precision(bar, allocation.context)
                 continue
+            held_bars += int(complete)
             engine.index = index
             bars = tuple(bar for _, bar in rows)
             value = await engine.step(bars)
             cycle, states = await engine.cycle(), await engine.states()
+            just_completed = cycle.phase is CyclePhase.COMPLETE and (
+                not cycles
+                or cycles[-1].id != cycle.id
+                or cycles[-1].phase is not CyclePhase.COMPLETE
+            )
             if not cycles or cycles[-1].id != cycle.id:
                 cycles.append(cycle)
             else:
@@ -432,7 +448,7 @@ async def execute(
                 / initial.net
             )
             inventory_time += Decimal(any(s.owned_base > ZERO for s in states))
-            if (index + 1) % spec.interval_bars == 0 or engine.now == spec.end_ms or cycle_complete:
+            if (index + 1) % spec.interval_bars == 0 or engine.now == spec.end_ms or just_completed:
                 intervals.append(
                     {
                         "end_ms_exclusive": engine.now,
@@ -445,7 +461,7 @@ async def execute(
                         "allocation_risk": risk_after,
                     }
                 )
-                if max_cycles > 1:
+                if max_cycles > 1 or through_end:
                     intervals[-1]["cycle_id"] = cycle.id
             if (
                 sum(path.stat().st_size for path in directory.iterdir() if path.is_file())
@@ -484,7 +500,10 @@ async def execute(
                 if max_cycles == 1
                 else "Explicit bounded continuation after EXIT_COMPLETE on a later bar; "
                 "same funds/ledger, no refill, forced EOF exit or unresolved-cycle restart.",
-                "Metrics end at completion or EOF; later bars only validate source integrity.",
+                "Metrics end at completion or EOF; later bars only validate source integrity."
+                if not through_end
+                else "Metrics use the fixed history endpoint; after the cycle cap, only "
+                "reconcile/value retained ownership with fresh facts, without new orders.",
                 "Temporary financial ledger removed on normal return/error; restart from inputs.",
             ),
             "cycle": cycle,
@@ -520,7 +539,7 @@ async def execute(
             "intervals": intervals,
             "synthetic_trace_sha256": engine.trace,
         }
-        if max_cycles > 1:
+        if max_cycles > 1 or through_end:
             del result["cycle"], result["final_return"], result["exit_shortfall"]
             result.update(
                 schema="grid-portfolio-series-v1",
@@ -538,12 +557,33 @@ async def execute(
                 completed_full_run_return_fraction=value.net / initial.net - 1
                 if complete and value is not None
                 else None,
-                stop_reason="cycle_limit_reached" if complete else "history_exhausted",
+                stop_reason="cycle_limit_reached"
+                if complete and not through_end
+                else "history_exhausted",
                 series_metric_basis=(
                     "Original funding baseline for returns, drawdown, utilization, allocation "
                     "risk and cash/buy-hold references; realized postings accumulate unchanged. "
                     "Each cycle outcome has its own reconciled baseline/trigger/final NAV. "
                     "Completed full-run return requires all requested cycles to complete."
+                ),
+            )
+        if through_end:
+            result.update(
+                config_sha256=digest((spec, settings, max_cycles, "history_end")),
+                evaluation_horizon="history_end",
+                post_completion_valuation_bars=held_bars,
+                execution_complete_ms_exclusive=cycle.final.now_ms
+                if complete and cycle.final is not None
+                else None,
+                completed_cycles_return_fraction_at_exit=cycle.final.net / initial.net - 1
+                if complete and cycle.final is not None
+                else None,
+                horizon_metric_basis=(
+                    "Window-end NAV includes retained ownership and may be unknown or differ "
+                    "from completed exit NAV. Post-completion holdings are never refilled, "
+                    "liquidated or reclassified as a new cycle; completion returns remain "
+                    "in immutable cycle receipts. Full-run returns are marked, not guaranteed "
+                    "realized cash returns."
                 ),
             )
         result["result_sha256"] = digest(result)
@@ -558,10 +598,12 @@ async def execute(
             await writer.close()
 
 
-@arithmetic
-def run(
-    spec: Replay, settings: Settings, *, max_cycles: int = 1, fault: Fault = no_fault
-) -> dict[str, object]:
+def checked(
+    spec: Replay, settings: Settings, max_cycles: int, *, through_end: bool = False
+) -> tuple[Replay, Settings]:
+    """Normalize and bound a run before any history reads or temporary ledger creation."""
+    if type(through_end) is not bool:
+        raise DomainError("explicit portfolio horizon flag required")
     bounded_int(max_cycles, 1, MAX_CYCLES)
     spec = replace(
         spec,
@@ -571,10 +613,26 @@ def run(
     settings = settings.checked(spec)
     minutes = (spec.end_ms - spec.start_ms) // MINUTE
     interval_count = min(
-        minutes, (minutes + spec.interval_bars - 1) // spec.interval_bars + max_cycles - 1
+        minutes,
+        (minutes + spec.interval_bars - 1) // spec.interval_bars
+        + max_cycles
+        - int(not through_end),
     )
     if 2 * len(spec.allocations) * interval_count > MAX_INTERVAL_POINTS:
         raise DomainError("portfolio allocation risk interval point cap exceeded")
+    return spec, settings
+
+
+@arithmetic
+def run(
+    spec: Replay,
+    settings: Settings,
+    *,
+    max_cycles: int = 1,
+    through_end: bool = False,
+    fault: Fault = no_fault,
+) -> dict[str, object]:
+    spec, settings = checked(spec, settings, max_cycles, through_end=through_end)
     scratch = output_directory(Path(gettempdir()))
     with TemporaryDirectory(prefix="grid-portfolio-replay-", dir=scratch) as temporary:
-        return asyncio.run(execute(spec, settings, Path(temporary), fault, max_cycles))
+        return asyncio.run(execute(spec, settings, Path(temporary), fault, max_cycles, through_end))
