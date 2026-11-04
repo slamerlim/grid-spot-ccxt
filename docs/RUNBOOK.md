@@ -373,6 +373,14 @@ Timestamps, host data and CPU measurements intentionally change the outer hash.
 Compare the inner result/hash for deterministic replay equality. Standalone engine
 APIs still return their existing result schemas without a provenance envelope.
 
+`backtest --compare-scenarios` runs the strict/no-ambiguous-fill, touch/BUY-priority
+and touch/SELL-priority conventions in fixed order. It also accepts `--portfolio`.
+The inner result becomes `grid-scenario-comparison-v1`; inspect the full members,
+their evaluation endpoints and any unavailable shared NAV range. Do not assume
+the optimistic label has the highest return or tune live policy from this output.
+All models must succeed on matching manifests for publication. See
+`I8-RESEARCH-SCENARIOS.md` for limits, uncertainty, schema and validation.
+
 `benchmark` writes a unique small sample directory beside its result. Review
 the original/derived byte-equivalence hash, reader timings, memory scope and
 cache/device evidence together. Cached CPU/hash timings do not establish storage

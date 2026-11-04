@@ -11,6 +11,7 @@ from typing import NoReturn
 from grid.domain.numbers import DomainError
 from grid.research.artifacts import output_directory, publish
 from grid.research.benchmark import benchmark
+from grid.research.comparison import run as compare_scenarios
 from grid.research.config import load
 from grid.research.demo import create
 from grid.research.history import Source, validate
@@ -41,6 +42,11 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
     elif name == "replay":
         command.add_argument("--config", type=Path, required=True)
         command.add_argument("--portfolio", type=Path, help="explicit synthetic portfolio settings")
+        command.add_argument(
+            "--compare-scenarios",
+            action="store_true",
+            help="compare three fixed OHLC fill conventions",
+        )
         command.add_argument("--output", type=Path, required=True)
     elif name == "demo":
         command.add_argument("--output-directory", type=Path, required=True)
@@ -76,11 +82,12 @@ def main(
         if args.command == "replay":
             spec = load(args.config)
             observation = Observation.start(spec.code_revision)
-            result: object = (
-                run(spec)
-                if args.portfolio is None
-                else run_portfolio(spec, load_portfolio(args.portfolio))
-            )
+            settings = None if args.portfolio is None else load_portfolio(args.portfolio)
+            result: object
+            if args.compare_scenarios:
+                result = compare_scenarios(spec, settings)
+            else:
+                result = run(spec) if settings is None else run_portfolio(spec, settings)
             code = 0
         else:
             source = Source(

@@ -1,5 +1,9 @@
 # I5 — immutable history and conservative research
 
+Later extension: `I8-RESEARCH-SCENARIOS.md` adds the fixed touch/SELL-priority
+convention and a three-scenario comparison command. The original two conventions
+and the historical I5 evidence retain their original scope below.
+
 The owner approved I5 with local validation on 2026-11-04. This is an offline
 research module, not a trading transport, new financial database or live NAV
 engine. The I1 reducer, accounting/rounding rules and I2 ledger remain unchanged.

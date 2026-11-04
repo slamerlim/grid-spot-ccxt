@@ -43,7 +43,12 @@ from grid.research.history import (
     validated_bars,
 )
 
-type Model = Literal["strict_skip_ambiguous", "touch_buy_priority"]
+type Model = Literal["strict_skip_ambiguous", "touch_buy_priority", "touch_sell_priority"]
+MODELS: tuple[Model, ...] = (
+    "strict_skip_ambiguous",
+    "touch_buy_priority",
+    "touch_sell_priority",
+)
 
 
 @dataclass(frozen=True)
@@ -81,7 +86,7 @@ class Replay:
         bounded_int(len(self.capital), 1, 192)
         bounded_int(self.latency_bars, 1, 60)
         bounded_int(self.interval_bars, 1, 1000000)
-        if self.model not in ("strict_skip_ambiguous", "touch_buy_priority"):
+        if self.model not in MODELS:
             raise DomainError("unsupported OHLC execution model")
         if not self.code_revision.strip() or len(self.code_revision) > 256:
             raise DomainError("explicit code revision required")
@@ -203,6 +208,8 @@ class Candidates:
 
 @arithmetic
 def candidates(orders: tuple[Order, ...], bar: Bar, model: Model) -> Candidates:
+    if model not in MODELS:
+        raise DomainError("unsupported OHLC execution model")
     low_ceiling = bar.low + rounding_radius(bar, 2)
     high_floor = bar.high - rounding_radius(bar, 1)
     crossed = tuple(
@@ -216,10 +223,11 @@ def candidates(orders: tuple[Order, ...], bar: Bar, model: Model) -> Candidates:
     )
     ambiguous = len({order.side for order in crossed}) > 1
     if ambiguous:
+        preferred = Side.SELL if model == "touch_sell_priority" else Side.BUY
         crossed = (
             ()
             if model == "strict_skip_ambiguous"
-            else tuple(order for order in crossed if order.side is Side.BUY)
+            else tuple(order for order in crossed if order.side is preferred)
         )
     # Deterministic price priority is another explicit model assumption.
     return Candidates(

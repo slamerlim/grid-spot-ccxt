@@ -9,6 +9,8 @@ The subsequent source/runtime reporting increment, based on `5637656`, is in
 `I8-RESEARCH-PROVENANCE.md`; its current status is incorporated below.
 The optional historical portfolio adapter, based on `84caf18`, is recorded in
 `I8-PORTFOLIO-RESEARCH.md` and incorporated below.
+The three-convention comparison based on `f9ffa8a` is recorded in
+`I8-RESEARCH-SCENARIOS.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -38,7 +40,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q12 +10% portfolio exit | Net consolidated valuation, cash-flow handling, bounded LIMIT exits, conversion, residual review; `tests/portfolio/`, scoped dust and optional historical portfolio replay tests | Replay uses explicitly synthetic liquidity/FX/account facts; actual venue liquidity/account valuation remains unverified |
 | Q13 fallback | Bounded synthetic private hints and authoritative fake REST recovery; execution recovery/capacity tests | No real private subscription, disconnect or REST recovery integration |
 | Q14 corrupt history | Read-only 24-byte importer, manifest, quarantine counts and strict provenance/precision checks; `tests/research/test_history.py` | Original archive provenance and coverage are not certified by bounded historical samples |
-| Q15 OHLC ambiguity | Two declared scenarios forbid profitable two-sided same-bar round trips; `tests/research/test_replay.py` | Full three-scenario research requirement and uncertainty evaluation unfinished; queue/volume evidence absent |
+| Q15 OHLC ambiguity | Three fixed conventions and a comparison command preserve one side per allocation/bar and delayed new orders; `tests/research/test_replay.py`, `test_comparison.py` | The reported range covers only these assumptions, not every feasible execution path; queue/volume evidence and broader studies remain absent |
 | Q16 chronology/restart | UTC merge, canonical ties, final partial interval, deterministic restart, separately hashed source/runtime/Git report envelope; research replay/provenance/crash tests | No checkpoint resume or loaded-code/dependency attestation; broader multi-market study required |
 | Q17 cache | Single-flight refresh, freshness/generation gates, bounded LRU and 100-caller mock test; `tests/universe/test_discovery.py` | Full real-venue discovery/admission integration untested |
 | Q18 overload/resources | Bounded writer/intake/cache, halt on overload, synthetic 1/7-venue × 10/100/1,000-candidate matrix; execution/operations tests | Not 1,000 funded allocations; no constrained research/fill-storm contention or deployment sizing |
@@ -66,15 +68,16 @@ missing venue evidence or to enable live access.
    full research comparison suite. Historical conversion/rule/fee changes and
    automatic multi-cycle studies remain undeveloped. Preserve ownership and
    reconciliation contracts when extending either mode.
-2. **Scenario and comparison suite.** The current model accepts only
-   `strict_skip_ambiguous` and `touch_buy_priority`; cash and buy/hold are its
-   funded baselines. The PRD calls for conservative/baseline/optimistic treatment,
-   an independent-lot research reference, walk-forward and regime splits,
-   fee-tier sensitivity and survivorship/delisting checks. No orchestrated suite
-   covers all these yet. The two existing models are sensitivity scenarios,
-   not mathematical PnL bounds. Added scenarios must retain that honesty and
-   never treat OHLC touches as observed queue fills or use future bars to choose
-   favorable fills. Independent-lot comparison must stay outside live strategy.
+2. **Scenario and comparison suite.** `--compare-scenarios` now runs
+   `strict_skip_ambiguous`, `touch_buy_priority` and `touch_sell_priority` in fixed
+   order through either engine. It retains complete results, checks common input
+   manifests and withholds a shared NAV range for unknown valuations or different
+   endpoints. The conservative/baseline/optimistic labels specify fill conventions,
+   not PnL ordering or bounds over all feasible executions. The pure replay retains
+   funded cash/buy-hold baselines. Independent-lot reference, walk-forward/regime
+   splits, fee-tier sensitivity and survivorship/delisting checks are still missing.
+   No suite covers all these yet. Never select fills using future bars or treat
+   touches as observed queue fills. Independent-lot comparison stays research-only.
 3. **Remaining metrics and provenance limits.** The CLI now wraps unchanged
    engine results in a separately hashed source/runtime/host envelope. It verifies
    the supplied full HEAD SHA against local application Python bytes/modes and

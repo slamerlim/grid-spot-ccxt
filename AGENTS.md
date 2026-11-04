@@ -153,6 +153,11 @@ pool ownership, explicit synthetic liquidity/FX/exit assumptions and an approved
 SQLite source ID. Temporary ledgers are not live state. Preserve delayed fills
 and cancel finality, fee settlement bounds, blocked/unfinished cycles and the
 distinct result schema. Complete source validation even after a cycle exits.
+`docs/I8-RESEARCH-SCENARIOS.md` records the third fixed OHLC convention and
+`--compare-scenarios` for both replay engines. Preserve all three outcomes and
+their common immutable inputs. Scenario labels never rank profit or choose a
+live policy; unknown NAV or different ending horizons cannot form a shared range.
+Keep fresh state per sequential member and the combined result cap.
 Continue the offline research and resource gaps recorded there; a green mock suite
 does not close external acceptance gates. No new exchange or deployment
 authorization is implied.

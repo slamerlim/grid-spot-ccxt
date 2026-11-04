@@ -127,6 +127,12 @@ ledger. Its distinct result schema records blocked exits and final shortfalls;
 it never forces completion at EOF. See [portfolio replay](docs/I8-PORTFOLIO-RESEARCH.md)
 for inputs, chronology, limits and validation.
 
+Add `--compare-scenarios` to either backtest mode to run the three fixed OHLC
+conventions sequentially. The result retains all scenarios and shows a shared
+NAV range only when their valuations and endpoints are comparable. Scenario
+labels do not rank profits or certify execution. See
+[scenario comparison conventions](docs/I8-RESEARCH-SCENARIOS.md).
+
 ## Offline operational experiments
 
 The finite synthetic runner uses temporary mock databases and makes no exchange
