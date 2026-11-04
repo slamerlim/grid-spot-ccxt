@@ -12,10 +12,10 @@ from grid.operations.model import Action, AlertCode, Command
 from grid.operations.supervisor import MockSupervisor
 from grid.operations.synthetic import EXECUTION, OPERATIONS, STORAGE, fixture
 from grid.persistence.records import Backpressure, Conflict
-from grid.portfolio.model import CyclePhase
+from grid.portfolio.model import CyclePhase, PortfolioPolicy
 
 
-async def boot(path: Path, now: list[int]) -> MockSupervisor:
+async def boot(path: Path, now: list[int], policy: PortfolioPolicy | None = None) -> MockSupervisor:
     case = fixture(1, 1)
     owner = await MockSupervisor.open(
         path,
@@ -31,7 +31,7 @@ async def boot(path: Path, now: list[int]) -> MockSupervisor:
     await owner.observe(case.facts(now[0], 1))
     await owner.step()
     await owner.universe.configure("universe", 0, case.universe, "tester", "fixture", now[0])
-    await owner.portfolio.begin("cycle", 0, "cycle", case.portfolio, "tester", "fixture")
+    await owner.portfolio.begin("cycle", 0, "cycle", policy or case.portfolio, "tester", "fixture")
     return owner
 
 

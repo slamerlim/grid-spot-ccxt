@@ -12,11 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from grid.domain.numbers import DomainError, bounded_int, identifier
+from grid.exchange.models import ReadError
 from grid.execution.models import ExecutionError
 from grid.execution.synthetic import SyntheticExchange
 from grid.operations.model import Action, Command
 from grid.operations.supervisor import MockSupervisor
+from grid.persistence import codec
 from grid.persistence.records import Backpressure, Conflict, LedgerError
+from grid.portfolio.model import ExitApproval
 from grid.research.artifacts import canonical, plain
 
 REQUEST_BYTES = 16 * 1024
@@ -33,8 +36,9 @@ ACTIONS = {
     "retire": Action.RETIRE,
     "resume": Action.RESUME,
     "halt": Action.HALT,
+    "limit-liquidate": Action.LIMIT_LIQUIDATE,
 }
-SENSITIVE = frozenset({"resume", "cancel-buys", "retire"})
+SENSITIVE = frozenset({"resume", "cancel-buys", "retire", "limit-liquidate"})
 
 
 def decode(raw: bytes) -> dict[str, Any]:
@@ -176,6 +180,13 @@ class LocalControl:
                     "backup": health.operations.backup,
                     "held": health.operations.held,
                     "cycle": health.cycle,
+                    "cycle_policy_sha256": (
+                        codec.digest(health.cycle.policy) if health.cycle else None
+                    ),
+                    "exit_cause": health.cycle.exit_cause if health.cycle else None,
+                    "target_reached_at_exit": (
+                        health.cycle.target_reached_at_exit if health.cycle else None
+                    ),
                     "allocations": health.allocations,
                     "alerts": health.alerts,
                     "alerts_evicted": health.alerts_evicted,
@@ -198,7 +209,7 @@ class LocalControl:
             else:
                 data = [{"scope": s, "market": c.market} for s, c in self.owner.contexts.items()]
             return self.envelope(plain(data))
-        if op not in ACTIONS or set(request) != {
+        fields = {
             "version",
             "op",
             "session_id",
@@ -208,7 +219,10 @@ class LocalControl:
             "reason",
             "observed_ms",
             "confirmed",
-        }:
+        }
+        if op == "limit-liquidate":
+            fields |= {"cycle_id", "policy_sha256"}
+        if op not in ACTIONS or set(request) != fields:
             raise DomainError("unknown local command fields")
         if request["session_id"] != self.session_id:
             raise DomainError("command belongs to a different mock session")
@@ -243,6 +257,11 @@ class LocalControl:
                 request["observed_ms"],
                 request["confirmed"],
             ),
+            exit_approval=(
+                ExitApproval(request["cycle_id"], request["policy_sha256"])
+                if op == "limit-liquidate"
+                else None
+            ),
         )
         health = await self.owner.status()
         return self.envelope(
@@ -251,6 +270,8 @@ class LocalControl:
                     "receipt": receipt,
                     "current_revision": health.operations.revision,
                     "admission_halted": health.admission_halted,
+                    "cycle_phase": health.cycle.phase if health.cycle else None,
+                    "exit_cause": health.cycle.exit_cause if health.cycle else None,
                 }
             )
         )
@@ -316,6 +337,7 @@ class LocalControl:
                 RecursionError,
                 LedgerError,
                 ExecutionError,
+                ReadError,
             ):
                 response = self.envelope(None, error="refused")
             try:

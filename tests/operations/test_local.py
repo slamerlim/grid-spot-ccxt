@@ -3,24 +3,32 @@ import asyncio
 import os
 import socket
 import stat
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from persistence.conftest import SOURCES
 
+from grid.domain.model import Scope
 from grid.domain.numbers import DomainError
+from grid.execution.models import Page
 from grid.operations.console import execute, load_request
 from grid.operations.local import (
     ACTIONS,
     MAX_CLIENTS,
     REQUEST_BYTES,
     SENSITIVE,
+    LocalControl,
     call,
     receive,
     send,
 )
 from grid.operations.session import MockSession
+from grid.operations.synthetic import fixture
+from grid.persistence import codec
 from grid.research.artifacts import canonical
+
+from .test_supervisor import boot
 
 
 @pytest.fixture
@@ -275,6 +283,10 @@ def test_each_operator_action_reaches_the_existing_audited_controller(
             args = arguments(
                 session.control.path, short_path / "command.json", op, before.operations.revision
             )
+            if op == "limit-liquidate":
+                assert before.cycle is not None
+                args.cycle = before.cycle.id
+                args.policy_sha256 = codec.digest(before.cycle.policy)
             code, _ = await execute(args)
             if op in SENSITIVE:
                 assert code == 3
@@ -348,5 +360,93 @@ def test_close_releases_journal_only_after_financial_owner_closes(
                 await MockSession.open(short_path / "session", SOURCES, resume=True)
         await session.close()
         assert session.closed and session.journal.closed
+
+    asyncio.run(run())
+
+
+@pytest.mark.usefixtures("async_sockets")
+def test_stale_book_liquidation_refuses_without_killing_operator_channel(short_path: Path) -> None:
+    async def run() -> None:
+        session = await MockSession.open(short_path / "session", SOURCES, resume=False)
+        assert session.owner and session.control and session.control.path
+        owner, path = session.owner, session.control.path
+        try:
+            status = await call(path, {"version": 1, "op": "status"})
+            args = arguments(
+                path, short_path / "exit.json", "limit-liquidate", status["data"]["revision"]
+            )
+            args.cycle = status["data"]["cycle"]["id"]
+            args.policy_sha256 = status["data"]["cycle_policy_sha256"]
+            assert (await execute(args))[0] == 3
+            assert owner.facts is not None
+            row = owner.facts.markets[0]
+            owner.facts = replace(
+                owner.facts, markets=(replace(row, book=replace(row.book, received_ns=0)),)
+            )
+            args.confirm = True
+            code, result = await execute(args)
+            assert code == 2 and isinstance(result, dict) and result["error"] == "refused"
+            assert not session.control.failed
+            after = await call(path, {"version": 1, "op": "status"})
+            assert after["ok"] and after["data"]["cycle"] == status["data"]["cycle"]
+            assert after["data"]["revision"] == status["data"]["revision"]
+        finally:
+            await session.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.usefixtures("async_sockets")
+def test_manual_confirmation_racing_reconciliation_is_retryable_with_same_request(
+    short_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def run() -> None:
+        now = [10000]
+        owner = await boot(short_path / "mock.db", now)
+        endpoint = LocalControl(owner, "race-session")
+        path = short_path / "race.sock"
+        await endpoint.start(path)
+        entered, release = asyncio.Event(), asyncio.Event()
+        task: asyncio.Task[object] | None = None
+        original = owner.executor.gateway.page
+
+        async def delayed(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+            entered.set()
+            await release.wait()
+            return await original(scope, epoch, cursor, size)
+
+        try:
+            status = await call(path, {"version": 1, "op": "status"})
+            packet = short_path / "exit.json"
+            args = arguments(path, packet, "limit-liquidate", status["data"]["revision"])
+            args.cycle = status["data"]["cycle"]["id"]
+            args.policy_sha256 = status["data"]["cycle_policy_sha256"]
+            assert (await execute(args))[0] == 3
+            saved = packet.read_bytes()
+            monkeypatch.setattr(owner.executor.gateway, "page", delayed)
+            now[0] += 10
+            await owner.observe(fixture(1, 1).facts(now[0], 2))
+            task = asyncio.create_task(owner.step())
+            await asyncio.wait_for(entered.wait(), 2)
+            args.confirm = True
+            code, result = await execute(args)
+            assert code == 2 and isinstance(result, dict) and result["error"] == "refused"
+            during = await call(path, {"version": 1, "op": "status"})
+            assert during["data"]["allocations"][0]["recovery"]
+            assert during["data"]["exit_cause"] is None
+            request_id = load_request(packet)["request_id"]
+            assert await owner.writer.submit(lambda ledger: ledger.lookup(request_id)) is None
+            release.set()
+            await task
+            assert (await execute(args))[0] == 0
+            after = await call(path, {"version": 1, "op": "status"})
+            assert after["data"]["exit_cause"] == "operator"
+            assert packet.read_bytes() == saved and not owner.executor.gateway.sent
+        finally:
+            release.set()
+            if task is not None:
+                await task
+            await endpoint.close()
+            await owner.close()
 
     asyncio.run(run())

@@ -20,6 +20,7 @@ loader, remote listener, service installation or live arming path is added.
 | `retire` | Retire selected allocations while retaining supervision of orders/inventory |
 | `resume` | Explicit reviewed resume, subject to existing fresh-evidence/recovery guards |
 | `halt` | Emergency admission halt; full supervised roster required |
+| `limit-liquidate` | Reviewed full-cycle manual LIMIT exit under the current exit policy |
 
 Mutations require the current **operational** revision, a printable reason up to
 128 characters, explicit `--all` or `--allocation ID` targets, and a new private
@@ -35,13 +36,19 @@ cannot be reused with different action arguments. Repeating it returns the
 durable receipt; it does not repeat the mutation. A lost acknowledgement is an
 unknown outcome, never an instruction to create a new ID or automatically retry.
 
-`resume`, `cancel-buys` and `retire` require two invocations: the first saves and
+`resume`, `cancel-buys`, `retire` and `limit-liquidate` require two invocations: the first saves and
 prints a preview with exit 3; after reviewing it, repeat exactly with `--confirm`.
 `--confirm` without a previously saved request is refused. The server also
 requires the sensitive command's confirmation flag. This is an operator workflow,
 not protection against a malicious process running under the same OS account.
 Responses include current revision/halt state alongside historical receipts so
 replaying an old resume cannot be mistaken for clearing a subsequent halt.
+
+Manual liquidation additionally requires `--cycle` and `--policy-sha256` from
+status and accepts only the full roster. It records an operator cause without
+claiming the +10% threshold was met, preserves existing halts/holds, and reuses
+bounded LIMIT exit supervision. See `I8-MANUAL-EXIT.md` for transaction boundaries,
+record compatibility, confirmation, preflight refusals and remaining scope.
 
 Exit codes: 0 for a successful view or committed/replayed command; 2 for refusal
 or an unknown outcome; 3 for confirmation required; 130 for keyboard interruption.
@@ -111,8 +118,8 @@ session, not editing the journal marker or bypassing the resume guard.
 
 ## Remaining work and rollback
 
-This is the first CLI increment, not completion of PRD section 10. Manual
-`limit-liquidate`, audited hot configuration CLI, owner-mediated backup and
+This is not completion of PRD section 10. Per-allocation manual liquidation,
+audited hot configuration CLI, owner-mediated backup and
 restore verification commands, and unified research/storage command aliases remain
 to implement. Existing research and backup APIs are still available only through
 their documented modules/typed interfaces. The views inspect a fixed fixture;

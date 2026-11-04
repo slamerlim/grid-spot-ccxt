@@ -10,9 +10,9 @@ from grid.domain.reducer import _cancel, reduce
 from grid.operations.model import Action, AllocationStatus, BackupStamp, Command, Operations
 from grid.persistence import codec
 from grid.persistence.ledger import Ledger
-from grid.persistence.portfolio import save_rows
+from grid.persistence.portfolio import request_manual_exit, save_rows
 from grid.persistence.records import Conflict, LedgerError, Outcome
-from grid.portfolio.model import CyclePhase
+from grid.portfolio.model import CyclePhase, ExitApproval, ValuationFacts
 
 
 def current(ledger: Ledger) -> Operations | None:
@@ -26,8 +26,14 @@ def commit(
     command: Command,
     roster: tuple[Scope, ...],
     resume_check: Callable[[], None],
+    *,
+    exit_approval: ExitApproval | None = None,
+    exit_evidence: tuple[ValuationFacts, int, int] | None = None,
 ) -> Outcome:
     bounded_int(expected, 0, 2**63 - 2)
+    is_exit = command.action is Action.LIMIT_LIQUIDATE
+    if is_exit != (exit_approval is not None) or not is_exit and exit_evidence is not None:
+        raise LedgerError("exit approval is required only for manual limit liquidation")
 
     def action() -> Outcome:
         previous = current(ledger)
@@ -57,12 +63,20 @@ def commit(
             held.difference_update(command.scopes)
             if set(command.scopes) == set(roster):
                 halted = False
-        rows = {s: ledger._load(codec.digest(s)) for s in roster}
+        if is_exit:
+            if set(command.scopes) != set(roster) or exit_approval is None or exit_evidence is None:
+                raise LedgerError("manual portfolio exit needs full roster and fresh evidence")
+            facts, ms, ns = exit_evidence
+            request_manual_exit(
+                ledger, request_id, exit_approval, facts, ms, ns, command.actor, command.reason
+            )
+            ledger.storage.fault("operations:after_liquidation")
+        rows = {} if is_exit else {s: ledger._load(codec.digest(s)) for s in roster}
         after = dict(rows)
         commands: dict[Scope, tuple[DomainCommand, ...]] = {}
         cycle = ledger.portfolio()
         latched = cycle is not None and cycle.phase is not CyclePhase.ACTIVE
-        for scope in command.scopes:
+        for scope in () if is_exit else command.scopes:
             state, context, version, recovery = rows[scope]
             context = replace(context, now_ms=command.observed_ms, allow_new_exposure=False)
             desired = {
@@ -112,9 +126,10 @@ def commit(
         )
         return Outcome(None, updated.revision, True)
 
-    return ledger._request(
-        request_id, ("operations", expected, command, roster), "operations", None, action
-    )
+    payload: tuple[object, ...] = ("operations", expected, command, roster)
+    if exit_approval is not None:
+        payload += (exit_approval,)
+    return ledger._request(request_id, payload, "operations", None, action)
 
 
 def backup_verified(ledger: Ledger, request_id: str, expected: int, stamp: BackupStamp) -> Outcome:

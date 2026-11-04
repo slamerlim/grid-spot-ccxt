@@ -14,6 +14,7 @@ from typing import Any, NoReturn
 from grid.domain.numbers import DomainError, bounded_int, identifier
 from grid.operations.local import ACTIONS, REQUEST_BYTES, SENSITIVE, VIEWS, call, decode
 from grid.persistence.storage import private_path
+from grid.portfolio.model import ExitApproval
 from grid.research.artifacts import canonical, publish
 
 
@@ -45,6 +46,9 @@ async def execute(args: argparse.Namespace) -> tuple[int, object]:
         "reason": args.reason,
         "confirmed": args.op in SENSITIVE,
     }
+    if args.op == "limit-liquidate":
+        approval = ExitApproval(args.cycle, args.policy_sha256)
+        desired.update(cycle_id=approval.cycle_id, policy_sha256=approval.policy_sha256)
     if args.request.exists() or args.request.is_symlink():
         packet = load_request(args.request)
         if any(packet.get(k) != v for k, v in desired.items()):
@@ -97,6 +101,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--reason", required=True)
             command.add_argument("--request", type=Path, required=True)
             command.add_argument("--confirm", action="store_true")
+            if name == "limit-liquidate":
+                command.add_argument("--cycle", required=True)
+                command.add_argument("--policy-sha256", required=True)
             targets = command.add_mutually_exclusive_group(required=True)
             targets.add_argument("--all", action="store_true")
             targets.add_argument("--allocation", action="append")

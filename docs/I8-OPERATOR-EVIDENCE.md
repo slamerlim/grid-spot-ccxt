@@ -1,5 +1,8 @@
 # I8 offline follow-up — local mock operator controls
 
+Historical evidence for the first CLI increment. The subsequent manual portfolio
+LIMIT command and its additional checks are recorded in `I8-MANUAL-EXIT.md`.
+
 Scope: the owner's authorized continuation of offline/mock development after
 the completed one-hour public run. Base: `b43f4c0bd58f087350df3cd540a5326108a25395`,
 branch `i8/public-paper-hour`. No additional exchange request, credential access,

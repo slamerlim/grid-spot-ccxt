@@ -968,6 +968,10 @@ class Ledger:
         cycle = codec.loads(row[1], Cycle, limit=self.bounds.snapshot_bytes)
         if cycle.revision != row[0]:
             raise LedgerError("portfolio revision projection differs")
+        if cycle.manual_exit is not None and (
+            cycle.manual_exit.policy_sha256 != codec.digest(cycle.policy)
+        ):
+            raise LedgerError("manual exit policy differs from operator approval")
         return cycle
 
     def operations(self) -> Operations | None:

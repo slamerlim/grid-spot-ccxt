@@ -117,9 +117,13 @@ The first local CLI increment is recorded in `docs/I8-OPERATOR-DESIGN.md` and
 `docs/I8-OPERATOR-EVIDENCE.md`. `gridctl operator` exposes mock status and existing
 audited controls through same-user AF_UNIX IPC. Its finite invented-account owner
 starts halted; sensitive commands need a saved request and second confirmation.
-Continue offline implementation of manual limit exit, hot configuration and
-backup/restore/research CLI integration. These are not completed merely by the
-status/control surface. No new exchange or deployment authorization is implied.
+The full-cycle manual LIMIT exit is recorded in `docs/I8-MANUAL-EXIT.md`. Its
+approval is bound to cycle identity and exit-policy digest; operator audit and
+exit latch commit atomically. It retains explicit halts and uses an additive
+snapshot extension without rewriting old financial records. Continue offline
+implementation of per-allocation manual exit, hot configuration and
+backup/restore/research CLI integration. No new exchange or deployment
+authorization is implied.
 
 ## Invariants for subsequent approved iterations
 

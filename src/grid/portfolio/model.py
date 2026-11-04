@@ -241,6 +241,23 @@ class Residual:
 
 
 @dataclass(frozen=True)
+class ExitApproval:
+    """Reviewed cycle and immutable exit policy, independent of NAV sample revisions."""
+
+    cycle_id: str
+    policy_sha256: str
+
+    def __post_init__(self) -> None:
+        identifier(self.cycle_id)
+        if (
+            not isinstance(self.policy_sha256, str)
+            or len(self.policy_sha256) != 64
+            or any(c not in "0123456789abcdef" for c in self.policy_sha256)
+        ):
+            raise DomainError("explicit exit policy digest required")
+
+
+@dataclass(frozen=True)
 class Cycle:
     id: str
     revision: int
@@ -258,6 +275,7 @@ class Cycle:
     reason: str
     actor: str
     trigger_baseline: Decimal | None = None
+    manual_exit: ExitApproval | None = None
 
     @arithmetic
     def __post_init__(self) -> None:
@@ -272,12 +290,17 @@ class Cycle:
         bounded_int(self.last_evaluation_ms, self.baseline.now_ms, 2**53 - 1)
         if not isinstance(self.phase, CyclePhase):
             raise DomainError("explicit cycle phase required")
+        if self.manual_exit is not None and (
+            type(self.manual_exit) is not ExitApproval or self.manual_exit.cycle_id != self.id
+        ):
+            raise DomainError("manual exit approval belongs to a different cycle")
         if self.phase is CyclePhase.ACTIVE and (
             self.trigger is not None
             or self.trigger_baseline is not None
             or self.started_exit_ms is not None
             or self.slots
             or self.residuals
+            or self.manual_exit is not None
         ):
             raise DomainError("active cycle cannot retain a cleared exit latch")
         if len(self.slots) > 1000 or len(self.pending_flows) > 1000 or len(self.residuals) > 3000:
@@ -292,7 +315,10 @@ class Cycle:
             raise DomainError("latched exit requires trigger evidence")
         if self.trigger_baseline is not None:
             decimal(self.trigger_baseline, positive=True)
-            if self.trigger is None or self.trigger.net < self.trigger_baseline * Decimal("1.10"):
+            if self.trigger is None or (
+                self.manual_exit is None
+                and self.trigger.net < self.trigger_baseline * Decimal("1.10")
+            ):
                 raise DomainError("trigger threshold proof inconsistent")
         if (self.final is not None) != (self.phase is CyclePhase.COMPLETE):
             raise DomainError("completion requires a final valuation")
@@ -304,6 +330,19 @@ class Cycle:
             raise DomainError("unclassified cashflow prevents completion")
         if self.started_exit_ms is not None:
             bounded_int(self.started_exit_ms, self.baseline.now_ms, self.last_evaluation_ms)
+
+    @property
+    def exit_cause(self) -> str | None:
+        if self.trigger is None:
+            return None
+        return "operator" if self.manual_exit is not None else "nav_target"
+
+    @property
+    @arithmetic
+    def target_reached_at_exit(self) -> bool | None:
+        if self.trigger is None or self.trigger_baseline is None:
+            return None
+        return self.trigger.net >= self.trigger_baseline * Decimal("1.10")
 
     @property
     @arithmetic

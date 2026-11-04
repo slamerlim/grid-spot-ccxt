@@ -11,7 +11,9 @@ from grid.execution.synthetic import SyntheticExchange
 from grid.operations.model import Action, Command
 from grid.operations.supervisor import MockSupervisor
 from grid.operations.synthetic import EXECUTION, OPERATIONS, STORAGE, fixture
+from grid.persistence import codec
 from grid.persistence.ledger import Ledger
+from grid.portfolio.model import ExitApproval
 
 
 async def main() -> None:
@@ -28,6 +30,13 @@ async def main() -> None:
         lambda: (10000, 10000000000),
         case.prepare,
     )
+    liquidation = data.get("action") == "limit-liquidate"
+    approval = None
+    if liquidation:
+        await owner.observe(case.facts(10000, 1))
+        await owner.step()
+        await owner.portfolio.begin("cycle", 0, "cycle", case.portfolio, "tester", "fixture")
+        approval = ExitApproval("cycle", codec.digest(case.portfolio))
 
     def install(ledger: Ledger) -> None:
         def crash(stage: str) -> None:
@@ -38,9 +47,17 @@ async def main() -> None:
 
     await owner.writer.submit(install)
     await owner.control(
-        "cancel",
+        "liquidate" if liquidation else "cancel",
         1,
-        Command(Action.CANCEL_BUYS, case.scopes, "tester", "crash fixture", 10000, False),
+        Command(
+            Action.LIMIT_LIQUIDATE if liquidation else Action.CANCEL_BUYS,
+            case.scopes,
+            "tester",
+            "crash fixture",
+            10000,
+            liquidation,
+        ),
+        exit_approval=approval,
     )
     raise RuntimeError("crash boundary not reached")
 

@@ -119,3 +119,57 @@ def test_operator_parser_does_not_echo_untrusted_arguments(
     assert error.value.code == 2
     output = capsys.readouterr()
     assert "do-not-reflect-this-input" not in output.out + output.err
+
+
+def test_process_limit_liquidation_requires_reviewed_policy_and_second_confirmation(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    root = tmp_path_factory.mktemp("liquidate")
+    child, ready = start(root / "session", resume=False)
+    try:
+        status = json.loads(command("status", "--socket", ready["socket"]).stdout)["data"]
+        args = [
+            "limit-liquidate",
+            "--socket",
+            ready["socket"],
+            "--revision",
+            str(status["revision"]),
+            "--all",
+            "--reason",
+            "process-test",
+            "--request",
+            str(root / "exit.json"),
+        ]
+        assert command(*args).returncode == 2  # No cycle/policy approval supplied.
+        assert not (root / "exit.json").exists()
+        args += ["--cycle", status["cycle"]["id"], "--policy-sha256", status["cycle_policy_sha256"]]
+        assert command(*args, "--confirm").returncode == 2
+        assert not (root / "exit.json").exists()
+        assert command(*args).returncode == 3
+        prepared = (root / "exit.json").read_bytes()
+        for _ in range(10):
+            result = command(*args, "--confirm")
+            if result.returncode == 0:
+                break
+            # A concurrent reconciliation may correctly refuse fresh exit admission.
+            # Inspect status and explicitly repeat the SAME saved request, never a new ID.
+            assert json.loads(result.stdout)["error"] == "refused", result.stderr
+            inspected = command("status", "--socket", ready["socket"])
+            assert inspected.returncode == 0, inspected.stderr
+            assert json.loads(inspected.stdout)["data"]["revision"] in (
+                status["revision"],
+                status["revision"] + 1,
+            )
+        assert result.returncode == 0, result.stderr
+        accepted = json.loads(result.stdout)["data"]
+        assert accepted["exit_cause"] == "operator" and accepted["admission_halted"]
+        replay = command(*args, "--confirm")
+        assert replay.returncode == 0, replay.stderr
+        assert json.loads(replay.stdout)["data"]["receipt"] == accepted["receipt"]
+        assert (root / "exit.json").read_bytes() == prepared
+        final = json.loads(command("status", "--socket", ready["socket"]).stdout)["data"]
+        assert final["exit_cause"] == "operator" and final["target_reached_at_exit"] is False
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.communicate(timeout=5)

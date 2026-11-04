@@ -37,7 +37,7 @@ from grid.persistence.records import Backpressure, Bounds, LedgerError, Outcome,
 from grid.persistence.storage import restore
 from grid.persistence.writer import AsyncWriter
 from grid.portfolio.controller import PortfolioController
-from grid.portfolio.model import Cycle, CyclePhase, ValuationFacts
+from grid.portfolio.model import Cycle, CyclePhase, ExitApproval, ValuationFacts
 from grid.portfolio.valuation import fresh
 from grid.universe.controller import UniverseController
 from grid.universe.model import MarketKey
@@ -174,7 +174,14 @@ class MockSupervisor:
         self.contexts = {mapping[f.key]: f.context for f in facts.markets}
         self.facts = facts
 
-    async def control(self, request_id: str, expected: int, command: Command) -> Outcome:
+    async def control(
+        self,
+        request_id: str,
+        expected: int,
+        command: Command,
+        *,
+        exit_approval: ExitApproval | None = None,
+    ) -> Outcome:
         ms, ns = self._now()
         if self._closing or self._closed or command.observed_ms > ms:
             raise ExecutionError("closed supervisor or future control")
@@ -198,8 +205,18 @@ class MockSupervisor:
                 )
 
             first = ledger.lookup(request_id) is None
+            exit_evidence = None
+            if exit_approval is not None and self.facts is not None:
+                exit_evidence = (self.facts, *self._now())
             return records.commit(
-                ledger, request_id, expected, command, self.scopes, validate_resume
+                ledger,
+                request_id,
+                expected,
+                command,
+                self.scopes,
+                validate_resume,
+                exit_approval=exit_approval,
+                exit_evidence=exit_evidence,
             ), first
 
         try:

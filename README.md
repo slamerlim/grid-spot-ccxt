@@ -153,7 +153,9 @@ and `halt`; all require an observed revision, targets, reason and private saved
 request. Sensitive actions require a second invocation with `--confirm` after
 review. See [the command procedure](docs/RUNBOOK.md#local-mock-operator-procedure),
 [design](docs/I8-OPERATOR-DESIGN.md) and [evidence](docs/I8-OPERATOR-EVIDENCE.md).
-Manual limit liquidation, hot configuration and backup/restore CLI integration
+The [manual portfolio LIMIT exit](docs/I8-MANUAL-EXIT.md) is available as
+`limit-liquidate`, with explicit cycle/policy approval and full-roster targeting.
+Per-allocation liquidation, hot configuration and backup/restore CLI integration
 remain unfinished. This fixture does not establish trading or I8 acceptance.
 
 ## Verify
@@ -175,8 +177,9 @@ The vulnerability audit calls advisory services; unavailable advisory results
 are not a pass. The test suite disables sockets and uses temporary paths and
 mock runtime metadata. It does not claim Q01–Q20 financial/exchange acceptance.
 The secret-scanner baseline permits only the four reviewed specification SHA-256
-fingerprints. Two synthetic redaction-test strings have explicit inline
-allowlist comments. No real credential is allowlisted; new findings fail CI.
+fingerprints. Two synthetic redaction-test strings and two golden SHA-256
+checksums of invented cycle fixtures have explicit local allowlist comments.
+No real credential is allowlisted; new findings fail CI.
 CI runs the same checks on Python 3.12 and 3.13 with read-only repository
 permissions and no live secrets. Do not equate local checks with an observed
 GitHub Actions run; actual evidence is recorded per iteration.

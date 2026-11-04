@@ -601,3 +601,40 @@ do not suppress them or treat the fixture as production-ready. It cannot provide
 UTC audit or observed-soak evidence. `paper-audit` refuses its different journal
 kind. Design, trust boundary, bounds and remaining commands are documented in
 `I8-OPERATOR-DESIGN.md`. Rollback preserves all generated state and request files.
+
+## Manual portfolio LIMIT exit in the mock owner
+
+Inspect `gridctl operator status --socket SOCKET_PATH`. Review the complete
+`data.cycle.policy`, full allocation roster and any held scopes/halt. Obtain
+`data.revision`, `data.cycle.id` and `data.cycle_policy_sha256`. With a new request
+file in an existing owner-only directory outside Git:
+
+```sh
+uv run --locked gridctl operator limit-liquidate --socket SOCKET_PATH --revision CURRENT_REVISION --cycle CYCLE_ID --policy-sha256 REVIEWED_POLICY_DIGEST --all --reason 'reviewed manual portfolio exit' --request /tmp/grid-operator-requests-new/exit.json
+```
+
+The placeholders require actual status values. Exit 3 saves the preview without
+submitting it. Review its session, cycle, digest, targets and reason, then repeat
+the exact command with `--confirm`. A first invocation already containing
+`--confirm` is refused. Routine NAV sampling does not invalidate the approved
+policy; a changed policy or cycle does. A stale operational revision is a conflict.
+
+This command requests exit of the entire registered portfolio cycle, including
+draining allocations and its explicit pools. Partial selections are refused;
+they never expand into an account-wide liquidation. Existing halts and held
+scopes remain in effect; a separate reviewed resume may be required for exit
+sends. Missing/stale valuations or unknown ownership can refuse the request:
+inspect status and use the distinct pause/cancel/reconcile controls as needed.
+An accepted receipt does not mean all orders have canceled or inventory has sold.
+
+Inspect `exit_cause`, `target_reached_at_exit`, cycle phase, slots, residuals,
+final return and exit shortfall. `operator` can validly have target flag false
+and a negative realized return. Unreachable limits or exhausted budgets stay
+blocked; do not switch to MARKET or edit the saved approval to loosen limits.
+After a lost response, retain the original request and inspect status; an
+explicit exact repeat retrieves the same receipt without starting a second exit.
+
+The additive manual snapshot cannot be interpreted by older runtimes. Preserve
+the ledger and use a compatible reader; never remove manual audit records to
+make a downgrade appear valid. See `I8-MANUAL-EXIT.md` for compatibility tests,
+rollback scope and the still-unfinished per-allocation/configuration interfaces.

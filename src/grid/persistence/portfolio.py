@@ -25,6 +25,7 @@ from grid.portfolio.model import (
     Cashflow,
     Cycle,
     CyclePhase,
+    ExitApproval,
     ExitSlot,
     Nav,
     PoolKey,
@@ -229,6 +230,80 @@ def begin(
 
 
 @arithmetic
+def latch_exit(
+    ledger: Ledger,
+    request_id: str,
+    cycle: Cycle,
+    rows: Rows,
+    facts: ValuationFacts,
+    value: Nav,
+    ms: int,
+    manual_exit: ExitApproval | None = None,
+) -> Cycle:
+    """Join the caller's transaction; revoke unsent intents and retain uncertain orders."""
+    if not ledger.db.in_transaction:
+        raise LedgerError("exit latch requires an enclosing financial transaction")
+    after = dict(rows)
+    commands: dict[Scope, tuple[Command, ...]] = {}
+    slots: list[ExitSlot] = []
+    for scope, (state, context, version, recovery) in rows.items():
+        safe = replace(context, allow_new_exposure=False)
+        state = replace(
+            state, mode=Mode.PORTFOLIO_EXIT, control_revision=state.control_revision + 1
+        )
+        unsent = frozenset(o.id for o in state.working if not ledger.attempted(scope, o.id))
+        state, commands[scope] = plan_cancellations(state, safe, unsent)
+        after[scope] = state, safe, version, recovery
+        observation = next(f for f in facts.markets if f.key == MarketKey.of(scope))
+        slots.append(
+            ExitSlot(scope, observation.book.bids[0][0], 0, None, None, "cancel and reconcile")
+        )
+    save_rows(ledger, request_id, rows, after, commands)
+    return replace(
+        cycle,
+        phase=CyclePhase.REQUESTED,
+        trigger=value,
+        trigger_baseline=cycle.baseline.net + cycle.adjustment,
+        started_exit_ms=ms,
+        slots=tuple(slots),
+        manual_exit=manual_exit,
+    )
+
+
+def request_manual_exit(
+    ledger: Ledger,
+    request_id: str,
+    approval: ExitApproval,
+    facts: ValuationFacts,
+    ms: int,
+    ns: int,
+    actor: str,
+    reason: str,
+) -> None:
+    """Called only inside the audited operational request transaction."""
+    cycle = current(ledger)
+    if (
+        cycle is None
+        or cycle.id != approval.cycle_id
+        or codec.digest(cycle.policy) != approval.policy_sha256
+        or cycle.phase is not CyclePhase.ACTIVE
+    ):
+        raise Conflict("reviewed active cycle and exit policy required")
+    if ms < cycle.last_evaluation_ms or cycle.pending_flows:
+        raise LedgerError("regressed clock or unclassified cashflow blocks manual exit")
+    rows = load(ledger, cycle.policy)
+    value = nav(ledger, rows, facts, cycle.policy, ms, ns)
+    updated = replace(
+        cycle, revision=cycle.revision + 1, last_evaluation_ms=ms, actor=actor, reason=reason
+    )
+    persist(
+        ledger,
+        request_id,
+        latch_exit(ledger, request_id, updated, rows, facts, value, ms, approval),
+    )
+
+
+@arithmetic
 def evaluate(
     ledger: Ledger,
     request_id: str,
@@ -255,32 +330,7 @@ def evaluate(
             cycle, revision=expected + 1, last_evaluation_ms=ms, actor=actor, reason=reason
         )
         if value.net >= (cycle.baseline.net + cycle.adjustment) * Decimal("1.10"):
-            after = dict(rows)
-            commands: dict[Scope, tuple[Command, ...]] = {}
-            slots: list[ExitSlot] = []
-            for scope, (state, context, version, recovery) in rows.items():
-                safe = replace(context, allow_new_exposure=False)
-                state = replace(
-                    state, mode=Mode.PORTFOLIO_EXIT, control_revision=state.control_revision + 1
-                )
-                unsent = frozenset(o.id for o in state.working if not ledger.attempted(scope, o.id))
-                state, commands[scope] = plan_cancellations(state, safe, unsent)
-                after[scope] = state, safe, version, recovery
-                observation = next(f for f in facts.markets if f.key == MarketKey.of(scope))
-                slots.append(
-                    ExitSlot(
-                        scope, observation.book.bids[0][0], 0, None, None, "cancel and reconcile"
-                    )
-                )
-            save_rows(ledger, request_id, rows, after, commands)
-            updated = replace(
-                updated,
-                phase=CyclePhase.REQUESTED,
-                trigger=value,
-                trigger_baseline=cycle.baseline.net + cycle.adjustment,
-                started_exit_ms=ms,
-                slots=tuple(slots),
-            )
+            updated = latch_exit(ledger, request_id, updated, rows, facts, value, ms)
         return persist(ledger, request_id, updated)
 
     return ledger._request(
