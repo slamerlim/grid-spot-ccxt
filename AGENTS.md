@@ -184,6 +184,16 @@ survivorship-free or preregistered research. No continuous portfolio, independen
 lot study, live export or resource isolation is implied. Continue the remaining
 offline work without reusing the completed public-hour authorization.
 
+`docs/I8-RESOURCE-CONTENTION.md` records the finite `operations contention`
+experiment: distinct seed partials on 1/7 synthetic venues, one bounded replay
+child, pressure pause/resume, durable fill identities and clean writer reopen.
+Preserve every financial validation while caching only the fixed codec schema.
+Report actual timing failures, CPU/address-space ceilings and logical read pacing
+separately from unverified deployment RSS/device quotas. This is not a live
+research scheduler or completed Q18 hardware acceptance. Keep workers owned,
+bounded and reaped, and never mutate host cgroups to manufacture an acceptance
+result. Public-run, account, I9 and deployment authorization remain unchanged.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

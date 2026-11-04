@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import types
+from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from decimal import Decimal
 from enum import StrEnum
+from functools import lru_cache
 from typing import Any, Literal, TypeAliasType, Union, cast, get_args, get_origin, get_type_hints
 
 from grid.domain import market, model
@@ -101,6 +103,14 @@ _ENUMS = {
 MAX_BYTES = 16 * 1024 * 1024
 
 
+@lru_cache(maxsize=len(_CLASSES))
+def _hints(record: type[Any]) -> Mapping[str, Any]:
+    # Only immutable code schema metadata is cached, never a stored fact or financial value.
+    if record not in _CLASSES:
+        raise DomainError("unsupported snapshot schema")
+    return types.MappingProxyType(get_type_hints(record))
+
+
 def amount(value: Decimal) -> str:
     decimal(value, signed=True)
     text = format(value, "f")
@@ -164,7 +174,7 @@ def _encode(value: object, depth: int = 0) -> object:
             raise DomainError("snapshot collection bound exceeded")
         return {"tuple": [_encode(item, depth + 1) for item in value]}
     if is_dataclass(value) and not isinstance(value, type) and type(value) in _CLASSES:
-        hints = get_type_hints(type(value))
+        hints = _hints(type(value))
         values = {}
         for field in fields(value):
             item = getattr(value, field.name)
@@ -239,7 +249,7 @@ def _decode(value: Any, depth: int = 0) -> object:
             if record is portfolio.AllocationExit:
                 decoded.setdefault("residual", None)
                 decoded.setdefault("released", False)
-            hints = get_type_hints(record)
+            hints = _hints(record)
             if not all(_matches(item, hints[key]) for key, item in decoded.items()):
                 raise DomainError("snapshot field type mismatch")
             constructor = cast(Any, record)

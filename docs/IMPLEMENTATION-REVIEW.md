@@ -17,6 +17,8 @@ The independent-lot research reference based on `0c54773` is recorded in
 `I8-INDEPENDENT-LOT-REFERENCE.md` and incorporated below.
 The declared walk-forward/sensitivity runner based on `0fe53c2` is recorded in
 `I8-RESEARCH-STUDIES.md` and incorporated below.
+The resource-contention harness and measured schema-cache optimization based on
+`4c44624` are recorded in `I8-RESOURCE-CONTENTION.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -49,7 +51,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q15 OHLC ambiguity | Three fixed conventions and a comparison command preserve one side per allocation/bar and delayed new orders; `tests/research/test_replay.py`, `test_comparison.py` | The reported range covers only these assumptions, not every feasible execution path; queue/volume evidence and broader studies remain absent |
 | Q16 chronology/restart | UTC merge, canonical ties, final partial interval, deterministic restart, separately hashed source/runtime/Git report envelope; research replay/provenance/crash tests | No checkpoint resume or loaded-code/dependency attestation; broader multi-market study required |
 | Q17 cache | Single-flight refresh, freshness/generation gates, bounded LRU and 100-caller mock test; `tests/universe/test_discovery.py` | Full real-venue discovery/admission integration untested |
-| Q18 overload/resources | Bounded writer/intake/cache, halt on overload, synthetic 1/7-venue × 10/100/1,000-candidate matrix; execution/operations tests | Not 1,000 funded allocations; no constrained research/fill-storm contention or deployment sizing |
+| Q18 overload/resources | Bounded writer/intake/cache, overload halt, candidate matrix and a 1/7-venue distinct-fill contention harness with a bounded research child; execution/operations tests | Not 1,000 funded allocations, a sustained mixed-side workload, kernel RSS/device quotas or deployment sizing |
 | Q19 controller/storage | Exclusive mock ownership, WAL/FULL ledger, crash, backup/restore and audited storage controls; `tests/persistence/`, `tests/operations/test_storage*.py` | Real venue reconciliation after restore, deployment filesystem/power faults and production runtime remain unverified |
 | Q20 security/deployment | Live unavailable, sanitized CLI, same-UID IPC, audited confirmations, secret scan and inert service template; config/doctor/operations tests | No installed service, withdrawal-permission verification, real restart drill or external alert delivery |
 
@@ -111,10 +113,15 @@ missing venue evidence or to enable live access.
 4. **Resource isolation and contention.** Input/queue bounds and sequential
    decoding are not CPU/RSS/IO quotas. `operations/experiment.py:benchmark_case`
    assesses up to 1,000 candidates, then supervises one allocation per logical
-   venue. It does not run an offline replay worker against a concurrent fill
-   storm. ADR benchmark 6 and Q18 require bounded competing research, measured
-   trading responsiveness, preserved durable fills and research yielding under
-   pressure. Develop the offline harness before claiming this acceptance.
+   venue. The separate `operations contention` harness now reconciles 40/280
+   distinct seed partials while a paced replay child runs, stops under pressure
+   and resumes with matching replay hashes. It checks durable fill identities,
+   duplicate recovery, conservation and writer reopen. A measured codec schema
+   cache avoids repeated type reflection without caching financial state.
+   CPU-time/address-space ceilings and logical read pacing are explicitly
+   distinguished from kernel CPU bandwidth, RSS and device-I/O quotas. Sustained
+   mixed-side workloads, 1,000 funded allocations, deployment limits and actual
+   NVMe contention remain outstanding; this is partial Q18/ADR evidence.
 5. **Full storage benchmark matrix.** The current benchmark measures bounded
    warm read/decode/repack/hash samples with byte-equivalent raw/Arrow/Parquet
    reconstruction. Cold-ish scans, UTC/random slicing, 100/1,000-symbol merges,

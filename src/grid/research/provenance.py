@@ -214,7 +214,7 @@ class Observation:
         )
 
     def finish(self, operation: str, result: object) -> dict[str, object]:
-        if operation not in {"replay", "benchmark", "validate"}:
+        if operation not in {"replay", "benchmark", "validate", "resource-contention"}:
             raise DomainError("unknown research report operation")
         source = source_identity(self.package)
         current_git = git_identity(self.package, self.supplied, source)
@@ -240,7 +240,7 @@ class Observation:
                 "process_cpu_ns": cpu,
                 "measurement_scope": (
                     "Engine and evidence capture; excludes config loading/report publication. "
-                    "Process CPU excludes Git child CPU."
+                    "Process CPU excludes child processes; worker CPU is reported separately."
                 ),
                 "limitation": (
                     "Before/after disk snapshots, not attestation of loaded code or dependencies"

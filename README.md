@@ -157,7 +157,13 @@ and an old `.venv` may correctly refuse ledger creation. With that environment:
 ```sh
 uv run --locked python -m grid.operations dry-run --code-revision "$(git rev-parse HEAD)" --sqlite-source-id '2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9' --output /tmp/grid-operations-new/dry-run.json
 uv run --locked python -m grid.operations benchmark --code-revision "$(git rev-parse HEAD)" --sqlite-source-id '2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9' --output /tmp/grid-operations-new/benchmark.json
+uv run --locked python -m grid.operations contention --code-revision "$(git rev-parse HEAD)" --sqlite-source-id '2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9' --output /tmp/grid-operations-new/contention.json
 ```
+
+The contention command reconciles distinct synthetic partial fills while a
+separate bounded research process runs, pauses under pressure and resumes.
+It reports measurements and failures without claiming deployed RSS/device quotas.
+See [contention limits, lifecycle and evidence](docs/I8-RESOURCE-CONTENTION.md).
 
 The source identity is approved for the existing **mock test builds only**; do
 not substitute an unfamiliar runtime's identity without provenance review.

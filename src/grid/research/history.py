@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 from grid.domain.numbers import DomainError, arithmetic, bounded_int, decimal, identifier
+from grid.research.resources import before_read
 
 RECORD = struct.Struct("<qffff")
 MINUTE = 60_000
@@ -118,11 +119,13 @@ def records(source: Source, mode: Literal["sequential", "mmap"] = "sequential") 
                 stream.fileno(), size + start - aligned, access=mmap.ACCESS_READ, offset=aligned
             ) as mapping:
                 for index in range(source.count):
+                    before_read(RECORD.size)
                     position = start - aligned + index * RECORD.size
                     yield mapping[position : position + RECORD.size]
         else:
             stream.seek(start)
             for _ in range(source.count):
+                before_read(RECORD.size)
                 raw = stream.read(RECORD.size)
                 if len(raw) != RECORD.size:
                     raise DomainError("source truncated during read")

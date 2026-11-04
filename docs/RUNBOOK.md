@@ -425,6 +425,15 @@ retry is performed. Record bounds and sequential Parquet decoding do not provide
 CPU/RSS/IO isolation. Do not run research beside a future trading owner until
 the constrained contention test and deployment quotas have been validated.
 
+`python -m grid.operations contention` now provides the finite synthetic
+contention experiment documented in `I8-RESOURCE-CONTENTION.md`. It uses one
+research child with CPU-time/address-space ceilings and logical archive-read
+pacing. It pauses research while overloaded fill hints are reconciled and
+checks every distinct fill after writer reopen. Exit 1 retains a completed
+measurement report whose timing checks failed; exit 2 is a refused/failed run,
+and caught interruption returns 130. Inspect reports before retrying. Kernel
+RSS/device quotas and on-deployment-hardware acceptance remain unverified.
+
 If a run fails or is killed, leave originals intact. Temporary `.grid-research-*`
 siblings and incomplete format sample directories are diagnostic artifacts, not
 published results. Restart from the immutable input/config into a new output
