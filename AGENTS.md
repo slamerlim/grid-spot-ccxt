@@ -147,6 +147,12 @@ separate and checked again before publication. Git verification is scoped to
 application Python files and dependency manifests, never a claim that the whole
 repository or installed dependencies are clean. Keep Git reads bounded, local,
 transport-denied and isolated from ambient environment/configuration.
+`docs/I8-PORTFOLIO-RESEARCH.md` records the optional `backtest --portfolio` adapter
+over the existing mock ledger/executor/portfolio controller. Require complete
+pool ownership, explicit synthetic liquidity/FX/exit assumptions and an approved
+SQLite source ID. Temporary ledgers are not live state. Preserve delayed fills
+and cancel finality, fee settlement bounds, blocked/unfinished cycles and the
+distinct result schema. Complete source validation even after a cycle exits.
 Continue the offline research and resource gaps recorded there; a green mock suite
 does not close external acceptance gates. No new exchange or deployment
 authorization is implied.

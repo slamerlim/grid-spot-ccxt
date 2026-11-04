@@ -4,6 +4,7 @@ from decimal import Decimal as D
 from pathlib import Path
 
 import pytest
+from exchange.conftest import async_sockets as async_sockets
 
 from grid.domain.model import Context, Scope
 from grid.research.history import MINUTE, RECORD, Source

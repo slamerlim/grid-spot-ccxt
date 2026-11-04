@@ -119,6 +119,14 @@ supplied revision is verified only when it exactly matches the local HEAD and
 the compared source/manifests match that commit. See
 [research provenance and compatibility](docs/I8-RESEARCH-PROVENANCE.md).
 
+Optional `backtest --portfolio /path/to/reviewed-portfolio.json` uses the same
+ledger, mock executor and portfolio controller to model the consolidated +10%
+trigger and bounded LIMIT exit. It requires explicit synthetic liquidity/FX,
+exit policy and approved SQLite source identity, and creates a temporary mock
+ledger. Its distinct result schema records blocked exits and final shortfalls;
+it never forces completion at EOF. See [portfolio replay](docs/I8-PORTFOLIO-RESEARCH.md)
+for inputs, chronology, limits and validation.
+
 ## Offline operational experiments
 
 The finite synthetic runner uses temporary mock databases and makes no exchange

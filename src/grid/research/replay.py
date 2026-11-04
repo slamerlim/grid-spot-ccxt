@@ -183,6 +183,18 @@ def modeled_fee(rule: FeeRule, context: Context, price: Decimal, quantity: Decim
     return ActualFee(fee.currency, fee.amount, value)
 
 
+@arithmetic
+def check_precision(bar: Bar, context: Context) -> None:
+    for field_index, price in enumerate((bar.open, bar.high, bar.low, bar.close)):
+        precision = context.market.price
+        distance = min(
+            abs(price - precision.round(price, up=False)),
+            abs(price - precision.round(price, up=True)),
+        )
+        if distance > rounding_radius(bar, field_index):
+            raise DomainError("float32 price incompatible with supplied market precision")
+
+
 @dataclass(frozen=True)
 class Candidates:
     orders: tuple[Order, ...]
@@ -274,14 +286,7 @@ class Simulator:
 
     @arithmetic
     def step(self, bar: Bar, index: int, spec: Replay) -> None:
-        for field_index, price in enumerate((bar.open, bar.high, bar.low, bar.close)):
-            precision = self.context.market.price
-            distance = min(
-                abs(price - precision.round(price, up=False)),
-                abs(price - precision.round(price, up=True)),
-            )
-            if distance > rounding_radius(bar, field_index):
-                raise DomainError("float32 price incompatible with supplied market precision")
+        check_precision(bar, self.context)
         # Boundary cancels use the PREVIOUS completed bar's pricing proxy.
         for order_id, due in sorted(tuple(self.cancel_due.items())):
             if due <= index:

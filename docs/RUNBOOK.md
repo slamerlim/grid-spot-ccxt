@@ -333,8 +333,11 @@ subsequently approved I5 with local validation; see the section below.
 
 Use `gridctl backtest --help`, `gridctl bench-storage --help` and the bounded
 examples in README. The existing `python -m grid.research` commands remain
-available, including `validate` and `demo`. The
-research module has no exchange transport and never creates a financial database.
+available, including `validate` and `demo`. Research has no exchange transport.
+The default replay has no financial database; optional `backtest --portfolio`
+creates a private temporary mock ledger using a reviewed SQLite source ID and
+explicit synthetic portfolio/liquidity settings. It never opens an operator's
+ledger. See `I8-PORTFOLIO-RESEARCH.md` for that separate schema and its limits.
 Keep source archives immutable and place new outputs outside Git. Do not run the
 legacy converter/downloader or rewrite original files to make validation pass.
 Supply the clean Git commit as `--code-revision`; uncommitted experiments need an

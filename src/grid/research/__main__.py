@@ -14,6 +14,8 @@ from grid.research.benchmark import benchmark
 from grid.research.config import load
 from grid.research.demo import create
 from grid.research.history import Source, validate
+from grid.research.portfolio_config import load as load_portfolio
+from grid.research.portfolio_replay import run as run_portfolio
 from grid.research.provenance import Observation
 from grid.research.replay import run
 
@@ -38,6 +40,7 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
         command.add_argument("--verified-unleveraged-spot", action="store_true")
     elif name == "replay":
         command.add_argument("--config", type=Path, required=True)
+        command.add_argument("--portfolio", type=Path, help="explicit synthetic portfolio settings")
         command.add_argument("--output", type=Path, required=True)
     elif name == "demo":
         command.add_argument("--output-directory", type=Path, required=True)
@@ -73,7 +76,11 @@ def main(
         if args.command == "replay":
             spec = load(args.config)
             observation = Observation.start(spec.code_revision)
-            result: object = run(spec)
+            result: object = (
+                run(spec)
+                if args.portfolio is None
+                else run_portfolio(spec, load_portfolio(args.portfolio))
+            )
             code = 0
         else:
             source = Source(

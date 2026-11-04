@@ -7,6 +7,8 @@ plan. `I0-REQUIREMENTS-TRACE.md` remains the historical I0 mapping. The new
 research CLI increment and its final validation are in `I8-RESEARCH-CLI.md`.
 The subsequent source/runtime reporting increment, based on `5637656`, is in
 `I8-RESEARCH-PROVENANCE.md`; its current status is incorporated below.
+The optional historical portfolio adapter, based on `84caf18`, is recorded in
+`I8-PORTFOLIO-RESEARCH.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -33,7 +35,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q09 unknown submit | Durable intents, unknown state, no blind resend; `tests/execution/test_crashes.py`, `test_recovery.py` | Real client-ID lookup, retention and ambiguous venue responses untested |
 | Q10 fees/accounting | Base/quote/token fees, liabilities, rebates and conservation; ledger, portfolio and research tests | Actual account tiers, fee currencies and conversion evidence unavailable |
 | Q11 hot changes | Revisioned universe control, explicit retirement, confirmed local commands; `tests/universe/`, `tests/operations/test_configuration*.py` | Mock owner only; no live configuration changes authorized |
-| Q12 +10% portfolio exit | Net consolidated valuation, cash-flow handling, bounded LIMIT exits, conversion, residual review; `tests/portfolio/` and scoped dust tests | Historical replay does not exercise this controller; actual liquidity/account valuation remains unverified |
+| Q12 +10% portfolio exit | Net consolidated valuation, cash-flow handling, bounded LIMIT exits, conversion, residual review; `tests/portfolio/`, scoped dust and optional historical portfolio replay tests | Replay uses explicitly synthetic liquidity/FX/account facts; actual venue liquidity/account valuation remains unverified |
 | Q13 fallback | Bounded synthetic private hints and authoritative fake REST recovery; execution recovery/capacity tests | No real private subscription, disconnect or REST recovery integration |
 | Q14 corrupt history | Read-only 24-byte importer, manifest, quarantine counts and strict provenance/precision checks; `tests/research/test_history.py` | Original archive provenance and coverage are not certified by bounded historical samples |
 | Q15 OHLC ambiguity | Two declared scenarios forbid profitable two-sided same-bar round trips; `tests/research/test_replay.py` | Full three-scenario research requirement and uncertainty evaluation unfinished; queue/volume evidence absent |
@@ -53,15 +55,17 @@ under `gridctl operator` and use its existing same-user mock owner.
 These are implementation gaps against PRD §9 and ADR-0001, not reasons to invent
 missing venue evidence or to enable live access.
 
-1. **Portfolio behavior in historical replay.** `research/replay.py:run` drives
-   per-allocation domain simulators and marks their residuals at the last close.
-   It does not drive the I7 portfolio controller, enforce the consolidated +10%
-   cycle trigger or simulate its bounded exit. Its report explicitly excludes
-   hypothetical exit fees/slippage and does not liquidate inventory. A full-cycle
-   research adapter must preserve the same portfolio ownership, fee/liability,
-   conversion, halt and reconciliation rules under declared synthetic execution.
-   Ordinary mark-to-close results must remain distinguishable from executable
-   NAV, final proceeds and exit shortfall.
+1. **Portfolio integration and study scope.** Optional `backtest --portfolio`
+   now drives the actual mock ledger/executor/I7 controller with explicit synthetic
+   depth, per-bar fill capacity and FX/rule/fee assumptions. It includes all owned
+   capital, the consolidated +10% trigger, delayed cancellations, partial/late
+   fills and bounded exits. It reports unfinished/blocked outcomes without forced
+   completion. The default `research/replay.py:run` remains a per-allocation
+   mark-to-close simulator; the modes have distinct schemas and assumptions.
+   One-cycle synthetic integration does not establish execution quality or the
+   full research comparison suite. Historical conversion/rule/fee changes and
+   automatic multi-cycle studies remain undeveloped. Preserve ownership and
+   reconciliation contracts when extending either mode.
 2. **Scenario and comparison suite.** The current model accepts only
    `strict_skip_ambiguous` and `touch_buy_priority`; cash and buy/hold are its
    funded baselines. The PRD calls for conservative/baseline/optimistic treatment,
@@ -78,8 +82,11 @@ missing venue evidence or to enable live access.
    publication on changes between snapshots. This is not loaded-code or installed
    dependency attestation; direct engine APIs do not add the envelope. Replay
    still reports per-allocation profit factor without separately serializing
-   gross wins/losses, and full exit metrics depend on item 1. Extend the research
-   metrics while keeping machine observations outside deterministic accounting.
+   gross wins/losses. Optional portfolio replay now reports trigger/final NAV,
+   exit shortfall, observed drawdown/unknown bars, inventory time and committed
+   capital, but lacks the default mode's funded cash/buy-hold comparisons and
+   complete per-allocation performance metrics. Extend metrics/comparisons while
+   keeping machine observations outside deterministic accounting.
 4. **Resource isolation and contention.** Input/queue bounds and sequential
    decoding are not CPU/RSS/IO quotas. `operations/experiment.py:benchmark_case`
    assesses up to 1,000 candidates, then supervises one allocation per logical
@@ -95,7 +102,7 @@ missing venue evidence or to enable live access.
    but are not the complete on-deployment-hardware performance report. Keep raw
    archives immutable and defer any full derived copies until justified.
 
-Continue with full-cycle historical integration and its comparisons/metrics,
+Continue with historical scenarios, comparisons and remaining metrics,
 alongside a bounded mock contention harness. Use separate
 reviewable increments; preserve existing canonical financial records and report
 compatibility deliberately. Hardware measurements must describe the tested host

@@ -5,6 +5,9 @@ Later compatibility note: `I8-RESEARCH-PROVENANCE.md` records the subsequent
 under `result`; its deterministic bytes/hash remain unchanged. Whole CLI report
 bytes include separately hashed observations and are no longer identical across
 runs. The evidence below describes this increment at its original revision.
+The subsequent optional `--portfolio` mode is described separately in
+`I8-PORTFOLIO-RESEARCH.md`; it creates a temporary mock financial ledger and
+uses a distinct inner result schema. The default mode remains as described here.
 
 Base: `fee2cdc39067623cd1955e72e928386634866fab`, branch `i8/public-paper-hour`.
 This implements the research command names in PRD §10 under the owner's
