@@ -20,6 +20,8 @@ from grid.research.portfolio_config import load as load_portfolio
 from grid.research.portfolio_replay import run as run_portfolio
 from grid.research.provenance import Observation
 from grid.research.replay import run
+from grid.research.study import run as run_study
+from grid.research.study_config import load as load_study
 
 
 class Parser(argparse.ArgumentParser):
@@ -53,6 +55,9 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
             "--compare-lots",
             action="store_true",
             help="compare basket and independent-lot research on the configured OHLC model",
+        )
+        comparisons.add_argument(
+            "--study", type=Path, help="declared walk-forward sensitivity plan"
         )
         command.add_argument("--output", type=Path, required=True)
     elif name == "demo":
@@ -91,7 +96,11 @@ def main(
             observation = Observation.start(spec.code_revision)
             settings = None if args.portfolio is None else load_portfolio(args.portfolio)
             result: object
-            if args.compare_lots:
+            if args.study is not None:
+                if settings is not None:
+                    raise DomainError("study runner has no portfolio exit model")
+                result = run_study(spec, load_study(args.study))
+            elif args.compare_lots:
                 if settings is not None:
                     raise DomainError("independent-lot comparison has no portfolio exit model")
                 result = compare_lots(spec)

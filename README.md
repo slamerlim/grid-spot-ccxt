@@ -142,6 +142,12 @@ independent-lot research reference using the bundle's OHLC model and shared
 funding limits. It excludes `--portfolio` and `--compare-scenarios`; production
 keeps its single aggregate SELL. See [reference conventions and limits](docs/I8-INDEPENDENT-LOT-REFERENCE.md).
 
+`backtest --study PLAN.json` evaluates declared chronological training/test folds,
+spacing candidates and separate fee/fill/latency scenarios. It selects spacing
+from training NAV only and retains every held-out result with fresh funds per
+window. It excludes the other comparison flags and `--portfolio`. See
+[study schema, selection rule and limitations](docs/I8-RESEARCH-STUDIES.md).
+
 ## Offline operational experiments
 
 The finite synthetic runner uses temporary mock databases and makes no exchange

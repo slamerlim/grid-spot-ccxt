@@ -15,6 +15,8 @@ Realized statistics and funded portfolio benchmarks based on `553216d` are
 recorded in `I8-RESEARCH-PERFORMANCE.md` and incorporated below.
 The independent-lot research reference based on `0c54773` is recorded in
 `I8-INDEPENDENT-LOT-REFERENCE.md` and incorporated below.
+The declared walk-forward/sensitivity runner based on `0fe53c2` is recorded in
+`I8-RESEARCH-STUDIES.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -83,8 +85,13 @@ missing venue evidence or to enable live access.
    reference using shared accounting and original-allocation OHLC ambiguity.
    Its complete results are compared with the ordinary basket on common funds
    and manifests. It has no portfolio exit or automatic scenario cross-product.
-   Walk-forward/regime splits, fee-tier sensitivity and survivorship/delisting
-   checks are still missing.
+   `--study` now evaluates declared chronological folds and spacing candidates
+   under separate fee/model/latency scenarios using the base basket engine.
+   Training total NAV chooses spacing before any test replay; all held-out
+   outcomes are retained with reset funding. Regime labels and universe evidence
+   are caller declarations. Point-in-time survivorship/delisting checks, verified
+   historical fee tiers, continuous portfolio studies and independent-lot study
+   integration remain missing. A plan hash is not proof of preregistration.
    No suite covers all these yet. Never select fills using future bars or treat
    touches as observed queue fills. Independent-lot comparison stays research-only.
 3. **Remaining metrics and provenance limits.** The CLI now wraps unchanged

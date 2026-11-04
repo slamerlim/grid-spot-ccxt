@@ -396,6 +396,16 @@ difference. The flag excludes both `--portfolio` and `--compare-scenarios`;
 neither a portfolio-exit comparison nor a live policy switch is implemented.
 See `I8-INDEPENDENT-LOT-REFERENCE.md` for command, schemas, caps and evidence.
 
+`backtest --study PLAN.json` uses the base basket replay for declared walk-forward
+spacing experiments. Each scenario fixes fees, latency and fill convention;
+selection uses training total NAV only, then every held-out candidate is retained.
+Each window starts fresh, so returns cannot be compounded into a continuous
+equity curve. `I8-RESEARCH-STUDIES.md` documents the strict plan, chronological
+boundaries, all-or-fail output and caps. It excludes other comparison flags and
+`--portfolio`. Treat regime/universe statements as unverified declarations;
+static complete histories do not resolve survivorship/delisting bias. Retain the
+plan and all outcomes, including unfavorable ones. There is no live policy export.
+
 `benchmark` writes a unique small sample directory beside its result. Review
 the original/derived byte-equivalence hash, reader timings, memory scope and
 cache/device evidence together. Cached CPU/hash timings do not establish storage

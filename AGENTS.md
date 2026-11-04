@@ -174,6 +174,16 @@ Continue the offline research and resource gaps recorded there; a green mock sui
 does not close external acceptance gates. No new exchange or deployment
 authorization is implied.
 
+`docs/I8-RESEARCH-STUDIES.md` records `backtest --study PLAN.json`: declared
+chronological folds with fresh-funded training/test replays, spacing selection
+from training total NAV only and complete retained held-out outcomes. Keep fees,
+latency and OHLC models in separate scenarios; never optimize assumed execution
+conditions for favorable returns. Preserve immutable base/slice manifests, caps
+and all-or-fail publication. Static rosters and caller evidence do not establish
+survivorship-free or preregistered research. No continuous portfolio, independent-
+lot study, live export or resource isolation is implied. Continue the remaining
+offline work without reusing the completed public-hour authorization.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one
