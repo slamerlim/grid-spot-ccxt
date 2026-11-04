@@ -123,8 +123,11 @@ exit latch commit atomically. It retains explicit halts and uses an additive
 snapshot extension without rewriting old financial records. The scoped follow-up
 is recorded in `docs/I8-ALLOCATION-EXIT.md`: explicit allocation selectors retain
 an active portfolio, while global takeover inherits exit budgets and deadlines.
-Completed zero-base scopes require confirmed resume; nonzero dust remains owned
-and blocked. `docs/I8-HOT-CONFIG.md` records the local universe CLI: both revisions
+Completed scopes require confirmed resume. `docs/I8-SCOPED-DUST.md` adds explicitly
+approved quantified dust, fresh revalidation and atomic resume retaining its lots
+and cost. Released residuals still consume shared dust allowance; do not erase
+them or buy more to manufacture sellability. Unapproved dust remains blocked.
+`docs/I8-HOT-CONFIG.md` records the local universe CLI: both revisions
 are checked, every edit is confirmed, and deny/disable retirement is explicit.
 Inventory hold cancels outstanding orders and blocks new placements while retaining
 reconciliation. Configuration plus any new scoped exit commit in one transaction.
@@ -132,7 +135,7 @@ reconciliation. Configuration plus any new scoped exit commit in one transaction
 verification and durable storage-status receipts. Preserve incomplete/failed jobs
 and artifacts; replay must never perform a second copy. Only an owner's verified
 backup refreshes its backup stamp. Restore verification never activates a ledger.
-Continue offline scoped dust handling and research/storage CLI integration.
+Continue offline research/storage CLI integration and the full requirements review.
 No new exchange or deployment authorization is implied.
 
 ## Invariants for subsequent approved iterations

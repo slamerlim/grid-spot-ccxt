@@ -128,5 +128,6 @@ There are 69 application modules; generated databases and reports are excluded.
 
 No mock check establishes production storage performance,
 intended-venue readiness or completion of the original observed 48-hour gate.
-Scoped dust completion and research/storage command integration remain. Private
+The scoped dust follow-up is recorded in `I8-SCOPED-DUST.md`; research/storage
+command integration remains. Private
 account access, further public runs, I9 and deployment retain their separate gates.

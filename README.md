@@ -156,16 +156,17 @@ review. See [the command procedure](docs/RUNBOOK.md#local-mock-operator-procedur
 The [manual portfolio LIMIT exit](docs/I8-MANUAL-EXIT.md) is available as
 `limit-liquidate --all`, with explicit cycle/policy approval. Use repeated
 `--allocation ID` selectors for [scoped exits](docs/I8-ALLOCATION-EXIT.md) while
-the portfolio remains active. Residual inventory stays supervised and blocked;
-only a confirmed resume can reopen a completed, zero-base allocation.
+the portfolio remains active. Residual inventory stays supervised;
+only a confirmed resume can reopen a completed allocation. [Approved scoped dust](docs/I8-SCOPED-DUST.md)
+requires fresh revalidation and retains its inventory, cost and shared allowance
+after resume. It never becomes fictitious sale proceeds or permission for a larger buy.
 The [hot configuration commands](docs/I8-HOT-CONFIG.md) expose venue enable/disable,
 selection mode, allow/deny/pin/unpin, capacity and selection refresh. Each requires
 operational and universe revisions plus a second confirmation. Deny/disable must
 specify how existing inventory should be managed. The [storage controls](docs/I8-STORAGE-CONTROLS.md)
 provide owner-mediated `backup`, separate `restore-verify`, and durable
 `storage-status` receipts. Copies always use new private files; interrupted jobs
-remain visible for review. Scoped dust completion and research/storage command
-integration remain unfinished.
+remain visible for review. Research/storage command integration remains unfinished.
 This fixture does not establish trading or I8 acceptance.
 
 ## Verify
@@ -187,7 +188,7 @@ The vulnerability audit calls advisory services; unavailable advisory results
 are not a pass. The test suite disables sockets and uses temporary paths and
 mock runtime metadata. It does not claim Q01–Q20 financial/exchange acceptance.
 The secret-scanner baseline permits only the four reviewed specification SHA-256
-fingerprints. Two synthetic redaction-test strings and two golden SHA-256
+fingerprints. Two synthetic redaction-test strings and three golden SHA-256
 checksums of invented cycle fixtures have explicit local allowlist comments.
 No real credential is allowlisted; new findings fail CI.
 CI runs the same checks on Python 3.12 and 3.13 with read-only repository

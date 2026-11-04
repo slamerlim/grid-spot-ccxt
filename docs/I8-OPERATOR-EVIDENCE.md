@@ -104,7 +104,7 @@ Journal SHA-256:
 
 PRD section 10 was incomplete at this initial increment. Follow-ups are recorded
 in `I8-MANUAL-EXIT.md`, `I8-ALLOCATION-EXIT.md`, `I8-HOT-CONFIG.md` and
-`I8-STORAGE-CONTROLS.md`. Scoped dust completion and unified research/storage
+`I8-STORAGE-CONTROLS.md` and `I8-SCOPED-DUST.md`. Unified research/storage
 aliases remain. The current views inspect a fixed invented
 fixture. They provide no venue discovery, account fee evidence, real order-event
 evidence, UTC production audit or deployment approval.

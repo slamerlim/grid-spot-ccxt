@@ -253,7 +253,9 @@ def latch_exit(
             state, mode=Mode.PORTFOLIO_EXIT, control_revision=state.control_revision + 1
         )
         unsent = frozenset(o.id for o in state.working if not ledger.attempted(scope, o.id))
-        local = next((e for e in cycle.allocation_exits if e.slot.scope == scope), None)
+        local = next(
+            (e for e in cycle.allocation_exits if e.slot.scope == scope and not e.released), None
+        )
         slot = (
             local.slot
             if local
@@ -438,9 +440,11 @@ def sweep(
 
 
 @arithmetic
-def unavoidable_dust(state: State, context: Context, cycle: Cycle) -> bool:
+def unavoidable_dust(
+    state: State, context: Context, cycle: Cycle, slot: ExitSlot | None = None
+) -> bool:
     rule = next(r for r in cycle.policy.exits if r.scope == state.scope)
-    slot = next(s for s in cycle.slots if s.scope == state.scope)
+    slot = slot or next(s for s in cycle.slots if s.scope == state.scope)
     maximum = min(
         context.market.prices.maximum or slot.anchor_bid * (1 + rule.max_deviation),
         slot.anchor_bid * (1 + rule.max_deviation),
@@ -453,41 +457,67 @@ def unavoidable_dust(state: State, context: Context, cycle: Cycle) -> bool:
 
 
 @arithmetic
+def base_residual(
+    state: State,
+    context: Context,
+    cycle: Cycle,
+    facts: ValuationFacts,
+    ms: int,
+    ns: int,
+    slot: ExitSlot | None = None,
+) -> Residual:
+    observed = market_facts(state, context, facts, cycle.policy, ms, ns)
+    if state.reconcile_reason is not None or state.working:
+        raise DomainError("orders or ownership remain unresolved")
+    if not unavoidable_dust(state, observed.context, cycle, slot):
+        raise DomainError("sellable residual cannot be declared dust")
+    key = PoolKey(state.scope.venue, state.scope.account, context.market.base)
+    value = Conversions(facts, cycle.policy, ms, ns).value(
+        PoolKey(key.venue, key.account, context.market.quote),
+        state.owned_base * observed.book.bids[0][0],
+    )
+    return Residual(key, state.owned_base, value)
+
+
+@arithmetic
+def check_dust(residuals: tuple[Residual, ...], policy: PortfolioPolicy) -> None:
+    totals: dict[PoolKey, tuple[Decimal, Decimal]] = {}
+    approvals = {d.key: d for d in policy.dust}
+    for residual in residuals:
+        amount, value = totals.get(residual.key, (ZERO, ZERO))
+        totals[residual.key] = amount + residual.amount, value + residual.value
+    for key, (amount, value) in totals.items():
+        approval = approvals.get(key)
+        if approval is None or amount > approval.max_amount or value > approval.max_value:
+            raise DomainError("residual dust lacks explicit approval")
+    if sum((r.value for r in residuals), ZERO) > policy.dust_limit:
+        raise DomainError("dust ceiling blocks completion")
+
+
+@arithmetic
 def residuals(
     ledger: Ledger, rows: Rows, cycle: Cycle, facts: ValuationFacts, ms: int, ns: int
 ) -> tuple[Residual, ...]:
-    fx = Conversions(facts, cycle.policy, ms, ns)
     result: list[Residual] = []
     for state, context, _, recovery in rows.values():
         if recovery or state.reconcile_reason is not None or state.working:
             raise DomainError("orders or ownership remain unresolved")
-        observed = market_facts(state, context, facts, cycle.policy, ms, ns)
+        market_facts(state, context, facts, cycle.policy, ms, ns)
         if any(
             m.amount > ZERO and m.currency != cycle.policy.reporting for m in state.fee_balances
         ) or (context.market.quote != cycle.policy.reporting and state.quote_cash > ZERO):
             raise DomainError("non-reporting fee/quote assets require a conversion sink")
         if state.owned_base == ZERO:
             continue
-        if not unavoidable_dust(state, context, cycle):
-            raise DomainError("sellable residual cannot be declared dust")
-        key = PoolKey(state.scope.venue, state.scope.account, context.market.base)
-        value = fx.value(
-            PoolKey(key.venue, key.account, context.market.quote),
-            state.owned_base * observed.book.bids[0][0],
-        )
-        approval = next((d for d in cycle.policy.dust if d.key == key), None)
-        amount = state.owned_base + sum((r.amount for r in result if r.key == key), ZERO)
-        cumulative = value + sum((r.value for r in result if r.key == key), ZERO)
-        if approval is None or amount > approval.max_amount or cumulative > approval.max_value:
-            raise DomainError("residual dust lacks explicit approval")
-        result.append(Residual(key, state.owned_base, value))
+        result.append(base_residual(state, context, cycle, facts, ms, ns))
     for key in cycle.policy.pools:
         if (
             key.currency != cycle.policy.reporting
             and ledger.pool(key.venue, key.account, key.currency) > ZERO
         ):
             raise DomainError("non-reporting pool assets remain")
-    if sum((r.value for r in result), ZERO) > cycle.policy.dust_limit or facts.liabilities:
+    check_dust(tuple(result), cycle.policy)
+    if facts.liabilities:
         raise DomainError("dust ceiling or outstanding liability blocks completion")
     return tuple(result)
 
@@ -531,7 +561,10 @@ def advance(
                 if (
                     not recovery
                     and not cycle.pending_flows
-                    and any(e.slot.scope == slot.scope for e in cycle.allocation_exits)
+                    and any(
+                        e.slot.scope == slot.scope and not e.released
+                        for e in cycle.allocation_exits
+                    )
                 ):
                     try:
                         fresh(facts, cycle.policy, ms, ns)

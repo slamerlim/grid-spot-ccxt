@@ -71,11 +71,11 @@ current scoped latch and resets the empty strategy round in the same transaction
 as its operational audit. Earlier exit snapshots and receipts remain immutable.
 Resume of an unresolved exit can clear holds but cannot restart ordinary trading.
 
-Nonzero residuals, including unsellable dust, remain owned and visibly blocked.
-Scoped dust completion/conversion is deliberately unfinished; the existing global
-exit's explicit dust rules remain available during global takeover. Hot
-configuration integration (including selecting bounded exits on deny/removal),
-backup/restore CLI and research aliases remain subsequent offline work. The
+At this increment nonzero residuals remained blocked. The subsequent
+`I8-SCOPED-DUST.md` implements approved dust completion and confirmed resume while
+retaining inventory, cost and shared allowance. It adds no implicit conversion.
+Hot configuration and backup/restore CLI follow-ups are in `I8-HOT-CONFIG.md` and
+`I8-STORAGE-CONTROLS.md`; research aliases remain subsequent offline work. The
 observed 48-hour and first-venue/account acceptance gates remain incomplete.
 
 ## Compatibility and recovery

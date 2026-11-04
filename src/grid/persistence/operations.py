@@ -32,6 +32,7 @@ def commit(
     exit_evidence: tuple[ValuationFacts, int, int] | None = None,
     universe_edit: UniverseEdit | None = None,
     configure: Callable[[], None] | None = None,
+    resume_evidence: tuple[ValuationFacts, int, int] | None = None,
 ) -> Outcome:
     bounded_int(expected, 0, 2**63 - 2)
     if command.action in (Action.BACKUP, Action.RESTORE_VERIFY):
@@ -64,6 +65,7 @@ def commit(
         halted = previous.halted if previous else True
         held = set(previous.held if previous else ())
         released: frozenset[Scope] = frozenset()
+        notices: tuple[str, ...] = ()
         if command.action in (Action.START, Action.HALT, Action.SHUTDOWN):
             if set(command.scopes) != set(roster):
                 raise LedgerError("global halt requires full roster")
@@ -72,7 +74,9 @@ def commit(
             held.update(command.scopes)
         elif command.action is Action.RESUME:
             resume_check()
-            released = allocation_exit.release_completed(ledger, request_id, command.scopes)
+            released, notices = allocation_exit.release_completed(
+                ledger, request_id, command.scopes, resume_evidence
+            )
             if released:
                 ledger.storage.fault("operations:after_release")
             held.difference_update(command.scopes)
@@ -118,13 +122,17 @@ def commit(
             latched = cycle is not None and cycle.protects(scope)
             state, context, version, recovery = rows[scope]
             if scope in released:
-                state = replace(
-                    state,
-                    phase=Phase.INACTIVE,
-                    seed_id=None,
-                    anchor=None,
-                    round_id=state.round_id + 1,
-                    ladder_credits=0,
+                state = (
+                    replace(state, phase=Phase.DRAINING)
+                    if state.owned_base > ZERO
+                    else replace(
+                        state,
+                        phase=Phase.INACTIVE,
+                        seed_id=None,
+                        anchor=None,
+                        round_id=state.round_id + 1,
+                        ladder_credits=0,
+                    )
                 )
             context = replace(context, now_ms=command.observed_ms, allow_new_exposure=False)
             desired = {
@@ -172,7 +180,7 @@ def commit(
             "INSERT INTO operations_revisions VALUES (?,?,?)",
             (updated.revision, request_id, ledger._text(updated)),
         )
-        return Outcome(None, updated.revision, True)
+        return Outcome(None, updated.revision, True, notices=notices)
 
     payload: tuple[object, ...] = ("operations", expected, command, roster)
     if exit_approval is not None:

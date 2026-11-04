@@ -246,6 +246,9 @@ class MockSupervisor:
                 exit_evidence=exit_evidence,
                 universe_edit=universe_edit,
                 configure=configure if universe_edit is not None else None,
+                resume_evidence=(self.facts, *self._now())
+                if command.action is Action.RESUME and self.facts is not None
+                else None,
             ), first
 
         try:
@@ -440,7 +443,10 @@ class MockSupervisor:
                 if (
                     cycle is not None
                     and cycle.phase is CyclePhase.ACTIVE
-                    and any(e.phase is not CyclePhase.COMPLETE for e in cycle.allocation_exits)
+                    and any(
+                        e.phase is not CyclePhase.COMPLETE or e.residual is not None
+                        for e in cycle.allocation_exits
+                    )
                 ):
                     try:
                         await self.portfolio.advance(

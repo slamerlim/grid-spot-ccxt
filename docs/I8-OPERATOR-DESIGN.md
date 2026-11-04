@@ -124,7 +124,8 @@ session, not editing the journal marker or bypassing the resume guard.
 This is not completion of PRD section 10. Owner-mediated backup and separate
 restore verification are now documented in `I8-STORAGE-CONTROLS.md`; their durable
 jobs preserve partial outcomes without automatic retry. Scoped dust completion
-and unified research/storage command aliases remain to implement. Existing
+and resume are documented in `I8-SCOPED-DUST.md`. Unified research/storage command
+aliases remain to implement. Existing
 research APIs use their documented modules. The views inspect a fixed fixture;
 they do not discover exchanges or modify allocations.
 

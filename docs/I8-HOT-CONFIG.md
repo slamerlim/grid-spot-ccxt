@@ -138,8 +138,8 @@ The application-source digest is
 Build artifacts are outside Git at `/tmp/grid-i8-hot-config-dist/`.
 
 The subsequent owner-mediated backup/restore CLI is recorded in
-`I8-STORAGE-CONTROLS.md`. Remaining work includes scoped dust completion and
-research/storage aliases. Public/private CCXT capability gaps, the full
+`I8-STORAGE-CONTROLS.md`; scoped dust is covered in `I8-SCOPED-DUST.md`.
+Remaining work includes research/storage aliases. Public/private CCXT capability gaps, the full
 observed 48-hour gate, intended-first-venue evidence and I9 remain separately
 gated. The completed public-hour authorization is spent and its evidence remains
 preserved. No mock result is an authorization to deploy or trade.

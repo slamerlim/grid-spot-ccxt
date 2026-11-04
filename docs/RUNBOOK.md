@@ -646,9 +646,10 @@ For scoped exits, inspect `data.cycle.allocation_exits`: each entry records its
 approval, actor/reason, phase, timestamps and order slot. The global cycle stays
 `active`; its global cause/target/final fields do not report scoped completion.
 Exit proceeds and fee balances remain in their original allocation. Completion
-requires zero base and no outstanding orders or reconciliation. Nonzero residuals
-remain `exit_blocked`, including dust; this increment does not write them off.
-After zero-base completion, a separately prepared and confirmed `resume` may
+requires no outstanding orders/reconciliation and zero base or approved dust. Other residuals
+remain `exit_blocked` unless quantified unavoidable dust is explicitly approved
+under the cycle policy; see `I8-SCOPED-DUST.md`. Nothing is written off.
+After completion, a separately prepared and confirmed `resume` may
 release the selected latch. Resume of an unresolved exit only clears operational
 holds; it cannot reactivate the grid or reset the exit's deadline/order budget.
 
@@ -698,6 +699,23 @@ without clearing a new startup halt. A known revision conflict requires a fresh
 status review and a new request file; never alter an old request to bypass CAS.
 These commands configure the existing mock roster and do not discover accounts,
 allocate funds, change strategy/fee rules or enable live exchange access.
+
+## Scoped residual review
+
+Inspect `status` → `cycle.allocation_exits` for each phase, reason, `residual`
+and `released` flag. A dust record must match the owned quantity in allocations;
+its value is a cap measurement, not cash proceeds. The immutable cycle policy
+needs explicit amount/value allowances and a shared dust ceiling. The fixture's
+default zero allowance intentionally blocks nonzero residual completion.
+
+A normal confirmed `resume` can release approved dust to ordinary supervision
+only after fresh checks. Its receipt records the retained-dust proof. Inventory,
+lots and cost remain intact, and no extra seed is bought to manufacture sellability.
+A `released: true` record continues tracking the shared allowance; it does not
+authorize liquidation orders. Freshness failures and cap increases can block dust
+certification again. Inspect both operational halts and each allocation's mode;
+completion or resume does not prove a new order is eligible. A whole-cycle exit
+reassesses every owned asset, including these records, and counts inventory once.
 
 ## Local backup and restore verification
 

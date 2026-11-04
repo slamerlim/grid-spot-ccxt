@@ -434,7 +434,10 @@ def test_scoped_dust_remains_owned_and_blocks_automatic_reentry(tmp_path: Path) 
             status = await owner.status()
             assert status.cycle and status.cycle.allocation_exits[0].phase is CyclePhase.BLOCKED
             assert status.allocations[0].base == D("0.001")
-            assert status.cycle.allocation_exits[0].slot.reason == "unsellable residual"
+            assert (
+                status.cycle.allocation_exits[0].slot.reason
+                == "residual dust lacks explicit approval"
+            )
             await command(owner, Action.RESUME, "resume-dust", confirmed=True)
             await tick(owner, case, now)
             assert len(venue.sent) == 2

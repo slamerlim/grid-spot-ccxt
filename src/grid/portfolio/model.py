@@ -268,6 +268,8 @@ class AllocationExit:
     observed_ms: int
     actor: str
     reason: str
+    residual: Residual | None = None
+    released: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.phase, CyclePhase) or self.phase is CyclePhase.ACTIVE:
@@ -276,6 +278,16 @@ class AllocationExit:
         bounded_int(self.observed_ms, self.started_ms, 2**53 - 1)
         identifier(self.actor)
         identifier(self.reason)
+        if (
+            type(self.released) is not bool
+            or self.released
+            and self.phase not in (CyclePhase.COMPLETE, CyclePhase.BLOCKED)
+        ):
+            raise DomainError("released dust remains complete or blocked under supervision")
+        if self.residual is not None and (
+            type(self.residual) is not Residual or self.phase is not CyclePhase.COMPLETE
+        ):
+            raise DomainError("scoped dust requires verified completion")
 
 
 @dataclass(frozen=True)
@@ -371,19 +383,25 @@ class Cycle:
 
     def protects(self, scope: Scope) -> bool:
         return self.phase is not CyclePhase.ACTIVE or any(
-            e.slot.scope == scope for e in self.allocation_exits
+            e.slot.scope == scope and not e.released for e in self.allocation_exits
         )
 
     def exit_slot(self, scope: Scope) -> ExitSlot | None:
         slots = (
             self.slots
             if self.phase is not CyclePhase.ACTIVE
-            else tuple(e.slot for e in self.allocation_exits if e.phase is not CyclePhase.COMPLETE)
+            else tuple(
+                e.slot
+                for e in self.allocation_exits
+                if e.phase is not CyclePhase.COMPLETE and not e.released
+            )
         )
         return next((s for s in slots if s.scope == scope), None)
 
     def deadline_ms(self, scope: Scope) -> int:
-        starts = [e.started_ms for e in self.allocation_exits if e.slot.scope == scope]
+        starts = [
+            e.started_ms for e in self.allocation_exits if e.slot.scope == scope and not e.released
+        ]
         if self.started_exit_ms is not None:
             starts.append(self.started_exit_ms)
         if not starts:

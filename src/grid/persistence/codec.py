@@ -178,6 +178,13 @@ def _encode(value: object, depth: int = 0) -> object:
                 and item == ()
             ):
                 continue
+            if type(value) is portfolio.AllocationExit and (
+                field.name == "residual"
+                and item is None
+                or field.name == "released"
+                and item is False
+            ):
+                continue
             values[field.name] = _encode(item, depth + 1)
         return {"type": type(value).__name__, "fields": values}
     raise DomainError("unsupported snapshot value")
@@ -221,12 +228,17 @@ def _decode(value: Any, depth: int = 0) -> object:
         if record is not None and isinstance(raw, dict):
             names = {field.name for field in fields(record)}
             optional = {"manual_exit", "allocation_exits"} if record is portfolio.Cycle else set()
+            if record is portfolio.AllocationExit:
+                optional = {"residual", "released"}
             if not names - optional <= set(raw) <= names:
                 raise DomainError("snapshot fields differ from schema")
             decoded = {key: _decode(item, depth + 1) for key, item in raw.items()}
             if record is portfolio.Cycle:
                 decoded.setdefault("manual_exit", None)
                 decoded.setdefault("allocation_exits", ())
+            if record is portfolio.AllocationExit:
+                decoded.setdefault("residual", None)
+                decoded.setdefault("released", False)
             hints = get_type_hints(record)
             if not all(_matches(item, hints[key]) for key, item in decoded.items()):
                 raise DomainError("snapshot field type mismatch")
