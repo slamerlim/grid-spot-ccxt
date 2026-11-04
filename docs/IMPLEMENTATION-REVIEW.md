@@ -13,6 +13,8 @@ The three-convention comparison based on `f9ffa8a` is recorded in
 `I8-RESEARCH-SCENARIOS.md` and incorporated below.
 Realized statistics and funded portfolio benchmarks based on `553216d` are
 recorded in `I8-RESEARCH-PERFORMANCE.md` and incorporated below.
+The independent-lot research reference based on `0c54773` is recorded in
+`I8-INDEPENDENT-LOT-REFERENCE.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -77,8 +79,12 @@ missing venue evidence or to enable live access.
    endpoints. The conservative/baseline/optimistic labels specify fill conventions,
    not PnL ordering or bounds over all feasible executions. Both engines now have
    funded cash/buy-hold references using their respective valuation bases and
-   endpoints. Independent-lot reference, walk-forward/regime
-   splits, fee-tier sensitivity and survivorship/delisting checks are still missing.
+   endpoints. `--compare-lots` now adds one declared fixed-anchor independent-lot
+   reference using shared accounting and original-allocation OHLC ambiguity.
+   Its complete results are compared with the ordinary basket on common funds
+   and manifests. It has no portfolio exit or automatic scenario cross-product.
+   Walk-forward/regime splits, fee-tier sensitivity and survivorship/delisting
+   checks are still missing.
    No suite covers all these yet. Never select fills using future bars or treat
    touches as observed queue fills. Independent-lot comparison stays research-only.
 3. **Remaining metrics and provenance limits.** The CLI now wraps unchanged

@@ -389,6 +389,13 @@ fill/fee totals can include unsettled fills, unlike the new committed statistics
 Gross wins/losses sum net realized postings, and profit factor requires losses
 and at least two distinct filled SELL orders. See `I8-RESEARCH-PERFORMANCE.md`.
 
+`backtest --compare-lots` produces `grid-lot-comparison-v1` with complete basket
+and fixed-anchor independent-lot members on the configured OHLC model. Read the
+declared replenishment and fee-escrow differences before interpreting their NAV
+difference. The flag excludes both `--portfolio` and `--compare-scenarios`;
+neither a portfolio-exit comparison nor a live policy switch is implemented.
+See `I8-INDEPENDENT-LOT-REFERENCE.md` for command, schemas, caps and evidence.
+
 `benchmark` writes a unique small sample directory beside its result. Review
 the original/derived byte-equivalence hash, reader timings, memory scope and
 cache/device evidence together. Cached CPU/hash timings do not establish storage

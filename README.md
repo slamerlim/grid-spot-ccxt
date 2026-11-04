@@ -137,6 +137,11 @@ includes committed-fill statistics and funded cash/buy-hold references through
 the same evaluation endpoint and NAV constraints. Unknown benchmark valuations
 remain null. See [performance definitions](docs/I8-RESEARCH-PERFORMANCE.md).
 
+`backtest --compare-lots` compares the ordinary basket against a fixed-anchor
+independent-lot research reference using the bundle's OHLC model and shared
+funding limits. It excludes `--portfolio` and `--compare-scenarios`; production
+keeps its single aggregate SELL. See [reference conventions and limits](docs/I8-INDEPENDENT-LOT-REFERENCE.md).
+
 ## Offline operational experiments
 
 The finite synthetic runner uses temporary mock databases and makes no exchange

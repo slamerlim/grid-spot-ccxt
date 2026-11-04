@@ -317,30 +317,35 @@ class Simulator:
         for order in selected.orders:
             # Every candidate was already active before this bar. No newly emitted
             # SELL/BUY can enter the snapshot. Pending cancellations may still fill.
-            fee = modeled_fee(order.fee_rule, self.context, order.price, order.remaining)
-            event = Fill(
-                self.state.scope,
-                f"ohlc:{index}:{order.id}",
-                order.id,
-                order.remaining,
-                order.price,
-                (fee,),
-            )
-            before = self.state.realized_pnl
-            self.event(event, index)
-            self.fill_count += 1
-            self.turnover += event.amount * event.price
-            self.fees[fee.currency] = self.fees.get(fee.currency, ZERO) + fee.amount
-            self.fees_quote += fee.quote_value or ZERO
-            if order.side is Side.SELL:
-                self.sell_count += 1
-                pnl = self.state.realized_pnl - before
-                self.gross_profit += max(ZERO, pnl)
-                self.gross_loss += max(ZERO, -pnl)
+            self.fill(order, index)
         self.state = compact(self.state, self.context)
         working = {o.id for o in self.state.working}
         self.eligible = {key: value for key, value in self.eligible.items() if key in working}
         self.cancel_due = {key: value for key, value in self.cancel_due.items() if key in working}
+
+    @arithmetic
+    def fill(self, order: Order, index: int) -> Fill:
+        fee = modeled_fee(order.fee_rule, self.context, order.price, order.remaining)
+        event = Fill(
+            self.state.scope,
+            f"ohlc:{index}:{order.id}",
+            order.id,
+            order.remaining,
+            order.price,
+            (fee,),
+        )
+        before = self.state.realized_pnl
+        self.event(event, index)
+        self.fill_count += 1
+        self.turnover += event.amount * event.price
+        self.fees[fee.currency] = self.fees.get(fee.currency, ZERO) + fee.amount
+        self.fees_quote += fee.quote_value or ZERO
+        if order.side is Side.SELL:
+            self.sell_count += 1
+            pnl = self.state.realized_pnl - before
+            self.gross_profit += max(ZERO, pnl)
+            self.gross_loss += max(ZERO, -pnl)
+        return event
 
     @arithmetic
     def mark(self, price: Decimal) -> Decimal:

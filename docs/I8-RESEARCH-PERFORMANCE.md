@@ -1,5 +1,9 @@
 # I8 offline follow-up — realized statistics and funded portfolio benchmarks
 
+Later extension: `I8-INDEPENDENT-LOT-REFERENCE.md` adds a research-only comparison
+against independently closed lots. Evidence below remains scoped to this original
+performance increment.
+
 Base: `553216de26ae2c5d181ca989307918fedd824a0f`, branch
 `i8/public-paper-hour`. This is continued authorized offline development under
 PRD §9. Tests use invented funds, histories and temporary mock ledgers. No new

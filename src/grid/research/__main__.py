@@ -15,6 +15,7 @@ from grid.research.comparison import run as compare_scenarios
 from grid.research.config import load
 from grid.research.demo import create
 from grid.research.history import Source, validate
+from grid.research.lot_reference import compare as compare_lots
 from grid.research.portfolio_config import load as load_portfolio
 from grid.research.portfolio_replay import run as run_portfolio
 from grid.research.provenance import Observation
@@ -42,10 +43,16 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
     elif name == "replay":
         command.add_argument("--config", type=Path, required=True)
         command.add_argument("--portfolio", type=Path, help="explicit synthetic portfolio settings")
-        command.add_argument(
+        comparisons = command.add_mutually_exclusive_group()
+        comparisons.add_argument(
             "--compare-scenarios",
             action="store_true",
             help="compare three fixed OHLC fill conventions",
+        )
+        comparisons.add_argument(
+            "--compare-lots",
+            action="store_true",
+            help="compare basket and independent-lot research on the configured OHLC model",
         )
         command.add_argument("--output", type=Path, required=True)
     elif name == "demo":
@@ -84,7 +91,11 @@ def main(
             observation = Observation.start(spec.code_revision)
             settings = None if args.portfolio is None else load_portfolio(args.portfolio)
             result: object
-            if args.compare_scenarios:
+            if args.compare_lots:
+                if settings is not None:
+                    raise DomainError("independent-lot comparison has no portfolio exit model")
+                result = compare_lots(spec)
+            elif args.compare_scenarios:
                 result = compare_scenarios(spec, settings)
             else:
                 result = run(spec) if settings is None else run_portfolio(spec, settings)

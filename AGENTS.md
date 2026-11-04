@@ -164,6 +164,12 @@ realized results; preserve unrealized inventory and unposted venue fills separat
 Benchmarks retain all owned pools and end with the strategy, use the same NAV
 constraints, and leave unavailable values null. Partial fills of one SELL order
 cannot satisfy the minimum distinct-order count for profit factor.
+`docs/I8-INDEPENDENT-LOT-REFERENCE.md` records `backtest --compare-lots`.
+The fixed-anchor independent-lot policy is research-only; never turn its lot
+states into a production multi-SELL mode. Preserve shared parent funding/risk
+caps and apply OHLC ambiguity across the original allocation, not separately
+per lot. Its fixed levels, shallow admission priority, fee-token escrow and
+pending-order behavior are declared conventions, not live strategy amendments.
 Continue the offline research and resource gaps recorded there; a green mock suite
 does not close external acceptance gates. No new exchange or deployment
 authorization is implied.
