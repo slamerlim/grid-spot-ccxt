@@ -29,12 +29,20 @@ from grid.operations.model import (
     Health,
     Limits,
     Operations,
+    StoragePlan,
 )
-from grid.persistence import codec
+from grid.persistence import codec, storage_jobs
 from grid.persistence import operations as records
 from grid.persistence import portfolio as portfolio_records
 from grid.persistence.ledger import Ledger
-from grid.persistence.records import Backpressure, Bounds, LedgerError, Outcome, StorageFault
+from grid.persistence.records import (
+    Backpressure,
+    Backup,
+    Bounds,
+    LedgerError,
+    Outcome,
+    StorageFault,
+)
 from grid.persistence.storage import restore
 from grid.persistence.writer import AsyncWriter
 from grid.portfolio.controller import PortfolioController
@@ -81,6 +89,7 @@ class MockSupervisor:
         self._tick: asyncio.Task[object] | None = None
         self._shutdown: asyncio.Task[None] | None = None
         self._backup: asyncio.Task[BackupStamp] | None = None
+        self._storage: asyncio.Task[storage_jobs.StorageJob] | None = None
         self._last_ms = self._last_ns = self._step_ns = 0
         self._next: dict[Scope, int] = dict.fromkeys(self.scopes, 0)
         self._failures: dict[Scope, int] = dict.fromkeys(self.scopes, 0)
@@ -492,7 +501,7 @@ class MockSupervisor:
     async def backup(self, path: Path, verification_path: Path) -> BackupStamp:
         if self._closing or self._closed:
             raise ExecutionError("supervisor is closing")
-        if self._backup is not None:
+        if self._backup is not None or self._storage is not None:
             raise Backpressure("backup already active; no task queued")
         task = asyncio.create_task(self._make_backup(path, verification_path))
         self._backup = task
@@ -504,6 +513,81 @@ class MockSupervisor:
 
         task.add_done_callback(finished)
         return await asyncio.shield(task)
+
+    async def storage_job(self, request_id: str, plan: StoragePlan) -> storage_jobs.StorageJob:
+        ms, _ = self._now()
+        if self._closing or self._closed or plan.command.observed_ms > ms:
+            raise ExecutionError("closed supervisor or future storage request")
+        if self._storage is not None or self._backup is not None:
+            raise Backpressure("storage operation already active; no task queued")
+        task = asyncio.create_task(self._run_storage(request_id, plan, ms))
+        self._storage = task
+
+        def finished(done: asyncio.Task[storage_jobs.StorageJob]) -> None:
+            if not done.cancelled():
+                done.exception()
+            self._storage = None
+
+        task.add_done_callback(finished)
+        return await asyncio.shield(task)
+
+    async def _run_storage(
+        self, request_id: str, plan: StoragePlan, ms: int
+    ) -> storage_jobs.StorageJob:
+        try:
+            first = await self.writer.submit(
+                lambda ledger: storage_jobs.prepare(ledger, request_id, plan)
+            )
+        except (OSError, sqlite3.Error, StorageFault):
+            await self.trip(AlertCode.STORAGE)
+            raise
+        if first:
+            try:
+                await self.writer.submit(
+                    lambda ledger: ledger.storage.fault("storage_job:after_prepare")
+                )
+                if plan.command.action is Action.BACKUP:
+                    backup = await self.writer.submit(
+                        lambda ledger: ledger.backup(Path(plan.source))
+                    )
+                else:
+                    if plan.digest is None or plan.requests is None:
+                        raise DomainError("restore proof missing")
+                    backup = Backup(plan.source, plan.digest, plan.requests)
+                checked = await asyncio.to_thread(
+                    restore,
+                    backup,
+                    Path(plan.destination),
+                    self.bounds,
+                    self.sources,
+                    mock_storage=True,
+                    fault=await self.writer.submit(lambda ledger: ledger.storage.fault),
+                )
+                await self.writer.submit(
+                    lambda ledger: ledger.storage.fault("storage_job:after_verify")
+                )
+                stamp = BackupStamp(ms, checked.semantic_hash, checked.request_count)
+                await self.writer.submit(
+                    lambda ledger: storage_jobs.finish(ledger, request_id, stamp)
+                )
+            except Exception:
+
+                def failed(ledger: Ledger) -> None:
+                    job = storage_jobs.lookup(ledger, request_id)
+                    if job is not None and job.result is None:
+                        storage_jobs.finish(ledger, request_id, None)
+
+                try:
+                    await self.writer.submit(failed)
+                finally:
+                    await self.trip(AlertCode.STORAGE)
+                raise ExecutionError(
+                    "storage verification failed; inspect the saved request"
+                ) from None
+        job = await self.writer.submit(lambda ledger: storage_jobs.lookup(ledger, request_id))
+        if job is None:
+            raise LedgerError("storage job evidence missing")
+        return job
 
     async def _make_backup(self, path: Path, verification_path: Path) -> BackupStamp:
         ms, _ = self._now()
@@ -535,6 +619,8 @@ class MockSupervisor:
                 await asyncio.gather(self._tick, return_exceptions=True)
             if self._backup is not None:
                 await asyncio.gather(self._backup, return_exceptions=True)
+            if self._storage is not None:
+                await asyncio.gather(self._storage, return_exceptions=True)
 
             def shutdown(ledger: Ledger) -> Outcome:
                 previous = records.current(ledger)

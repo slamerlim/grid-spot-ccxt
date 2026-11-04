@@ -68,6 +68,14 @@ def _create_private(path: Path) -> None:
     os.close(descriptor)
 
 
+def new_database(path: Path) -> Path:
+    """Refuse retained SQLite sidecars as well as an existing destination."""
+    target = private_path(path, new=True)
+    for suffix in ("-wal", "-shm", "-journal", ".owner"):
+        private_path(target.with_name(target.name + suffix), new=True)
+    return target
+
+
 def verify_schema(connection: sqlite3.Connection, version: int = schema.VERSION) -> None:
     # Construct an independent expected schema, including unique/FK/check constraints.
     expected_db = sqlite3.connect(":memory:", autocommit=True, check_same_thread=True)
@@ -182,7 +190,7 @@ def restore(
     successful and never overwrites an existing operator file.
     """
     source_path = private_path(Path(backup.path), new=False)
-    target_path = private_path(destination, new=True)
+    target_path = new_database(destination)
     allowed = {"ext4", "xfs", "btrfs"} | ({"tmpfs", "overlay"} if mock_storage else set())
     if any(filesystem(path.parent) not in allowed for path in (source_path, target_path)):
         raise LedgerError("unsupported restore filesystem")
@@ -446,7 +454,7 @@ class Storage:
 
     def backup(self, path: Path) -> Backup:
         verify_schema(self.connection)
-        destination = private_path(path, new=True)
+        destination = new_database(path)
         allowed = {"ext4", "xfs", "btrfs"} | ({"tmpfs", "overlay"} if self.mock_storage else set())
         if filesystem(destination.parent) not in allowed:
             raise LedgerError("unsupported backup filesystem")

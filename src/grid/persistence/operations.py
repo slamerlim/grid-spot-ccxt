@@ -34,6 +34,8 @@ def commit(
     configure: Callable[[], None] | None = None,
 ) -> Outcome:
     bounded_int(expected, 0, 2**63 - 2)
+    if command.action in (Action.BACKUP, Action.RESTORE_VERIFY):
+        raise LedgerError("storage controls require the storage coordinator")
     is_exit = command.action in (Action.LIMIT_LIQUIDATE, Action.LIQUIDATE_ALLOCATION)
     is_config = command.action is Action.CONFIGURE_UNIVERSE
     if is_config != (universe_edit is not None) or is_config != (configure is not None):

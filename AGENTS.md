@@ -128,7 +128,11 @@ and blocked. `docs/I8-HOT-CONFIG.md` records the local universe CLI: both revisi
 are checked, every edit is confirmed, and deny/disable retirement is explicit.
 Inventory hold cancels outstanding orders and blocks new placements while retaining
 reconciliation. Configuration plus any new scoped exit commit in one transaction.
-Continue offline scoped dust handling and backup/restore/research CLI integration.
+`docs/I8-STORAGE-CONTROLS.md` records owner-mediated backup, independent restore
+verification and durable storage-status receipts. Preserve incomplete/failed jobs
+and artifacts; replay must never perform a second copy. Only an owner's verified
+backup refreshes its backup stamp. Restore verification never activates a ledger.
+Continue offline scoped dust handling and research/storage CLI integration.
 No new exchange or deployment authorization is implied.
 
 ## Invariants for subsequent approved iterations

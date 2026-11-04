@@ -102,9 +102,10 @@ Journal SHA-256:
 
 ## Remaining implementation and acceptance
 
-PRD section 10 is still incomplete: manual LIMIT liquidation, audited hot
-configuration CLI, owner-mediated backup/restore verification and unified
-research/storage aliases remain. The current views inspect a fixed invented
+PRD section 10 was incomplete at this initial increment. Follow-ups are recorded
+in `I8-MANUAL-EXIT.md`, `I8-ALLOCATION-EXIT.md`, `I8-HOT-CONFIG.md` and
+`I8-STORAGE-CONTROLS.md`. Scoped dust completion and unified research/storage
+aliases remain. The current views inspect a fixed invented
 fixture. They provide no venue discovery, account fee evidence, real order-event
 evidence, UTC production audit or deployment approval.
 

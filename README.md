@@ -161,8 +161,11 @@ only a confirmed resume can reopen a completed, zero-base allocation.
 The [hot configuration commands](docs/I8-HOT-CONFIG.md) expose venue enable/disable,
 selection mode, allow/deny/pin/unpin, capacity and selection refresh. Each requires
 operational and universe revisions plus a second confirmation. Deny/disable must
-specify how existing inventory should be managed. Backup/restore CLI integration
-and scoped dust completion remain unfinished.
+specify how existing inventory should be managed. The [storage controls](docs/I8-STORAGE-CONTROLS.md)
+provide owner-mediated `backup`, separate `restore-verify`, and durable
+`storage-status` receipts. Copies always use new private files; interrupted jobs
+remain visible for review. Scoped dust completion and research/storage command
+integration remain unfinished.
 This fixture does not establish trading or I8 acceptance.
 
 ## Verify

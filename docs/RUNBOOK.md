@@ -596,8 +596,8 @@ Do not delete an owner lock or stale endpoint to bypass a refusal. Stop when the
 bounded retained-endpoint capacity is reached and inspect the disposable session.
 
 This session generates no fills and uses a synthetic monotonic clock. Missing
-backup alerts are expected until the separate owner-mediated backup CLI exists;
-do not suppress them or treat the fixture as production-ready. It cannot provide
+backup alerts remain until a fresh owner-mediated backup is verified using the
+storage commands below; do not suppress them or treat the fixture as production-ready. It cannot provide
 UTC audit or observed-soak evidence. `paper-audit` refuses its different journal
 kind. Design, trust boundary, bounds and remaining commands are documented in
 `I8-OPERATOR-DESIGN.md`. Rollback preserves all generated state and request files.
@@ -698,3 +698,48 @@ without clearing a new startup halt. A known revision conflict requires a fresh
 status review and a new request file; never alter an old request to bypass CAS.
 These commands configure the existing mock roster and do not discover accounts,
 allocate funds, change strategy/fee rules or enable live exchange access.
+
+## Local backup and restore verification
+
+Read `operator status` for the current operational revision. Use new paths in an
+existing owner-only directory outside Git and the preserved evidence/data trees:
+
+```sh
+mkdir -m 700 /tmp/grid-storage-drill-new
+uv run --locked gridctl operator backup --socket SOCKET_PATH --revision CURRENT_REVISION --reason 'reviewed mock backup drill' --request /tmp/grid-storage-drill-new/backup.json --output /tmp/grid-storage-drill-new/backup.db --verify-to /tmp/grid-storage-drill-new/verified.db
+```
+
+Exit 3 is the saved preview. Review both paths and the complete-ledger scope, then
+repeat exactly with `--confirm`. `--output` is a new backup file, and `--verify-to`
+is another new file for a checked restored copy. The owner chooses its active
+source database; the client never opens it. No command replaces an existing file.
+Retain the response: `data.job.result.notices` holds the semantic hash followed
+by the request count as a string. This is not the raw-file SHA-256.
+
+For a separate check of that retained backup, inspect the new operational revision
+and prepare another request and destination:
+
+```sh
+uv run --locked gridctl operator restore-verify --socket SOCKET_PATH --revision CURRENT_REVISION --reason 'reviewed separate restore drill' --request /tmp/grid-storage-drill-new/restore.json --source /tmp/grid-storage-drill-new/backup.db --destination /tmp/grid-storage-drill-new/another-restore.db --digest RETAINED_SEMANTIC_HASH --requests RETAINED_REQUEST_COUNT
+```
+
+Review and repeat with `--confirm`. This checks a backup and creates a verified
+copy; it does not activate recovery, resume trading or refresh the owner's backup
+stamp. Actual restored ownership still requires normal startup checks and
+reconciliation. Later fills may be absent from the snapshot.
+
+After timeout, lost acknowledgement or restart, retain the request and inspect
+its `request_id` using the current socket:
+
+```sh
+uv run --locked gridctl operator storage-status --socket SOCKET_PATH --request-id SAVED_REQUEST_ID
+```
+
+`verified` is a retained historical result; inspect files or run a new separate
+verification if fresh artifact evidence is needed. `incomplete` means no terminal
+result: the job may still be running or may have stopped. `failed` retains the
+fixed failure result and leaves admission halted. Exact request replay never
+copies again and cannot clear a later halt. Ensure the prior job has stopped,
+review status/artifacts, then use new paths and a new reviewed request if needed.
+Never delete evidence, edit retained requests or replace an active ledger to
+force a retry. Details and crash evidence are in `I8-STORAGE-CONTROLS.md`.

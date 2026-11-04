@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+from pathlib import Path
 
 from grid.domain.market import Money
 from grid.domain.model import Mode, Scope
@@ -22,6 +23,8 @@ class Action(StrEnum):
     LIMIT_LIQUIDATE = "limit_liquidate"
     LIQUIDATE_ALLOCATION = "liquidate_allocation"
     CONFIGURE_UNIVERSE = "configure_universe"
+    BACKUP = "backup"
+    RESTORE_VERIFY = "restore_verify"
     SHUTDOWN = "shutdown_halt"
 
 
@@ -63,6 +66,8 @@ class Command:
             raise DomainError("resume requires explicit confirmation")
         if self.action is Action.CONFIGURE_UNIVERSE and not self.confirmed:
             raise DomainError("universe configuration requires explicit confirmation")
+        if self.action in (Action.BACKUP, Action.RESTORE_VERIFY) and not self.confirmed:
+            raise DomainError("storage operation requires explicit confirmation")
         if (
             self.action in (Action.LIMIT_LIQUIDATE, Action.LIQUIDATE_ALLOCATION)
             and not self.confirmed
@@ -81,6 +86,39 @@ class BackupStamp:
         bounded_int(self.requests, 0, 2**63 - 1)
         if len(self.digest) != 64 or any(c not in "0123456789abcdef" for c in self.digest):
             raise DomainError("verified backup digest required")
+
+
+@dataclass(frozen=True)
+class StoragePlan:
+    revision: int
+    command: Command
+    source: str
+    destination: str
+    digest: str | None = None
+    requests: int | None = None
+
+    def __post_init__(self) -> None:
+        bounded_int(self.revision, 1, 2**63 - 2)
+        if self.command.action not in (Action.BACKUP, Action.RESTORE_VERIFY):
+            raise DomainError("explicit storage action required")
+        for value in (self.source, self.destination):
+            if (
+                not isinstance(value, str)
+                or not 1 <= len(value) <= 4096
+                or not value.isprintable()
+                or not Path(value).is_absolute()
+                or str(Path(value)) != value
+                or ".." in Path(value).parts
+            ):
+                raise DomainError("canonical absolute artifact paths required")
+        if self.source == self.destination:
+            raise DomainError("separate backup and verification paths required")
+        if self.command.action is Action.RESTORE_VERIFY:
+            if self.digest is None or self.requests is None:
+                raise DomainError("restore requires a reviewed hash and request watermark")
+            BackupStamp(0, self.digest, self.requests)
+        elif self.digest is not None or self.requests is not None:
+            raise DomainError("backup computes its own hash and watermark")
 
 
 @dataclass(frozen=True)

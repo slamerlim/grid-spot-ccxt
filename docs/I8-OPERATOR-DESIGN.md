@@ -121,10 +121,11 @@ session, not editing the journal marker or bypassing the resume guard.
 
 ## Remaining work and rollback
 
-This is not completion of PRD section 10. Scoped dust completion, owner-mediated backup and
-restore verification commands, and unified research/storage command aliases remain
-to implement. Existing research and backup APIs are still available only through
-their documented modules/typed interfaces. The views inspect a fixed fixture;
+This is not completion of PRD section 10. Owner-mediated backup and separate
+restore verification are now documented in `I8-STORAGE-CONTROLS.md`; their durable
+jobs preserve partial outcomes without automatic retry. Scoped dust completion
+and unified research/storage command aliases remain to implement. Existing
+research APIs use their documented modules. The views inspect a fixed fixture;
 they do not discover exchanges or modify allocations.
 
 The observed minimum 48-hour gate, intended-first-venue private evidence and I9

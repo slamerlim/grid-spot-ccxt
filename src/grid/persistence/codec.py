@@ -30,6 +30,7 @@ from grid.universe.model import (
 _CLASSES = (
     operations.Command,
     operations.BackupStamp,
+    operations.StoragePlan,
     operations.Operations,
     market.Precision,
     market.Limits,

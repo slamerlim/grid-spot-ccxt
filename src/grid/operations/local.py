@@ -16,9 +16,9 @@ from grid.domain.numbers import DomainError, bounded_int, identifier
 from grid.exchange.models import ReadError
 from grid.execution.models import ExecutionError
 from grid.execution.synthetic import SyntheticExchange
-from grid.operations.model import Action, Command
+from grid.operations.model import Action, Command, StoragePlan
 from grid.operations.supervisor import MockSupervisor
-from grid.persistence import codec
+from grid.persistence import codec, storage_jobs
 from grid.persistence.records import Backpressure, Conflict, LedgerError
 from grid.portfolio.model import ExitApproval
 from grid.research.artifacts import canonical, plain
@@ -53,7 +53,16 @@ CONFIG_FIELDS = {
     "refresh-universe": set(),
 }
 KEY_EDITS = frozenset({"allow", "deny", "pin", "unpin"})
-SENSITIVE = frozenset({"resume", "cancel-buys", "retire", "limit-liquidate"}) | CONFIG_FIELDS.keys()
+STORAGE_FIELDS = {
+    "backup": {"source", "destination"},
+    "restore-verify": {"source", "destination", "digest", "requests"},
+}
+STORAGE_VIEW = "storage-status"
+SENSITIVE = (
+    frozenset({"resume", "cancel-buys", "retire", "limit-liquidate"})
+    | CONFIG_FIELDS.keys()
+    | STORAGE_FIELDS.keys()
+)
 
 
 def universe_edit(request: dict[str, Any], scopes: tuple[Scope, ...]) -> UniverseEdit:
@@ -200,6 +209,14 @@ class LocalControl:
         op = request.get("op")
         if not isinstance(op, str):
             raise DomainError("local operation required")
+        if op == STORAGE_VIEW:
+            if set(request) != {"version", "op", "request_id"}:
+                raise DomainError("unknown storage status fields")
+            identifier(request["request_id"])
+            job = await self.owner.writer.submit(
+                lambda ledger: storage_jobs.lookup(ledger, request["request_id"])
+            )
+            return self.envelope({"status": job.status if job else "not-found", "job": plain(job)})
         if op in VIEWS:
             if set(request) != {"version", "op"}:
                 raise DomainError("unknown read fields")
@@ -258,14 +275,17 @@ class LocalControl:
             "confirmed",
         }
         configuring = op in CONFIG_FIELDS
+        storing = op in STORAGE_FIELDS
         if configuring:
             fields |= CONFIG_FIELDS[op] | {"universe_revision"}
+        if storing:
+            fields |= STORAGE_FIELDS[op]
         needs_exit = (
             op == "limit-liquidate" or configuring and request.get("retirement") == Retirement.LIMIT
         )
         if needs_exit:
             fields |= {"cycle_id", "policy_sha256"}
-        if op not in ACTIONS and not configuring or set(request) != fields:
+        if op not in ACTIONS and not configuring and not storing or set(request) != fields:
             raise DomainError("unknown local command fields")
         if request["session_id"] != self.session_id:
             raise DomainError("command belongs to a different mock session")
@@ -289,6 +309,31 @@ class LocalControl:
                 raise DomainError("unknown or ambiguous allocation target")
         else:
             raise DomainError("explicit bounded targets required")
+        if storing:
+            if targets != "all":
+                raise DomainError("storage operates on the complete ledger")
+            job = await self.owner.storage_job(
+                request["request_id"],
+                StoragePlan(
+                    request["revision"],
+                    Command(
+                        Action.BACKUP if op == "backup" else Action.RESTORE_VERIFY,
+                        self.owner.scopes,
+                        f"local-uid-{uid}",
+                        request["reason"],
+                        request["observed_ms"],
+                        request["confirmed"],
+                    ),
+                    request["source"],
+                    request["destination"],
+                    request.get("digest"),
+                    request.get("requests"),
+                ),
+            )
+            return self.envelope(
+                {"status": job.status, "job": plain(job)},
+                error=None if job.status == "verified" else job.status,
+            )
         receipt = await self.owner.control(
             request["request_id"],
             request["revision"],

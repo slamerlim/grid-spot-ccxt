@@ -18,6 +18,8 @@ from grid.operations.local import (
     KEY_EDITS,
     REQUEST_BYTES,
     SENSITIVE,
+    STORAGE_FIELDS,
+    STORAGE_VIEW,
     VIEWS,
     call,
     decode,
@@ -44,6 +46,12 @@ def load_request(path: Path) -> dict[str, Any]:
 
 
 async def execute(args: argparse.Namespace) -> tuple[int, object]:
+    if args.op == STORAGE_VIEW:
+        identifier(args.request_id)
+        response = await call(
+            args.socket, {"version": 1, "op": args.op, "request_id": args.request_id}
+        )
+        return (0 if response["ok"] else 2), response
     if args.op in VIEWS:
         response = await call(args.socket, {"version": 1, "op": args.op})
         return (0 if response["ok"] else 2), response
@@ -58,6 +66,12 @@ async def execute(args: argparse.Namespace) -> tuple[int, object]:
         "confirmed": args.op in SENSITIVE,
     }
     configuring = args.op in CONFIG_FIELDS
+    if args.op in STORAGE_FIELDS:
+        desired.update(
+            source=str(args.source.absolute()), destination=str(args.destination.absolute())
+        )
+        if args.op == "restore-verify":
+            desired.update(digest=args.digest, requests=args.requests)
     if configuring:
         bounded_int(args.universe_revision, 1, 2**63 - 2)
         desired["universe_revision"] = args.universe_revision
@@ -119,14 +133,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument("--sqlite-source-id", required=True)
     serve.add_argument("--seconds", type=int, required=True)
     serve.add_argument("--resume", action="store_true")
-    for name in sorted(VIEWS | ACTIONS.keys() | CONFIG_FIELDS.keys()):
+    for name in sorted(
+        VIEWS | ACTIONS.keys() | CONFIG_FIELDS.keys() | STORAGE_FIELDS.keys() | {STORAGE_VIEW}
+    ):
         command = commands.add_parser(name)
         command.add_argument("--socket", type=Path, required=True)
-        if name not in VIEWS:
+        if name == STORAGE_VIEW:
+            command.add_argument("--request-id", required=True)
+        elif name not in VIEWS:
             command.add_argument("--revision", type=int, required=True)
             command.add_argument("--reason", required=True)
             command.add_argument("--request", type=Path, required=True)
             command.add_argument("--confirm", action="store_true")
+            if name in STORAGE_FIELDS:
+                command.add_argument(
+                    "--output" if name == "backup" else "--source",
+                    dest="source",
+                    type=Path,
+                    required=True,
+                    help="new backup file" if name == "backup" else "existing backup file",
+                )
+                command.add_argument(
+                    "--verify-to" if name == "backup" else "--destination",
+                    dest="destination",
+                    type=Path,
+                    required=True,
+                    help="new separate restored copy; never replaces an existing ledger",
+                )
+                if name == "restore-verify":
+                    command.add_argument("--digest", required=True)
+                    command.add_argument("--requests", type=int, required=True)
             if name == "limit-liquidate" or name in ("deny", "disable-venue"):
                 command.add_argument("--cycle", required=name == "limit-liquidate")
                 command.add_argument("--policy-sha256", required=name == "limit-liquidate")
@@ -143,7 +179,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         command.add_argument(
                             "--retirement", choices=list(Retirement), required=True
                         )
-            if name not in CONFIG_FIELDS or name in KEY_EDITS:
+            if name not in CONFIG_FIELDS and name not in STORAGE_FIELDS or name in KEY_EDITS:
                 targets = command.add_mutually_exclusive_group(required=True)
                 targets.add_argument("--all", action="store_true")
                 targets.add_argument("--allocation", action="append")
