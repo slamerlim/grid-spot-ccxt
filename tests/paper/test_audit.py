@@ -171,3 +171,50 @@ def test_invalid_prior_counters_cannot_reduce_audit_budget(
     journal.close()
     with pytest.raises(DomainError, match="prior budget"):
         audit(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("gap_seconds", "cpu_fraction", "fault"),
+    [(61, 0.1, "checkpoint-overdue"), (60, 0.8, "resource-cap-breached")],
+)
+@pytest.mark.parametrize("complete", [True, False])
+def test_new_monitoring_cannot_claim_completion_despite_recorded_measurements(
+    tmp_path: Path, gap_seconds: int, cpu_fraction: float, fault: str, complete: bool
+) -> None:
+    journal = Journal(tmp_path)
+    journal.append("start", {"observed_clock": False, "monitoring_version": 2}, 10000, 10**10)
+    ms, ns = 10000 + gap_seconds * 1000, (10 + gap_seconds) * 10**9
+    journal.append(
+        "checkpoint",
+        {
+            "label": "periodic",
+            "cpu_window_ns": gap_seconds * 10**9,
+            "cpu_window_complete": True,
+            "cpu_fraction": cpu_fraction,
+            "checkpoint_gap_ns": gap_seconds * 10**9,
+            "monitor_fault": None,  # Auditor must inspect measurements, not just the flag.
+            "rss_bytes": 1,
+            "wal_bytes": 0,
+            "directory_bytes": 1,
+            "tasks": 1,
+        },
+        ms,
+        ns,
+    )
+    journal.append(
+        "finished",
+        {
+            "result": "mock-clock-complete" if complete else "partial-fault",
+            "observed_soak_complete": False,
+        },
+        ms,
+        ns,
+    )
+    journal.close()
+    if complete:
+        with pytest.raises(DomainError, match="contradicts resource monitoring"):
+            audit(tmp_path)
+    else:
+        report = audit(tmp_path)
+        assert report["monitoring_faults"] == [fault]
+        assert report["cpu_peak_minute_fraction"] == cpu_fraction

@@ -7,6 +7,7 @@ import fcntl
 import hashlib
 import json
 from collections import Counter
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -148,6 +149,48 @@ def audit(directory: Path) -> dict[str, object]:
     ):
         raise DomainError("audit observed duration claim is unsupported")
     metrics = [r["payload"] for r in checkpoints]
+    monitoring_version = start["payload"].get("monitoring_version", 1)
+    if type(monitoring_version) is not int or monitoring_version not in (1, 2):
+        raise DomainError("audit monitoring version is unsupported")
+    monitoring_faults: set[str] = set()
+    if monitoring_version == 2:
+        previous_checkpoint = start["ns"]
+        for row in checkpoints:
+            metric = row["payload"]
+            gap = row["ns"] - previous_checkpoint
+            duration, fraction = metric["cpu_window_ns"], metric["cpu_fraction"]
+            complete = metric["cpu_window_complete"]
+            fault = metric["monitor_fault"]
+            if (
+                type(metric["checkpoint_gap_ns"]) is not int
+                or metric["checkpoint_gap_ns"] != gap
+                or type(duration) is not int
+                or duration < 0
+                or type(complete) is not bool
+                or complete != (duration >= 60 * 10**9)
+                or type(fraction) not in (float, int)
+                or not isfinite(fraction)
+                or fraction < 0
+                or fault
+                not in (
+                    None,
+                    "checkpoint-overdue",
+                    "resource-cap-breached",
+                    "resource-clock-regressed",
+                )
+            ):
+                raise DomainError("audit resource measurement is invalid")
+            if fault:
+                monitoring_faults.add(fault)
+            if gap > 60 * 10**9:
+                monitoring_faults.add("checkpoint-overdue")
+            if complete and fraction > 0.5:
+                monitoring_faults.add("resource-cap-breached")
+            previous_checkpoint = row["ns"]
+        if not checkpoints or finish["ns"] - previous_checkpoint > 60 * 10**9:
+            monitoring_faults.add("checkpoint-overdue")
+        if monitoring_faults and result["result"] in ("one-hour-observed", "mock-clock-complete"):
+            raise DomainError("audit complete result contradicts resource monitoring")
     backups = groups.get("backup", [])
     return {
         "audit": "verified-journal",
@@ -180,12 +223,23 @@ def audit(directory: Path) -> dict[str, object]:
         else None,
         "checkpoints": len(checkpoints),
         "maximum_checkpoint_gap_seconds": max(checkpoint_gaps, default=0),
+        "monitoring_version": monitoring_version,
+        "monitoring_faults": sorted(monitoring_faults),
         "rss_peak_sampled_bytes": max((m["rss_bytes"] for m in metrics), default=0),
         "wal_peak_sampled_bytes": max((m["wal_bytes"] for m in metrics), default=0),
         "directory_peak_sampled_bytes": max((m["directory_bytes"] for m in metrics), default=0),
         "task_peak_sampled": max((m["tasks"] for m in metrics), default=0),
         "cpu_peak_minute_fraction": max(
-            (m["cpu_fraction"] for m in metrics if m["label"] == "minute"), default=0
+            (
+                m["cpu_fraction"]
+                for m in metrics
+                if m.get("cpu_window_complete", m["label"] == "minute")
+            ),
+            default=0,
+        ),
+        "cpu_maximum_completed_window_seconds": max(
+            (m["cpu_window_ns"] / 10**9 for m in metrics if m.get("cpu_window_complete")),
+            default=None,
         ),
         "holds": [r["payload"] for r in groups.get("hold", [])],
         "feed_failures": [r["payload"] for r in groups.get("feed-failure", [])],

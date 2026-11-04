@@ -532,3 +532,11 @@ For an exclusive JSON artifact, use `python -m grid.paper.audit --directory PATH
 --output NEW_PATH` on one line. Reports stay outside Git; retain evidence at
 least seven days after review. Unknown public constraints correctly produce an
 unallocated paper cash pool and zero paper orders.
+
+New harness runs use monitoring version 2: a 50-second sampling target with a
+60-second maximum measured gap, and an independent CPU window that additional
+checkpoints cannot reset. A monitoring breach latches a partial result. Inspect
+actual CPU window duration/completeness; a partial window is not a minute pass.
+Legacy run evidence retains its original version and measured gaps. See
+`I8-MONITORING-EVIDENCE.md` for the mock-only correction; it grants no new public
+run authorization.

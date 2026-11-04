@@ -88,6 +88,25 @@ SQLite backups. Their semantic hashes, request watermarks and journal-prefix
 hashes are retained. Every minute and fault boundary records actual resources,
 public counts, eligibility and synthetic financial status.
 
+The completed observation used the original nominal-minute sampler and recorded
+a maximum 60.665-second gap. The subsequent **monitoring version 2**, validated
+only on mocks, targets resource snapshots after 50 seconds and clips idle sleeps
+to the next resource/CPU deadline. It checks again after a feed read and before
+paper admission. A measured checkpoint gap over 60 seconds latches a fault and
+produces a partial result, including when discovered during final cleanup.
+This detects suspension when execution resumes; it cannot make a blocked OS
+operation or descheduled process run on time.
+
+CPU accounting has its own process-local window: extra fault/backup snapshots
+do not reset its baseline. Only a sample covering at least 60 seconds evaluates
+the 50% limit and advances that baseline. Reports retain the actual window
+duration and whether it is complete; the scheduler may sample after the exact
+deadline. Short windows at process boundaries are reported as incomplete.
+The auditor checks version-2 timing/CPU measurements and refuses a completed
+result when they show a breach. Legacy journals remain version 1; they do not
+gain the stronger checks or a retroactive acceptance pass. See
+`I8-MONITORING-EVIDENCE.md` for the follow-up's tests and limitations.
+
 The 512 MiB RSS/directory, 16 MiB WAL, queue 8, intake 16, alert 32, task 20 and
 50% single-core minute CPU caps remain enforced. Require 2 GiB free disk. The
 bounded journal permits 10,000 records of at most 256 KiB, with no rotation or

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from persistence.conftest import SOURCES
 
+from grid.domain.numbers import DomainError
 from grid.exchange.models import BookObservation, Failure, MarketObservation, ReadError
 from grid.paper.audit import audit
 from grid.paper.journal import Journal
@@ -30,9 +31,11 @@ class Reader:
 
 
 @pytest.mark.usefixtures("async_sockets")
+@pytest.mark.parametrize("poll_ms", [5000, 5101])
 def test_complete_mock_schedule_restart_and_reports_never_claim_observation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    poll_ms: int,
 ) -> None:
     async def run() -> None:
         now = [10000]
@@ -48,7 +51,7 @@ def test_complete_mock_schedule_restart_and_reports_never_claim_observation(
 
         monkeypatch.setattr(asyncio, "sleep", sleep)
         journal = Journal(tmp_path)
-        journal.append("start", {"observed_clock": False}, *clock())
+        journal.append("start", {"observed_clock": False, "monitoring_version": 2}, *clock())
         for expected in (75, 0):
             observer = Observer(journal, SOURCES, Wire(), clock)
             reader = Reader(now)
@@ -60,7 +63,7 @@ def test_complete_mock_schedule_restart_and_reports_never_claim_observation(
 
             async def poll(poll_source: Callable[[], Awaitable[None]] = original_poll) -> None:
                 await poll_source()
-                now[0] += 5000
+                now[0] += poll_ms
 
             monkeypatch.setattr(observer, "poll", poll)
             assert await observer.run() == expected
@@ -84,7 +87,93 @@ def test_complete_mock_schedule_restart_and_reports_never_claim_observation(
         verified = audit(tmp_path)
         assert verified["run_result"] == "mock-clock-complete"
         assert verified["process_restarts"] == 1
+        maximum_gap = verified["maximum_checkpoint_gap_seconds"]
+        assert isinstance(maximum_gap, (int, float)) and maximum_gap <= 60
+        assert verified["monitoring_faults"] == [] and verified["monitoring_version"] == 2
+        assert verified["cpu_maximum_completed_window_seconds"] is not None
+        assert all(not r["payload"]["monitor_fault"] for r in journal.kinds("checkpoint"))
         assert len(str(verified["journal_file_sha256"])) == 64
+
+    asyncio.run(run())
+
+
+@pytest.mark.usefixtures("async_sockets")
+def test_delayed_read_stops_before_paper_admission_and_records_partial_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def run() -> None:
+        now = [10000]
+
+        def clock() -> tuple[int, int]:
+            return now[0], now[0] * 1000000
+
+        journal = Journal(tmp_path)
+        journal.append("start", {"observed_clock": False, "monitoring_version": 2}, *clock())
+        wire = Wire()
+        observer = Observer(journal, SOURCES, wire, clock)
+        reader = Reader(now)
+        calls = 0
+
+        async def delayed_book(symbol: str) -> BookObservation:
+            nonlocal calls
+            calls += 1
+            now[0] += 61000  # Model process/event-loop suspension, not a real timeout.
+            return book(now[0])
+
+        monkeypatch.setattr(observer.client, "load_markets", reader.load_markets)
+        monkeypatch.setattr(observer.client, "fetch_order_book", delayed_book)
+        assert await observer.run() == 1
+        assert calls == 1 and wire.calls == 0
+        assert not journal.kinds("book") and not journal.kinds("paper-observe")
+        report = json.loads((tmp_path / "report.json").read_text())
+        assert report["result"] == "partial-fault"
+        assert report["failure"] == "checkpoint-overdue"
+        assert report["paper"]["synthetic_orders"] == 0
+        journal.close()
+        verified = audit(tmp_path)
+        assert verified["run_result"] == "partial-fault"
+        assert verified["monitoring_faults"] == ["checkpoint-overdue"]
+
+    asyncio.run(run())
+
+
+@pytest.mark.usefixtures("async_sockets")
+def test_extra_checkpoints_cannot_erase_cpu_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def run() -> None:
+        now, cpu = [10000], [0]
+
+        def clock() -> tuple[int, int]:
+            return now[0], now[0] * 1000000
+
+        monkeypatch.setattr("grid.paper.runner.time.process_time_ns", lambda: cpu[0])
+        journal = Journal(tmp_path)
+        journal.append("start", {"observed_clock": False}, *clock())
+        observer = Observer(journal, SOURCES, Wire(), clock)
+        try:
+            await observer.initialize()
+            now[0] += 30000
+            cpu[0] += 24 * 10**9
+            first = await observer.checkpoint("before-backup")
+            assert first["cpu_window_ns"] == 30 * 10**9
+            assert first["cpu_window_complete"] is False
+            now[0] += 30000
+            cpu[0] += 24 * 10**9
+            with pytest.raises(DomainError, match="resource-cap-breached"):
+                await observer.checkpoint("verified-backup")
+            failed = journal.kinds("checkpoint")[-1]["payload"]
+            assert failed["cpu_window_ns"] == 60 * 10**9
+            assert failed["cpu_window_complete"] is True
+            assert failed["cpu_fraction"] == 0.8
+            # Further snapshots cannot turn the latched fault into a successful run.
+            with pytest.raises(DomainError, match="resource-cap-breached"):
+                await observer.checkpoint_if_due()
+        finally:
+            await observer.client.close()
+            if observer.engine:
+                await observer.engine.close()
+            journal.close()
 
     asyncio.run(run())
 

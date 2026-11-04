@@ -29,6 +29,9 @@ from grid.persistence.storage import check_runtime
 from grid.research.artifacts import canonical, output_directory, publish
 
 LIMITS = ReadLimits(750, 5000, 3000, 65536, 10, 3600000, 5000, True)
+SAMPLE_INTERVAL_NS = 50 * 10**9
+MAX_SAMPLE_GAP_NS = 60 * 10**9
+CPU_WINDOW_NS = 60 * 10**9
 
 
 class Observer:
@@ -58,6 +61,18 @@ class Observer:
         self.engine: PaperEngine | None = None
         self.market: MarketObservation | None = None
         self.cpu_ns, self.cpu_at = time.process_time_ns(), now()[1]
+        checkpoints = journal.kinds("checkpoint")
+        self.sample_at: int = (
+            checkpoints[-1]["ns"] if checkpoints else journal.kinds("start")[0]["ns"]
+        )
+        self.monitor_fault: str | None = next(
+            (
+                r["payload"]["monitor_fault"]
+                for r in checkpoints
+                if r["payload"].get("monitor_fault")
+            ),
+            None,
+        )
         self.observed_clock = journal.kinds("start")[0]["payload"].get("observed_clock") is True
         self.observer_fd: int | None = None
         self.observer_poll = select.poll()
@@ -79,9 +94,12 @@ class Observer:
         return int(elapsed)
 
     async def checkpoint(self, label: str) -> dict[str, object]:
+        paper = await self.engine.status() if self.engine else None
         ms, ns = self.now()
         cpu, elapsed = time.process_time_ns(), ns - self.cpu_at
         fraction = (cpu - self.cpu_ns) / elapsed if elapsed else 0.0
+        cpu_complete = elapsed >= CPU_WINDOW_NS
+        gap = ns - self.sample_at
         directory = self.journal.directory
         wal = directory / "paper.db-wal"
         metrics: dict[str, object] = {
@@ -95,24 +113,44 @@ class Observer:
             "wal_bytes": wal.stat().st_size if wal.exists() else 0,
             "tasks": len(asyncio.all_tasks()),
             "cpu_fraction": fraction,
-            "paper": await self.engine.status() if self.engine else None,
+            "cpu_window_ns": elapsed,
+            "cpu_window_complete": cpu_complete,
+            "checkpoint_gap_ns": gap,
+            "paper": paper,
         }
         free = os.statvfs(directory)
-        if (
+        if elapsed < 0 or cpu < self.cpu_ns or gap < 0:
+            self.monitor_fault = self.monitor_fault or "resource-clock-regressed"
+        elif gap > MAX_SAMPLE_GAP_NS:
+            self.monitor_fault = self.monitor_fault or "checkpoint-overdue"
+        elif (
             resident_bytes() > 512 * 1024**2
             or self.journal.bytes() > CAP_BYTES
             or wal.exists()
             and wal.stat().st_size > 16 * 1024**2
             or len(asyncio.all_tasks()) > 20
-            or elapsed >= 60 * 10**9
+            or cpu_complete
             and fraction > 0.5
             or free.f_bavail * free.f_frsize < 2 * 1024**3
         ):
-            raise DomainError("observed resource cap breached")
-        self.cpu_ns, self.cpu_at = cpu, ns
-        self.record("checkpoint", metrics)
+            self.monitor_fault = self.monitor_fault or "resource-cap-breached"
+        # Fault/backup snapshots cannot reset an unfinished CPU window.
+        if cpu_complete:
+            self.cpu_ns, self.cpu_at = cpu, ns
+        metrics["monitor_fault"] = self.monitor_fault
+        self.journal.append("checkpoint", metrics, ms, ns)
+        self.sample_at = ns
         print(canonical(metrics).decode(), flush=True)
+        if self.monitor_fault and label != "process-stop":
+            raise DomainError(self.monitor_fault)
         return metrics
+
+    def sample_due(self) -> int:
+        return min(self.sample_at + SAMPLE_INTERVAL_NS, self.cpu_at + CPU_WINDOW_NS)
+
+    async def checkpoint_if_due(self) -> None:
+        if self.monitor_fault or self.now()[1] >= self.sample_due():
+            await self.checkpoint("periodic")
 
     async def initialize(self) -> None:
         self.engine = await PaperEngine.open(self.journal, self.sources, self.now)
@@ -151,10 +189,13 @@ class Observer:
             raise DomainError("missing paper engine")
         if self.market is None:
             markets = await self.client.load_markets()
+            await self.checkpoint_if_due()
             self.market = markets["BTC/USDT"]
             self.record("market", self.market)
         else:
             book = await self.client.fetch_order_book("BTC/USDT")
+            # A delayed read must not reach strategy admission before monitoring.
+            await self.checkpoint_if_due()
             ms, ns = self.now()
             book.require_fresh(ns, ms, 10000)
             previous = self.journal.kinds("book")
@@ -173,16 +214,14 @@ class Observer:
         failure: str | None = None
         try:
             await self.initialize()
-            last_checkpoint = self.now()[1]
             while self.elapsed() < 3600000:
                 if self.observer_fd is not None and self.observer_poll.poll(0):
                     raise DomainError("coordinator exited; observation stopped")
+                await self.checkpoint_if_due()
                 if await self.scheduled():
                     code = 75
                     break
-                if self.now()[1] - last_checkpoint >= 60 * 10**9:
-                    await self.checkpoint("minute")
-                    last_checkpoint = self.now()[1]
+                await self.checkpoint_if_due()
                 attempts = self.journal.kinds("attempt")
                 holds = self.journal.kinds("hold")
                 due = max(
@@ -191,7 +230,8 @@ class Observer:
                 )
                 wait = (due - self.now()[1]) / 10**9
                 if wait > 0:
-                    await asyncio.sleep(min(wait, 1.0))
+                    until_sample = max(0, (self.sample_due() - self.now()[1]) / 10**9)
+                    await asyncio.sleep(min(wait, until_sample, 1.0))
                     continue
                 try:
                     await self.poll()
@@ -234,6 +274,8 @@ class Observer:
                     code, failure = 1, "cleanup-" + type(error).__name__
             try:
                 final = await self.checkpoint("process-stop")
+                if self.monitor_fault:
+                    code, failure = 1, self.monitor_fault
                 if code != 75:
                     result = dict(
                         final,
@@ -312,6 +354,7 @@ def main() -> int:
                     "approved_sqlite_source": args.approved_sqlite_source,
                     "duration_ms": 3600000,
                     "observed_clock": True,
+                    "monitoring_version": 2,
                     "wire_cap": 750,
                     "instrument_cap": 3,
                     "public_venue": "okx",

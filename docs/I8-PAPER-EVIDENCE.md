@@ -1,5 +1,9 @@
 # I8 public-paper evidence — one observed hour completed
 
+This report preserves the completed run's measured results. The later offline
+monitoring correction is documented separately in `I8-MONITORING-EVIDENCE.md`;
+it neither changes these artifacts nor establishes a new public observation.
+
 The owner instructed: "approve harness and perform a quick run for 1 hour,
 then continue development". The requested hour completed on **2026-11-04**.
 The earlier interrupted attempt remains separately recorded. Both attempts

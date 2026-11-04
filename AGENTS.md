@@ -107,6 +107,12 @@ private account evidence, I9 and deployment remain separately gated. Retain the
 two `/opt/grid-runs/i8-public-hour/` evidence directories at least seven days
 after review, with no automatic deletion. GitHub Free-only rules still apply.
 
+The offline monitoring follow-up is recorded in `docs/I8-MONITORING-EVIDENCE.md`.
+It adds early sampling, independent CPU windows and fail-closed timing evidence;
+it does not revalidate the completed public run. Continue toward the full PRD,
+including its still-missing local operator CLI over the existing mock supervisor.
+Keep one financial writer and do not treat partial mocks as completed live gates.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one
