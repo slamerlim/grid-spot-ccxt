@@ -140,6 +140,13 @@ The research CLI follow-up is recorded in `docs/I8-RESEARCH-CLI.md`:
 sanitize failures and preflight exclusive outputs. They do not impose OS resource
 quotas or integrate portfolio exits into historical replay. The current evidence
 and remaining requirements are mapped in `docs/IMPLEMENTATION-REVIEW.md`.
+`docs/I8-RESEARCH-PROVENANCE.md` records the subsequent report envelope:
+CLI results now live under `result` in `grid-research-run-v1`; deterministic
+engine hashes remain inside that result. Source/runtime/Git observations are
+separate and checked again before publication. Git verification is scoped to
+application Python files and dependency manifests, never a claim that the whole
+repository or installed dependencies are clean. Keep Git reads bounded, local,
+transport-denied and isolated from ambient environment/configuration.
 Continue the offline research and resource gaps recorded there; a green mock suite
 does not close external acceptance gates. No new exchange or deployment
 authorization is implied.

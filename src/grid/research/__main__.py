@@ -14,6 +14,7 @@ from grid.research.benchmark import benchmark
 from grid.research.config import load
 from grid.research.demo import create
 from grid.research.history import Source, validate
+from grid.research.provenance import Observation
 from grid.research.replay import run
 
 
@@ -70,7 +71,9 @@ def main(
         if args.output.exists() or args.output.is_symlink():
             raise DomainError("existing result")
         if args.command == "replay":
-            result: object = run(load(args.config))
+            spec = load(args.config)
+            observation = Observation.start(spec.code_revision)
+            result: object = run(spec)
             code = 0
         else:
             source = Source(
@@ -84,6 +87,7 @@ def main(
                 args.collection_evidence,
                 args.verified_unleveraged_spot,
             )
+            observation = Observation.start(args.code_revision)
             if args.command == "validate":
                 manifest = validate(source)
                 result = {
@@ -98,7 +102,7 @@ def main(
                     **benchmark(source, args.output.parent),
                 }
                 code = 0
-        publish(args.output, result)
+        publish(args.output, observation.finish(args.command, result))
         print("Research report published; simulated execution only.")
         return code
     except KeyboardInterrupt:

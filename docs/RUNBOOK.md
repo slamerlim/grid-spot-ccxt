@@ -339,6 +339,14 @@ Keep source archives immutable and place new outputs outside Git. Do not run the
 legacy converter/downloader or rewrite original files to make validation pass.
 Supply the clean Git commit as `--code-revision`; uncommitted experiments need an
 explicit source fingerprint and must not be labeled as a clean commit.
+The CLI now captures that fingerprint automatically. It compares Python files
+under `src/grid`, `pyproject.toml` and `uv.lock` with the observed local HEAD;
+the supplied label must equal the full HEAD SHA for `revision_verified=true`.
+This verifies only the stated comparison scope, not documentation/tests, loaded
+bytecode, installed dependency contents or the whole repository's cleanliness.
+Review those fields rather than treating a supplied label as an assertion of fact.
+An installed wheel without its source checkout retains a source fingerprint and
+explicitly unverified Git identity. Unknown Git does not prevent synthetic work.
 
 `validate` returns 0 for a fully eligible selection, 1 for reported blockers and
 2 for an error/refusal. Unknown identity/collection provenance remains a blocker
@@ -353,6 +361,14 @@ explicit finite capital. `replay` requires complete matching UTC coverage and
 publishes only after all sources have passed the second checksum/identity pass.
 Use a distinct result path for each execution scenario. Result hashes bind the
 scenario, source window, constraints, fees, configuration and code reference.
+New CLI outputs have schema `grid-research-run-v1`. The previous report object is
+stored at `result`, including its original `result_sha256` for replay. The outer
+`result_payload_sha256` hashes the entire result object, and `report_sha256`
+hashes the envelope excluding only itself. Consumers of old root-level fields
+must check the schema and unwrap `result`; do not rewrite old retained artifacts.
+Timestamps, host data and CPU measurements intentionally change the outer hash.
+Compare the inner result/hash for deterministic replay equality. Standalone engine
+APIs still return their existing result schemas without a provenance envelope.
 
 `benchmark` writes a unique small sample directory beside its result. Review
 the original/derived byte-equivalence hash, reader timings, memory scope and
@@ -383,6 +399,11 @@ See `I5-DESIGN.md` and `I5-EVIDENCE.md` for the precise model and measured scope
 `I8-RESEARCH-CLI.md` records the later main CLI integration. The current gaps are
 tracked in `IMPLEMENTATION-REVIEW.md`; existing replay is not a test of the I7
 portfolio exit controller.
+`I8-RESEARCH-PROVENANCE.md` records the envelope and bounded local Git checks.
+Changes in source, manifests, observed Git identity or runtime metadata between
+the before/after snapshots refuse publication. Retain any derived samples and
+inspect the checkout; do not erase evidence or retry automatically. Even stable
+snapshots cannot attest to a hostile same-user process or modified loaded code.
 I6 was subsequently approved with local validation. Hosted CI remains pending; do not
 retry the known account lock or use paid GitHub features to unblock this work.
 

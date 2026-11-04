@@ -5,6 +5,8 @@ current branch after base `fee2cdc39067623cd1955e72e928386634866fab`. This is a
 current implementation/evidence map, not an amendment to the PRD or acceptance
 plan. `I0-REQUIREMENTS-TRACE.md` remains the historical I0 mapping. The new
 research CLI increment and its final validation are in `I8-RESEARCH-CLI.md`.
+The subsequent source/runtime reporting increment, based on `5637656`, is in
+`I8-RESEARCH-PROVENANCE.md`; its current status is incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -35,7 +37,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q13 fallback | Bounded synthetic private hints and authoritative fake REST recovery; execution recovery/capacity tests | No real private subscription, disconnect or REST recovery integration |
 | Q14 corrupt history | Read-only 24-byte importer, manifest, quarantine counts and strict provenance/precision checks; `tests/research/test_history.py` | Original archive provenance and coverage are not certified by bounded historical samples |
 | Q15 OHLC ambiguity | Two declared scenarios forbid profitable two-sided same-bar round trips; `tests/research/test_replay.py` | Full three-scenario research requirement and uncertainty evaluation unfinished; queue/volume evidence absent |
-| Q16 chronology/restart | UTC merge, canonical ties, final partial interval, deterministic restart from immutable input; research replay/crash tests | No checkpoint resume; broader multi-market study and full run provenance still required |
+| Q16 chronology/restart | UTC merge, canonical ties, final partial interval, deterministic restart, separately hashed source/runtime/Git report envelope; research replay/provenance/crash tests | No checkpoint resume or loaded-code/dependency attestation; broader multi-market study required |
 | Q17 cache | Single-flight refresh, freshness/generation gates, bounded LRU and 100-caller mock test; `tests/universe/test_discovery.py` | Full real-venue discovery/admission integration untested |
 | Q18 overload/resources | Bounded writer/intake/cache, halt on overload, synthetic 1/7-venue × 10/100/1,000-candidate matrix; execution/operations tests | Not 1,000 funded allocations; no constrained research/fill-storm contention or deployment sizing |
 | Q19 controller/storage | Exclusive mock ownership, WAL/FULL ledger, crash, backup/restore and audited storage controls; `tests/persistence/`, `tests/operations/test_storage*.py` | Real venue reconciliation after restore, deployment filesystem/power faults and production runtime remain unverified |
@@ -69,13 +71,15 @@ missing venue evidence or to enable live access.
    not mathematical PnL bounds. Added scenarios must retain that honesty and
    never treat OHLC touches as observed queue fills or use future bars to choose
    favorable fills. Independent-lot comparison must stay outside live strategy.
-3. **Run provenance and metrics.** Replay binds supplied revision/config/input
-   hashes and CCXT version, but does not verify that the revision describes the
-   executing source or include a complete runtime/machine profile. It reports
-   per-allocation profit factor when defined, but not separate gross wins/losses
-   in the serialized report. Full exit metrics depend on item 1. Bind actual
-   source/runtime evidence while preserving deterministic financial result hashes;
-   machine timing must not silently make accounting nondeterministic.
+3. **Remaining metrics and provenance limits.** The CLI now wraps unchanged
+   engine results in a separately hashed source/runtime/host envelope. It verifies
+   the supplied full HEAD SHA against local application Python bytes/modes and
+   dependency manifests, explicitly reporting mismatch/unavailability, and refuses
+   publication on changes between snapshots. This is not loaded-code or installed
+   dependency attestation; direct engine APIs do not add the envelope. Replay
+   still reports per-allocation profit factor without separately serializing
+   gross wins/losses, and full exit metrics depend on item 1. Extend the research
+   metrics while keeping machine observations outside deterministic accounting.
 4. **Resource isolation and contention.** Input/queue bounds and sequential
    decoding are not CPU/RSS/IO quotas. `operations/experiment.py:benchmark_case`
    assesses up to 1,000 candidates, then supervises one allocation per logical
@@ -91,8 +95,8 @@ missing venue evidence or to enable live access.
    but are not the complete on-deployment-hardware performance report. Keep raw
    archives immutable and defer any full derived copies until justified.
 
-Continue with source/runtime provenance, then full-cycle historical integration
-and its comparisons, alongside a bounded mock contention harness. Use separate
+Continue with full-cycle historical integration and its comparisons/metrics,
+alongside a bounded mock contention harness. Use separate
 reviewable increments; preserve existing canonical financial records and report
 compatibility deliberately. Hardware measurements must describe the tested host
 and cannot certify an untested deployment. Tier B/C, compiled kernels, dashboards

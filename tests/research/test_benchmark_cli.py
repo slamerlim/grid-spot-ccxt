@@ -79,7 +79,7 @@ def test_cli_demo_validate_replay_and_exclusive_outputs(tmp_path: Path) -> None:
         "test",
     ]
     assert main(arguments) == 1  # Filenames do not magically establish provenance.
-    manifest = json.loads((output / "validation.json").read_bytes())
+    manifest = json.loads((output / "validation.json").read_bytes())["result"]
     assert not manifest["replay_eligible"]
     assert manifest["manifest"]["accepted"] == 7
 

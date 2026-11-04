@@ -111,6 +111,13 @@ an interrupted run may retain samples or an already published report. Inspect
 artifacts before another attempt. Parquet decoding is sequential, but these
 commands do not impose OS CPU/RSS/IO quotas or coordinate with a trading owner.
 See [CLI behavior and validation](docs/I8-RESEARCH-CLI.md).
+Research CLI reports now use a `grid-research-run-v1` envelope: read the existing
+engine output under `result`. `provenance` records observed source hashes, local
+Git comparison, runtime and host details. Its separate report hash changes with
+observations; the inner deterministic replay result/hash stays unchanged. A
+supplied revision is verified only when it exactly matches the local HEAD and
+the compared source/manifests match that commit. See
+[research provenance and compatibility](docs/I8-RESEARCH-PROVENANCE.md).
 
 ## Offline operational experiments
 
@@ -173,7 +180,8 @@ operational and universe revisions plus a second confirmation. Deny/disable must
 specify how existing inventory should be managed. The [storage controls](docs/I8-STORAGE-CONTROLS.md)
 provide owner-mediated `backup`, separate `restore-verify`, and durable
 `storage-status` receipts. Copies always use new private files; interrupted jobs
-remain visible for review. Research/storage command integration remains unfinished.
+remain visible for review. Historical research uses the separate commands above;
+portfolio replay and resource-contention work remain unfinished.
 This fixture does not establish trading or I8 acceptance.
 
 ## Verify

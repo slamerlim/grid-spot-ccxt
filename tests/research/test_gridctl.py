@@ -29,7 +29,12 @@ def test_backtest_alias_matches_existing_research_results(
     alias, legacy = tmp_path / "alias.json", tmp_path / "legacy.json"
     assert main(["backtest", "--config", str(config), "--output", str(alias)]) == 0
     assert research.main(["replay", "--config", str(config), "--output", str(legacy)]) == 0
-    assert alias.read_bytes() == legacy.read_bytes()
+    alias_report = json.loads(alias.read_bytes())
+    legacy_report = json.loads(legacy.read_bytes())
+    assert alias_report["schema"] == legacy_report["schema"] == "grid-research-run-v1"
+    assert alias_report["result"] == legacy_report["result"]
+    assert alias_report["result_payload_sha256"] == legacy_report["result_payload_sha256"]
+    assert alias_report["provenance"]["source"] == legacy_report["provenance"]["source"]
     assert source.read_bytes() == original and source.stat().st_mtime_ns == before.st_mtime_ns
 
 
@@ -64,7 +69,7 @@ def test_separate_cli_processes_run_backtest_and_storage_sample(tmp_path: Path) 
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "simulated execution only" in result.stdout
-    report = json.loads((tmp_path / "benchmark.json").read_text())
+    report = json.loads((tmp_path / "benchmark.json").read_text())["result"]
     assert report["schema"] == "grid-storage-sample-v1"
     assert report["input"]["blockers"]  # Benchmark success never asserts replay provenance.
     assert all(
@@ -160,7 +165,7 @@ def test_lost_success_output_retains_published_report(
 
     monkeypatch.setattr(research, "print", lost_ack, raising=False)
     assert main(["backtest", "--config", str(config), "--output", str(output)]) == 2
-    assert json.loads(output.read_text())["schema"] == "grid-research-v1"
+    assert json.loads(output.read_text())["result"]["schema"] == "grid-research-v1"
     message = capsys.readouterr().err
     assert "inspect output artifacts" in message and "untrusted_cli_marker" not in message
 
