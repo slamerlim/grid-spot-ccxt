@@ -127,6 +127,12 @@ ledger. Its distinct result schema records blocked exits and final shortfalls;
 it never forces completion at EOF. See [portfolio replay](docs/I8-PORTFOLIO-RESEARCH.md)
 for inputs, chronology, limits and validation.
 
+Add `--portfolio-cycles N` (1–32) for an explicit bounded continuation after
+reconciled exits. Funds and accounting carry forward; the series report separates
+each cycle's return from the return on the original funds. It also works with
+`--compare-scenarios`. See [continuous portfolio replay](docs/I8-PORTFOLIO-SERIES.md)
+for restart rules, schemas and shared limits. The default remains one cycle.
+
 Add `--compare-scenarios` to either backtest mode to run the three fixed OHLC
 conventions sequentially. The result retains all scenarios and shows a shared
 NAV range only when their valuations and endpoints are comparable. Scenario
@@ -219,7 +225,7 @@ specify how existing inventory should be managed. The [storage controls](docs/I8
 provide owner-mediated `backup`, separate `restore-verify`, and durable
 `storage-status` receipts. Copies always use new private files; interrupted jobs
 remain visible for review. Historical research uses the separate commands above;
-portfolio replay and resource-contention work remain unfinished.
+study coverage and deployment resource isolation remain incomplete.
 This fixture does not establish trading or I8 acceptance.
 
 ## Verify

@@ -12,7 +12,7 @@ from tempfile import TemporaryDirectory, gettempdir
 
 from grid.domain.market import Money
 from grid.domain.model import Scope, State
-from grid.domain.numbers import ZERO, DomainError, arithmetic
+from grid.domain.numbers import ZERO, DomainError, arithmetic, bounded_int
 from grid.domain.reducer import reserved
 from grid.exchange.models import BookObservation, ReadError
 from grid.execution.executor import MockExecutor
@@ -45,11 +45,15 @@ from grid.universe.model import Facts, MarketKey
 # Finite local simulator limits, never production budgets. The settings further bound work/disk.
 STORAGE = Bounds(50, 8, 4 * 1024**2, 10000, 256, 8, 5000)
 EXECUTION = Limits(64, 1000, 100, 10000, 1000, 60000, 1000, 60000, 1, 1000)
+MAX_CYCLES = 32
 
 
 class Engine:
-    def __init__(self, spec: Replay, settings: Settings, writer: AsyncWriter) -> None:
+    def __init__(
+        self, spec: Replay, settings: Settings, writer: AsyncWriter, max_cycles: int = 1
+    ) -> None:
         self.spec, self.settings, self.writer = spec, settings, writer
+        self.max_cycles, self.cycle_number = max_cycles, 1
         self.scopes = tuple(a.scope for a in spec.allocations)
         self.contexts = {a.scope: a.context for a in spec.allocations}
         self.liquidity = {r.scope: r for r in settings.liquidity}
@@ -273,6 +277,21 @@ class Engine:
                 "synthetic baseline",
             )
         cycle = await self.cycle()
+        if cycle.phase is CyclePhase.COMPLETE and self.cycle_number < self.max_cycles:
+            # Only a later bar reaches this path, with fresh observations and reconciliation.
+            # Reuse the owner and all funds/IDs; begin refuses unresolved orders or NAV.
+            number = self.cycle_number + 1
+            await self.owner.begin(
+                f"historical-begin-{number}",
+                cycle.revision,
+                f"historical-cycle-{number}",
+                self.settings.policy,
+                "research",
+                "explicit bounded historical continuation",
+                tuple(scope for scope in self.scopes if scope not in self.settings.policy.sinks),
+            )
+            self.cycle_number = number
+            cycle = await self.cycle()
         value = await self.nav()
         self.before_actions = value
         self.before_states = await self.states()
@@ -328,7 +347,7 @@ class Engine:
 
 
 async def execute(
-    spec: Replay, settings: Settings, directory: Path, fault: Fault
+    spec: Replay, settings: Settings, directory: Path, fault: Fault, max_cycles: int = 1
 ) -> dict[str, object]:
     manifests = tuple(validate(a.source) for a in spec.allocations)
     if any(
@@ -352,8 +371,9 @@ async def execute(
     benchmarks: Benchmarks | None = None
     risk: Risk | None = None
     benchmark_point: dict[str, object] = {}
+    cycles: list[Cycle] = []
     try:
-        engine = Engine(spec, settings, writer)
+        engine = Engine(spec, settings, writer, max_cycles)
         for index, (_, grouped) in enumerate(
             groupby(merged(manifests), key=lambda row: row[1].timestamp)
         ):
@@ -370,6 +390,11 @@ async def execute(
             bars = tuple(bar for _, bar in rows)
             value = await engine.step(bars)
             cycle, states = await engine.cycle(), await engine.states()
+            if not cycles or cycles[-1].id != cycle.id:
+                cycles.append(cycle)
+            else:
+                cycles[-1] = cycle
+            initial = cycles[0].baseline
             if risk is None:
                 risk = Risk(spec, cycle.baseline)
             risk_before, risk_after = risk.observe(
@@ -384,10 +409,11 @@ async def execute(
                 benchmarks = Benchmarks(spec, settings, bars)
             if engine.facts is None:
                 raise DomainError("benchmark facts unavailable")
-            benchmark_point = benchmarks.mark(engine.facts, cycle.baseline.net)
+            benchmark_point = benchmarks.mark(engine.facts, initial.net)
             simulated += 1
-            complete = cycle.phase is CyclePhase.COMPLETE
-            peak = max(peak, cycle.baseline.net)
+            cycle_complete = cycle.phase is CyclePhase.COMPLETE
+            complete = cycle_complete and len(cycles) == max_cycles
+            peak = max(peak, initial.net)
             if value is None:
                 unknown += 1
             # Cancel uncertainty must not erase a known pre-action/trigger valuation.
@@ -403,10 +429,10 @@ async def execute(
                     ),
                     ZERO,
                 )
-                / cycle.baseline.net
+                / initial.net
             )
             inventory_time += Decimal(any(s.owned_base > ZERO for s in states))
-            if (index + 1) % spec.interval_bars == 0 or engine.now == spec.end_ms or complete:
+            if (index + 1) % spec.interval_bars == 0 or engine.now == spec.end_ms or cycle_complete:
                 intervals.append(
                     {
                         "end_ms_exclusive": engine.now,
@@ -419,6 +445,8 @@ async def execute(
                         "allocation_risk": risk_after,
                     }
                 )
+                if max_cycles > 1:
+                    intervals[-1]["cycle_id"] = cycle.id
             if (
                 sum(path.stat().st_size for path in directory.iterdir() if path.is_file())
                 > settings.max_database_bytes
@@ -434,8 +462,9 @@ async def execute(
         count = (spec.end_ms - spec.start_ms) // MINUTE
         if consumed != count:
             raise DomainError("historical stream length changed")
-        if benchmarks is None or risk is None:
+        if benchmarks is None or risk is None or not cycles:
             raise DomainError("historical benchmarks missing")
+        initial = cycles[0].baseline
         performance = await writer.submit(
             lambda ledger: posted(ledger, states, settings.policy.reporting)
         )
@@ -451,7 +480,10 @@ async def execute(
                 "Per-market fill capacity and NAV depth are explicit static assumptions.",
                 "FX and fee assumptions are synthetic and refreshed on the replay clock.",
                 "NAV is conditional on those assumptions; no guaranteed execution or return.",
-                "One consolidated cycle; no automatic new cycle or forced end-of-history exit.",
+                "One consolidated cycle; no automatic new cycle or forced end-of-history exit."
+                if max_cycles == 1
+                else "Explicit bounded continuation after EXIT_COMPLETE on a later bar; "
+                "same funds/ledger, no refill, forced EOF exit or unresolved-cycle restart.",
                 "Metrics end at completion or EOF; later bars only validate source integrity.",
                 "Temporary financial ledger removed on normal return/error; restart from inputs.",
             ),
@@ -477,7 +509,7 @@ async def execute(
                 "Committed unique fills and realized journal deltas only; synthetic venue "
                 "fills may still await reconciliation. Gross sums use net realized PnL."
             ),
-            "benchmarks": benchmarks.report(cycle.baseline.net, benchmark_point),
+            "benchmarks": benchmarks.report(initial.net, benchmark_point),
             "ambiguous_bars": engine.ambiguous,
             "final_states": states,
             "final_unallocated_pools": pools,
@@ -488,6 +520,32 @@ async def execute(
             "intervals": intervals,
             "synthetic_trace_sha256": engine.trace,
         }
+        if max_cycles > 1:
+            del result["cycle"], result["final_return"], result["exit_shortfall"]
+            result.update(
+                schema="grid-portfolio-series-v1",
+                config_sha256=digest((spec, settings, max_cycles)),
+                requested_cycles=max_cycles,
+                completed_cycles=sum(c.phase is CyclePhase.COMPLETE for c in cycles),
+                cycle_outcomes=tuple(cycles),
+                last_cycle=cycle,
+                last_cycle_final_return=cycle.final_return,
+                last_cycle_exit_shortfall=cycle.exit_shortfall,
+                initial_nav=initial,
+                observed_full_run_return_fraction=value.net / initial.net - 1
+                if value is not None
+                else None,
+                completed_full_run_return_fraction=value.net / initial.net - 1
+                if complete and value is not None
+                else None,
+                stop_reason="cycle_limit_reached" if complete else "history_exhausted",
+                series_metric_basis=(
+                    "Original funding baseline for returns, drawdown, utilization, allocation "
+                    "risk and cash/buy-hold references; realized postings accumulate unchanged. "
+                    "Each cycle outcome has its own reconciled baseline/trigger/final NAV. "
+                    "Completed full-run return requires all requested cycles to complete."
+                ),
+            )
         result["result_sha256"] = digest(result)
         if len(canonical(result)) > 32 * 1024**2:
             raise DomainError("portfolio report byte cap exceeded")
@@ -501,7 +559,10 @@ async def execute(
 
 
 @arithmetic
-def run(spec: Replay, settings: Settings, *, fault: Fault = no_fault) -> dict[str, object]:
+def run(
+    spec: Replay, settings: Settings, *, max_cycles: int = 1, fault: Fault = no_fault
+) -> dict[str, object]:
+    bounded_int(max_cycles, 1, MAX_CYCLES)
     spec = replace(
         spec,
         allocations=tuple(sorted(spec.allocations, key=lambda a: codec.dumps(a.scope))),
@@ -509,9 +570,11 @@ def run(spec: Replay, settings: Settings, *, fault: Fault = no_fault) -> dict[st
     )
     settings = settings.checked(spec)
     minutes = (spec.end_ms - spec.start_ms) // MINUTE
-    interval_count = (minutes + spec.interval_bars - 1) // spec.interval_bars
+    interval_count = min(
+        minutes, (minutes + spec.interval_bars - 1) // spec.interval_bars + max_cycles - 1
+    )
     if 2 * len(spec.allocations) * interval_count > MAX_INTERVAL_POINTS:
         raise DomainError("portfolio allocation risk interval point cap exceeded")
     scratch = output_directory(Path(gettempdir()))
     with TemporaryDirectory(prefix="grid-portfolio-replay-", dir=scratch) as temporary:
-        return asyncio.run(execute(spec, settings, Path(temporary), fault))
+        return asyncio.run(execute(spec, settings, Path(temporary), fault, max_cycles))

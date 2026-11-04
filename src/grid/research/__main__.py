@@ -45,6 +45,11 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
     elif name == "replay":
         command.add_argument("--config", type=Path, required=True)
         command.add_argument("--portfolio", type=Path, help="explicit synthetic portfolio settings")
+        command.add_argument(
+            "--portfolio-cycles",
+            type=int,
+            help="1..32 cycles with continuous funding; requires --portfolio (default: 1)",
+        )
         comparisons = command.add_mutually_exclusive_group()
         comparisons.add_argument(
             "--compare-scenarios",
@@ -95,6 +100,9 @@ def main(
             spec = load(args.config)
             observation = Observation.start(spec.code_revision)
             settings = None if args.portfolio is None else load_portfolio(args.portfolio)
+            if args.portfolio_cycles is not None and settings is None:
+                raise DomainError("portfolio cycle limit requires portfolio settings")
+            max_cycles = 1 if args.portfolio_cycles is None else args.portfolio_cycles
             result: object
             if args.study is not None:
                 if settings is not None:
@@ -105,9 +113,13 @@ def main(
                     raise DomainError("independent-lot comparison has no portfolio exit model")
                 result = compare_lots(spec)
             elif args.compare_scenarios:
-                result = compare_scenarios(spec, settings)
+                result = compare_scenarios(spec, settings, max_cycles=max_cycles)
             else:
-                result = run(spec) if settings is None else run_portfolio(spec, settings)
+                result = (
+                    run(spec)
+                    if settings is None
+                    else run_portfolio(spec, settings, max_cycles=max_cycles)
+                )
             code = 0
         else:
             source = Source(

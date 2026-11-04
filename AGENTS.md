@@ -203,6 +203,15 @@ price unknown transfers from later data. Keep explicit sampling and report bound
 This is additive research reporting, not a change to financial authority or
 completion of the remaining research, observed I8, account or deployment gates.
 
+`docs/I8-PORTFOLIO-SERIES.md` records bounded continuous portfolio replay.
+Use one ledger and original funding across at most 32 explicitly requested
+cycles; restart on a later bar only through the reconciled controller begin path.
+Keep conversion allocations paused, residual ownership intact and order/fill IDs
+continuous. Distinguish each cycle's outcome from original-funding returns and
+keep cumulative risk/benchmark baselines unchanged. Account for extra completion
+intervals within existing bounds. This does not integrate portfolio walk-forward
+studies or authorize further exchange access, I9, paid GitHub or deployment.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

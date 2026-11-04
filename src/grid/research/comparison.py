@@ -3,12 +3,13 @@
 from dataclasses import dataclass, replace
 from decimal import Decimal
 
-from grid.domain.numbers import DomainError, arithmetic
+from grid.domain.numbers import DomainError, arithmetic, bounded_int
 from grid.persistence import codec
 from grid.portfolio.model import Cycle, Nav
 from grid.research.artifacts import canonical, digest
 from grid.research.history import Manifest, identity
 from grid.research.portfolio_config import Settings
+from grid.research.portfolio_replay import MAX_CYCLES
 from grid.research.portfolio_replay import run as run_portfolio
 from grid.research.replay import MODELS, Model, Replay
 from grid.research.replay import run as run_allocation
@@ -56,9 +57,10 @@ def summary(name: str, model: Model, result: dict[str, object], spec: Replay) ->
         end = spec.end_ms
         phase = "history_complete_no_forced_exit"
         final = shortfall = None
-    elif result.get("schema") == "grid-portfolio-research-v1":
+    elif result.get("schema") in ("grid-portfolio-research-v1", "grid-portfolio-series-v1"):
+        series = result.get("schema") == "grid-portfolio-series-v1"
         cycle, value, until = (
-            result.get("cycle"),
+            result.get("last_cycle" if series else "cycle"),
             result.get("last_nav"),
             result.get("simulation_end_ms_exclusive"),
         )
@@ -67,6 +69,11 @@ def summary(name: str, model: Model, result: dict[str, object], spec: Replay) ->
         if type(until) is not int or not spec.start_ms < until <= spec.end_ms:
             raise DomainError("scenario engine returned an invalid evaluation endpoint")
         initial, nav, end = cycle.baseline.net, value.net if value is not None else None, until
+        if series:
+            initial_nav = result.get("initial_nav")
+            if not isinstance(initial_nav, Nav):
+                raise DomainError("scenario engine returned an invalid series baseline")
+            initial = initial_nav.net
         phase, final, shortfall = cycle.phase.value, cycle.final_return, cycle.exit_shortfall
     else:
         raise DomainError("unsupported scenario engine schema")
@@ -121,7 +128,12 @@ def nav_range(rows: tuple[Summary, ...]) -> dict[str, object]:
 
 
 @arithmetic
-def run(spec: Replay, settings: Settings | None = None) -> dict[str, object]:
+def run(
+    spec: Replay, settings: Settings | None = None, *, max_cycles: int = 1
+) -> dict[str, object]:
+    bounded_int(max_cycles, 1, MAX_CYCLES)
+    if settings is None and max_cycles != 1:
+        raise DomainError("portfolio settings required for multiple cycles")
     spec = replace(
         spec,
         allocations=tuple(sorted(spec.allocations, key=lambda a: codec.dumps(a.scope))),
@@ -135,7 +147,9 @@ def run(spec: Replay, settings: Settings | None = None) -> dict[str, object]:
     for name, model, convention in SCENARIOS:
         effective = replace(spec, model=model)
         result = (
-            run_allocation(effective) if settings is None else run_portfolio(effective, settings)
+            run_allocation(effective)
+            if settings is None
+            else run_portfolio(effective, settings, max_cycles=max_cycles)
         )
         observed = manifests(result)
         if inputs is not None and observed != inputs:
@@ -177,6 +191,14 @@ def run(spec: Replay, settings: Settings | None = None) -> dict[str, object]:
         "observed_nav_range": nav_range(tuple(summaries)),
         "scenarios": tuple(members),
     }
+    if max_cycles > 1:
+        report["portfolio_cycles"] = max_cycles
+        report["config_sha256"] = digest((spec, settings, SCENARIOS, max_cycles))
+        report["cycle_summary_basis"] = (
+            "Starting NAV and observed returns cover the original funds and entire series. "
+            "Phase, final_cycle_return_fraction and exit_shortfall describe only the last "
+            "started cycle; each retained member reports all cycle outcomes and completion."
+        )
     report["result_sha256"] = digest(report)
     if len(canonical(report)) > MAX_RESULT_BYTES:
         raise DomainError("scenario comparison result byte cap exceeded")

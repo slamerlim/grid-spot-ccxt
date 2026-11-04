@@ -397,6 +397,16 @@ flags and known-sample denominators before comparing results. The 20,000 retaine
 allocation-point bound is checked before history/ledger work; use fewer intervals
 or a shorter study when refused. See `I8-ALLOCATION-RISK.md` for exact definitions.
 
+`backtest --portfolio SETTINGS.json --portfolio-cycles N` explicitly requests
+1–32 consecutive cycles with the same ledger and funds. A cycle can restart only
+on a later bar after reconciled `EXIT_COMPLETE`; conversion allocations remain
+paused. Values above 1 return `grid-portfolio-series-v1`, distinguishing per-cycle
+metrics from original-funding performance. Read `completed_cycles`, `stop_reason`
+and null completion returns before treating the requested series as finished.
+The interval bound includes completion points and all work/storage caps remain
+shared. It supports `--compare-scenarios`, while `--study` remains a separate
+basket-only runner. See `I8-PORTFOLIO-SERIES.md` for the exact interface and limits.
+
 `backtest --compare-lots` produces `grid-lot-comparison-v1` with complete basket
 and fixed-anchor independent-lot members on the configured OHLC model. Read the
 declared replenishment and fee-escrow differences before interpreting their NAV

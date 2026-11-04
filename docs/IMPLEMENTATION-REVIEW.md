@@ -21,6 +21,8 @@ The resource-contention harness and measured schema-cache optimization based on
 `4c44624` are recorded in `I8-RESOURCE-CONTENTION.md` and incorporated below.
 Per-allocation portfolio risk based on `a14d940` is recorded in
 `I8-ALLOCATION-RISK.md` and incorporated below.
+Bounded continuous portfolio replay based on `41138d5` is recorded in
+`I8-PORTFOLIO-SERIES.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -74,10 +76,13 @@ missing venue evidence or to enable live access.
    fills and bounded exits. It reports unfinished/blocked outcomes without forced
    completion. The default `research/replay.py:run` remains a per-allocation
    mark-to-close simulator; the modes have distinct schemas and assumptions.
-   One-cycle synthetic integration does not establish execution quality or the
-   full research comparison suite. Historical conversion/rule/fee changes and
-   automatic multi-cycle studies remain undeveloped. Preserve ownership and
-   reconciliation contracts when extending either mode.
+   `--portfolio-cycles N` now continues through up to 32 cycles using the same
+   ledger/funds, with fresh later-bar restart only after reconciled completion.
+   Series reporting preserves original-funding metrics and every cycle outcome;
+   the three OHLC scenarios can each run a continuous series. This synthetic
+   integration does not establish execution quality or the full study suite.
+   Historical conversion/rule/fee changes and portfolio walk-forward studies
+   remain undeveloped. Preserve ownership and reconciliation contracts.
 2. **Scenario and comparison suite.** `--compare-scenarios` now runs
    `strict_skip_ambiguous`, `touch_buy_priority` and `touch_sell_priority` in fixed
    order through either engine. It retains complete results, checks common input
@@ -94,7 +99,7 @@ missing venue evidence or to enable live access.
    Training total NAV chooses spacing before any test replay; all held-out
    outcomes are retained with reset funding. Regime labels and universe evidence
    are caller declarations. Point-in-time survivorship/delisting checks, verified
-   historical fee tiers, continuous portfolio studies and independent-lot study
+   historical fee tiers, portfolio-series walk-forward and independent-lot study
    integration remain missing. A plan hash is not proof of preregistration.
    No suite covers all these yet. Never select fills using future bars or treat
    touches as observed queue fills. Independent-lot comparison stays research-only.
