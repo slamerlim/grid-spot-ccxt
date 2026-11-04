@@ -1,5 +1,9 @@
 # I8 public-paper harness — approved one-hour execution amendment
 
+Execution is complete; see `I8-PAPER-EVIDENCE.md` for the observed hour and the
+separately preserved interrupted attempt. This historical approval does not
+authorize another run or a 48-hour extension. Offline/mock development continues.
+
 **Approved with a shorter duration.** The owner answered: "approve harness and
 perform a quick run for 1 hour, then continue development". Implement and test
 the harness, run it for **one observed wall-clock hour**, then continue mock-based

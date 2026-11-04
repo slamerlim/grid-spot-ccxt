@@ -129,3 +129,45 @@ def test_cli_invalid_storage_is_a_sanitized_refusal(
     assert main(["paper-audit", "--directory", str(tmp_path)]) == 2
     output = capsys.readouterr()
     assert "refused" in output.err and "Traceback" not in output.err
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [("payload", []), ("kind", []), ("kind", ""), ("ms", -1), ("ns", True), ("sequence", True)],
+)
+def test_hash_valid_invalid_envelope_is_refused_without_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    field: str,
+    invalid: object,
+) -> None:
+    completed(tmp_path)
+    source = tmp_path / "observations.jsonl"
+    data = [json.loads(raw) for raw in source.read_bytes().splitlines()]
+    data[0][field] = invalid
+    previous = "0" * 64
+    encoded = []
+    for row in data:
+        row.pop("sha256")
+        row["previous"] = previous
+        previous = hashlib.sha256(canonical(row)).hexdigest()
+        encoded.append(canonical(dict(row, sha256=previous)))
+    original = b"\n".join(encoded) + b"\n"
+    source.write_bytes(original)
+    assert main(["paper-audit", "--directory", str(tmp_path)]) == 2
+    assert "refused" in capsys.readouterr().err
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize(("attempts", "instruments"), [(-1, 0), (True, 0), (0, -1), (0, 1)])
+def test_invalid_prior_counters_cannot_reduce_audit_budget(
+    tmp_path: Path, attempts: int, instruments: int
+) -> None:
+    journal = Journal(tmp_path)
+    journal.append("start", {"prior_attempts": attempts, "prior_instruments": instruments}, 1, 1)
+    journal.append(
+        "finished", {"result": "mock-clock-complete", "observed_soak_complete": False}, 2, 2
+    )
+    journal.close()
+    with pytest.raises(DomainError, match="prior budget"):
+        audit(tmp_path)

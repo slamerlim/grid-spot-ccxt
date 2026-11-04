@@ -79,7 +79,8 @@ and cleanup. A supervising agent must explicitly start `--resume` within 60
 seconds, using the same source and boot identity. Only one planned restart is
 accepted. A different source, completed/failed run or expired window cannot be
 silently resumed. A mock clock report is labeled `mock-clock-complete`; it never
-claims an observed hour or a 48-hour acceptance pass.
+claims an observed hour or a 48-hour acceptance pass. For the replacement run,
+the transient coordinator below performs that preauthorized restart.
 
 The minute-10 disconnect and minute-45 429 are local 60-second injections. Neither
 causes an extra HTTP request. Minutes 20 and 50 create and independently restore
@@ -114,6 +115,9 @@ detect coordinator death before its next poll. No systemd service is installed.
 `grid.paper.audit` independently checks finished hash chains, response hashes,
 budgets (including the parent attempt), source freshness, spacing and duration;
 it refuses an active writer and never changes the journal.
+Record envelopes and carried-over counters are validated separately from their
+hashes: a valid hash cannot make a malformed payload, boolean clock/sequence or
+negative budget valid. The CLI returns a fixed refusal without echoing input.
 The coordinator's two narrow Bandit annotations cover the reviewed subprocess
 import/call: the executable is `sys.executable`, the module is fixed, user values
 are separate argv elements and `shell=False`. No financial/network subprocess

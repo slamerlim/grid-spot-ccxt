@@ -96,6 +96,17 @@ deployment, other venues/endpoints and paid GitHub capabilities remain excluded.
 Record the actual one-hour evidence and any refusals honestly; never label the
 quick run a full I8 acceptance pass. Use local validation and `[skip ci]` pushes.
 
+The requested hour completed on 2026-11-04, 14:37:26–15:37:26 UTC. Its linked
+replacement collected 460 validated books; combined with the preserved first
+partial attempt it spent 629/750 GET attempts and all 3/3 instrument attempts.
+No paper allocation/order/fill was eligible because required public rules were
+unknown. See `docs/I8-PAPER-EVIDENCE.md` for audit, storage and timing limitations.
+That public-run authorization is completed; do not rerun or extend it under the
+old approval. Continue offline/mock development. The original 48-hour gate,
+private account evidence, I9 and deployment remain separately gated. Retain the
+two `/opt/grid-runs/i8-public-hour/` evidence directories at least seven days
+after review, with no automatic deletion. GitHub Free-only rules still apply.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

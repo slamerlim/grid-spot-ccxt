@@ -1,5 +1,9 @@
 # I8 operational preparation — local evidence
 
+This is the historical preparation report. The later approved one-hour public
+observation and continued mock development are recorded in `I8-PAPER-EVIDENCE.md`;
+their authorization supersedes this report's preparation-only stop boundary.
+
 The owner explicitly selected **“Approve I8 operational preparation with local
 validation.”** This iteration implements that offline scope. It does not
 complete I8 acceptance: the observed minimum 48-hour soak and intended-first-venue

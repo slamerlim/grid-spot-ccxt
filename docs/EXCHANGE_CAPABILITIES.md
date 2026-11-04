@@ -1,9 +1,23 @@
 # Exchange capability registry and I3 probe procedure
 
-Current evidence is the approved I3 public pass below. The I0 table is retained
-as historical evidence. A package import or advertised CCXT `has` flag is not
+Current evidence includes the I8 OKX public hour and the I3 pass below. The I0
+table is retained as historical evidence. A package import or CCXT `has` flag is not
 an observed venue/account capability. All authenticated and trading behavior
 remains NOT_TESTED; every venue remains NOT_READY.
+
+## I8 OKX public observation
+
+The approved one-hour OKX BTC/USDT observation completed on 2026-11-04,
+14:37:26–15:37:26 UTC: two instrument requests, 460 validated books, all 462
+responses HTTP 200, no feed failures, one planned restart and two verified backup
+restores. Including a separately retained interrupted attempt, the total was
+629 GETs and three instrument requests. See `I8-PAPER-EVIDENCE.md` for exact
+coverage, provenance, gaps, resources and audit results.
+
+Price minimum/maximum and minimum notional remained UNKNOWN. No paper allocation,
+order or fill was admitted. Public observation does not certify private account
+fees, ownership, order recovery or streams; all private rows below remain
+NOT_TESTED and OKX remains NOT_READY. No other venue was probed during I8.
 
 ## I3 observed public pass
 

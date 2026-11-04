@@ -498,6 +498,11 @@ I9 deployment follows from local tests or the shorter run.
 
 ## Public-paper evidence and interrupted runs
 
+The approved quick run is now complete; `I8-PAPER-EVIDENCE.md` records the final
+observed hour and retained partial attempt. The commands below describe the
+implemented tools, not permission to repeat public access. Offline audits remain
+available; additional public runs/private access require a new approved scope.
+
 The fixed public runner is `python -m grid.paper`; its only venue/symbol is OKX
 BTC/USDT. It requires an explicit private evidence directory, approved SQLite
 source identity and `--acknowledge-public-one-hour`. Never point it at a live

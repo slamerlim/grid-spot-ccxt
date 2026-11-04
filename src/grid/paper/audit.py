@@ -33,6 +33,15 @@ def rows(directory: Path) -> tuple[list[dict[str, Any]], str, str]:
             row = json.loads(raw)
             if not isinstance(row, dict):
                 raise DomainError("audit record must be an object")
+            if (
+                not isinstance(row.get("kind"), str)
+                or not row["kind"]
+                or not isinstance(row.get("payload"), dict)
+                or any(type(row.get(key)) is not int for key in ("sequence", "ms", "ns"))
+                or row["ms"] < 0
+                or row["ns"] < 0
+            ):
+                raise DomainError("audit record envelope is invalid")
             checksum = row.pop("sha256")
             if (
                 row.get("sequence") != len(result) + 1
@@ -62,6 +71,12 @@ def audit(directory: Path) -> dict[str, object]:
     instrument_count = sum(r["payload"]["endpoint"] == 0 for r in attempts)
     prior_attempts = start["payload"].get("prior_attempts", 0)
     prior_instruments = start["payload"].get("prior_instruments", 0)
+    if (
+        type(prior_attempts) is not int
+        or type(prior_instruments) is not int
+        or not 0 <= prior_instruments <= prior_attempts <= 750
+    ):
+        raise DomainError("audit prior budget counters are invalid")
     if prior_attempts:
         parent, _, parent_hash = rows(Path(start["payload"]["replacement_of"]))
         parent_attempts = [r for r in parent if r["kind"] == "attempt"]

@@ -1,6 +1,6 @@
 # GRID Spot CCXT
 
-**I8 preparation and public-paper harness implemented; observed evidence pending. LIVE: DISABLED.**
+**I8 harness and one-hour public observation completed; full acceptance pending. LIVE: DISABLED.**
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and a deterministic Decimal
@@ -42,6 +42,10 @@ The owner approved a one-hour public-data check followed by mock development.
 The [paper harness](docs/I8-PAPER-DESIGN.md) persists the shared request budget,
 uses the existing financial writer and refuses paper admission when public market
 constraints are incomplete. The shorter run cannot close the 48-hour gate.
+The [completed observation](docs/I8-PAPER-EVIDENCE.md) collected 460 validated
+books with no feed failures and verified restart/backup recovery. Missing public
+constraints prevented all paper orders; this was not a trading-performance test.
+Further public runs are not covered by that completed authorization.
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
@@ -120,8 +124,9 @@ I8 acceptance incomplete. Fees/fills/financial settings are invented fixtures.
 
 `deploy/grid-mock.service` is an uninstalled, inert review template. The typed
 controls are an in-process mock API, not a remotely accessible trading service.
-The [later observed-run proposal](docs/I8-SOAK-PLAN.md) needs separate approval
-before implementation/execution or public access.
+The [observed-run plan](docs/I8-SOAK-PLAN.md) records the approved one-hour
+public-data scope. The original 48-hour acceptance run and private-account
+access require separate authorization.
 
 ## Verify
 
@@ -193,7 +198,9 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
   [local evidence](docs/I7-EVIDENCE.md) cover valuation, cycle exits and recovery.
 - [I8 approved preparation plan](docs/I8-PLAN.md), [design](docs/I8-DESIGN.md) and
   [evidence](docs/I8-EVIDENCE.md) cover mock operations, storage drills and bounded
-  local experiments. [The observed-run proposal](docs/I8-SOAK-PLAN.md) is unapproved.
+  local experiments. [The amended observed-run plan](docs/I8-SOAK-PLAN.md),
+  [paper design](docs/I8-PAPER-DESIGN.md) and [paper evidence](docs/I8-PAPER-EVIDENCE.md)
+  cover the approved one-hour public observation and continued mock development.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)
