@@ -331,7 +331,9 @@ subsequently approved I5 with local validation; see the section below.
 
 ## I5 offline history and replay
 
-Use `python -m grid.research --help` and the bounded examples in README. The
+Use `gridctl backtest --help`, `gridctl bench-storage --help` and the bounded
+examples in README. The existing `python -m grid.research` commands remain
+available, including `validate` and `demo`. The
 research module has no exchange transport and never creates a financial database.
 Keep source archives immutable and place new outputs outside Git. Do not run the
 legacy converter/downloader or rewrite original files to make validation pass.
@@ -356,6 +358,20 @@ scenario, source window, constraints, fees, configuration and code reference.
 the original/derived byte-equivalence hash, reader timings, memory scope and
 cache/device evidence together. Cached CPU/hash timings do not establish storage
 throughput. Do not convert the archive because compressed Parquet is smaller.
+The main entry point is `gridctl bench-storage`; `gridctl backtest` runs the same
+replay engine as the module's `replay` command. Neither opens an operator socket
+or takes financial ownership. The CLI refuses an already occupied result path
+before replay/conversion. It also excludes the preserved public-hour evidence
+tree. A race at final publication still refuses overwrite and may leave derived
+samples for inspection.
+
+Success messages omit user paths; argument and execution failures omit raw
+exception/configuration values. Exit 2 does not prove a result is absent: stdout
+can fail after successful publication. SIGINT returns 130 when caught. Inspect
+the specified result and retained files before a new invocation; no automatic
+retry is performed. Record bounds and sequential Parquet decoding do not provide
+CPU/RSS/IO isolation. Do not run research beside a future trading owner until
+the constrained contention test and deployment quotas have been validated.
 
 If a run fails or is killed, leave originals intact. Temporary `.grid-research-*`
 siblings and incomplete format sample directories are diagnostic artifacts, not
@@ -364,6 +380,9 @@ name. Automatic deletion or overwrite is not part of recovery. No checkpointed
 live execution or power-loss durability is claimed for research JSON.
 
 See `I5-DESIGN.md` and `I5-EVIDENCE.md` for the precise model and measured scope.
+`I8-RESEARCH-CLI.md` records the later main CLI integration. The current gaps are
+tracked in `IMPLEMENTATION-REVIEW.md`; existing replay is not a test of the I7
+portfolio exit controller.
 I6 was subsequently approved with local validation. Hosted CI remains pending; do not
 retry the known account lock or use paid GitHub features to unblock this work.
 

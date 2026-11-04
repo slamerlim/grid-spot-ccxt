@@ -81,7 +81,8 @@ Keep generated data/configurations/reports outside Git. For a deliberately
 
 ```sh
 uv run --locked python -m grid.research demo --output-directory /tmp/grid-research-demo --code-revision "$(git rev-parse HEAD)"
-uv run --locked python -m grid.research replay --config /tmp/grid-research-demo/replay.json --output /tmp/grid-research-demo/result.json
+uv run --locked gridctl backtest --config /tmp/grid-research-demo/replay.json --output /tmp/grid-research-demo/result.json
+uv run --locked gridctl bench-storage /tmp/grid-research-demo/synthetic.bin --venue synthetic --symbol SYNTH/USD --count 7 --code-revision "$(git rev-parse HEAD)" --output /tmp/grid-research-demo/storage.json
 ```
 
 Use a new output directory/result name on each run; publication refuses overwrite.
@@ -97,13 +98,19 @@ failed. A filename is only a mapping hint. Do not assert identity/collection
 evidence to bypass missing provenance. Replay refuses rejected records, gaps,
 unknown provenance, unlike quote currencies and incomplete UTC coverage.
 
-`benchmark` accepts the same source arguments and writes a small raw/Arrow IPC/
+`gridctl bench-storage` accepts the same source arguments and writes a small raw/Arrow IPC/
 Parquet comparison and derived samples beside the report, outside Git. It is a
 storage measurement, not approval to trade that source. PyArrow 26.0.1 is pinned
 in the optional `research` group, included by `dev` for tests; it is not a runtime
 trading dependency. A minimal installation can use `uv sync --locked --no-dev`;
 add `--group research` only for format benchmarks. See the design for strict
 configuration bundles, limits, uncertainty and reporting conventions.
+The existing `python -m grid.research replay` and `benchmark` entry points remain
+available. Known occupied/protected result paths are refused before processing;
+an interrupted run may retain samples or an already published report. Inspect
+artifacts before another attempt. Parquet decoding is sequential, but these
+commands do not impose OS CPU/RSS/IO quotas or coordinate with a trading owner.
+See [CLI behavior and validation](docs/I8-RESEARCH-CLI.md).
 
 ## Offline operational experiments
 
@@ -219,6 +226,8 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
   [acceptance gates](docs/ITERATIONS_AND_ACCEPTANCE_FINAL.md) are imported unchanged.
 - [I0 requirements trace](docs/I0-REQUIREMENTS-TRACE.md) records the original mapping;
   [I1 evidence](docs/I1-EVIDENCE.md) maps the implemented pure-domain checks.
+- [Current requirements review](docs/IMPLEMENTATION-REVIEW.md) maps local evidence
+  to Q01–Q20 and records unfinished research, resource and external acceptance work.
 - [Exchange capability plan](docs/EXCHANGE_CAPABILITIES.md) distinguishes untested
   behavior from installed library metadata.
 - [Legacy review](docs/LEGACY_REVIEW.md) records the prior review's provenance and

@@ -42,7 +42,11 @@ def digest(value: object) -> str:
 
 def output_directory(path: Path) -> Path:
     resolved = path.resolve()
-    protected = [Path("/opt/datasets"), Path("/opt/module_1_multi")]
+    protected = [
+        Path("/opt/datasets"),
+        Path("/opt/module_1_multi"),
+        Path("/opt/grid-runs/i8-public-hour"),
+    ]
     protected.extend(p for p in Path(__file__).resolve().parents if (p / ".git").exists())
     if any(resolved == root or root in resolved.parents for root in protected):
         raise DomainError("research outputs must be outside Git and original data trees")

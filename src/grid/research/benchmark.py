@@ -66,7 +66,7 @@ def columnar_records(path: Path, kind: str) -> Iterator[bytes]:
             reader = ipc.open_file(stream)
             batches = (reader.get_batch(i) for i in range(reader.num_record_batches))
         elif kind == "parquet":
-            batches = pq.ParquetFile(stream).iter_batches(batch_size=4096)
+            batches = pq.ParquetFile(stream).iter_batches(batch_size=4096, use_threads=False)
         else:
             raise DomainError("unsupported derived format")
         for batch in batches:
@@ -202,6 +202,7 @@ def benchmark(source: Source, directory: Path, *, repeats: int = 3) -> dict[str,
         "arrow_peak_pool_bytes": pa.default_memory_pool().max_memory(),
         "cache": "Cache uncontrolled; validation/conversion warmed input. Cold cache NOT TESTED.",
         "measurement": "Read/decode/repack/SHA256; fixed reader order, not replay timing.",
+        "concurrency": "One sequential reader; Parquet parallel column decoding disabled.",
         "memory": "Lifetime high-water RSS includes imports/conversion; not per-format memory.",
         "source_device": device_evidence(source.path),
         "output_device": device_evidence(sample_dir),

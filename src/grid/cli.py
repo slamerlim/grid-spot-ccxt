@@ -27,9 +27,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         from grid.operations.console import main as operator_main
 
         return operator_main(arguments[1:])
+    research_commands = {"backtest": "replay", "bench-storage": "benchmark"}
+    if arguments and arguments[0] in research_commands:
+        from grid.research.__main__ import main as research_main
+
+        return research_main(
+            arguments[1:], operation=research_commands[arguments[0]], prog="gridctl " + arguments[0]
+        )
     parser = _ArgumentParser(prog="gridctl", description="GRID I8 offline diagnostics")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("operator", help="local mock status and audited controls")
+    commands.add_parser(
+        "backtest", help="bounded offline OHLC replay from a reviewed research bundle"
+    )
+    commands.add_parser("bench-storage", help="bounded raw/Arrow/Parquet sample comparison")
     doctor = commands.add_parser("doctor", help="report offline live-readiness blockers")
     doctor.add_argument(
         "--config", type=Path, help="explicit YAML path; no automatic config search"

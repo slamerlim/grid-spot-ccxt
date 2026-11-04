@@ -1,0 +1,130 @@
+# Implementation review and remaining requirements
+
+Reviewed 2026-11-05 against the four unchanged imported specifications and the
+current branch after base `fee2cdc39067623cd1955e72e928386634866fab`. This is a
+current implementation/evidence map, not an amendment to the PRD or acceptance
+plan. `I0-REQUIREMENTS-TRACE.md` remains the historical I0 mapping. The new
+research CLI increment and its final validation are in `I8-RESEARCH-CLI.md`.
+
+**The system has substantial offline implementation and mock evidence, but
+full I8 acceptance and I9 are incomplete.** No venue is certified for live
+execution. Passing a mock test establishes its tested behavior, not an exchange,
+account, deployment or profitability guarantee. Historical iteration evidence
+retains its original scope; later approval and changes are recorded in AGENTS.md.
+
+## Acceptance map
+
+The table identifies existing implementation and representative test files.
+It deliberately does not give a blanket PASS to Q01–Q20. Runtime guards and
+synthetic tests must be retained while the remaining integration is developed.
+
+| Gate | Current local implementation/evidence | Remaining boundary |
+|---|---|---|
+| Q01 LIMIT-only | Domain commands, mock executor payload boundary, manual/scoped/global exits; `tests/execution/test_boundary.py`, `tests/operations/test_liquidation.py`, `test_allocation_exit.py` | Actual authenticated CCXT order serialization and venue acceptance untested; no real sender exists |
+| Q02 minimum lot | Decimal quantizers, independent buy/sell minima and fee-aware eligibility; `tests/domain/test_market.py`, `test_boundaries.py` | Verified account-specific fees/rules at actual venue placement unavailable |
+| Q03 finite funds | One ledger writer, atomic reservations and scope/pool ownership; `tests/persistence/test_ledger.py`, `tests/research/test_replay.py` | Dedicated real balances and external activity must be verified separately |
+| Q04 seed | Actual weighted fills, partial residual handling and approved terminal-seed anchor rule; `tests/domain/test_reducer.py` | Actual fee/fill normalization and venue event evidence remain untested |
+| Q05 one SELL | Possibly-active slot persists through cancellation/unknowns; domain, execution, scoped/global tests | Live cancel/fill races have synthetic evidence only |
+| Q06 ladder | Minimum lots, quantized distinct prices, range/budget/order bounds; domain market/reducer tests | Account/market limits not independently certified |
+| Q07 drain/late BUY | Drain, reconcile and retain late inventory without duplicate seed; domain/execution recovery tests | Exchange truth/restart behavior requires target-venue evidence |
+| Q08 idempotency | Scoped identities, atomic fill posting, replay and revision history; persistence/execution identity and crash tests | Private feed and actual paginated trade semantics untested |
+| Q09 unknown submit | Durable intents, unknown state, no blind resend; `tests/execution/test_crashes.py`, `test_recovery.py` | Real client-ID lookup, retention and ambiguous venue responses untested |
+| Q10 fees/accounting | Base/quote/token fees, liabilities, rebates and conservation; ledger, portfolio and research tests | Actual account tiers, fee currencies and conversion evidence unavailable |
+| Q11 hot changes | Revisioned universe control, explicit retirement, confirmed local commands; `tests/universe/`, `tests/operations/test_configuration*.py` | Mock owner only; no live configuration changes authorized |
+| Q12 +10% portfolio exit | Net consolidated valuation, cash-flow handling, bounded LIMIT exits, conversion, residual review; `tests/portfolio/` and scoped dust tests | Historical replay does not exercise this controller; actual liquidity/account valuation remains unverified |
+| Q13 fallback | Bounded synthetic private hints and authoritative fake REST recovery; execution recovery/capacity tests | No real private subscription, disconnect or REST recovery integration |
+| Q14 corrupt history | Read-only 24-byte importer, manifest, quarantine counts and strict provenance/precision checks; `tests/research/test_history.py` | Original archive provenance and coverage are not certified by bounded historical samples |
+| Q15 OHLC ambiguity | Two declared scenarios forbid profitable two-sided same-bar round trips; `tests/research/test_replay.py` | Full three-scenario research requirement and uncertainty evaluation unfinished; queue/volume evidence absent |
+| Q16 chronology/restart | UTC merge, canonical ties, final partial interval, deterministic restart from immutable input; research replay/crash tests | No checkpoint resume; broader multi-market study and full run provenance still required |
+| Q17 cache | Single-flight refresh, freshness/generation gates, bounded LRU and 100-caller mock test; `tests/universe/test_discovery.py` | Full real-venue discovery/admission integration untested |
+| Q18 overload/resources | Bounded writer/intake/cache, halt on overload, synthetic 1/7-venue × 10/100/1,000-candidate matrix; execution/operations tests | Not 1,000 funded allocations; no constrained research/fill-storm contention or deployment sizing |
+| Q19 controller/storage | Exclusive mock ownership, WAL/FULL ledger, crash, backup/restore and audited storage controls; `tests/persistence/`, `tests/operations/test_storage*.py` | Real venue reconciliation after restore, deployment filesystem/power faults and production runtime remain unverified |
+| Q20 security/deployment | Live unavailable, sanitized CLI, same-UID IPC, audited confirmations, secret scan and inert service template; config/doctor/operations tests | No installed service, withdrawal-permission verification, real restart drill or external alert delivery |
+
+Evidence details are in `I1-EVIDENCE.md` through `I8-EVIDENCE.md` and the later
+operator/manual-exit/allocation-exit/hot-config/storage/scoped-dust documents.
+The main CLI now has research aliases; financial commands intentionally remain
+under `gridctl operator` and use its existing same-user mock owner.
+
+## Unfinished offline research work
+
+These are implementation gaps against PRD §9 and ADR-0001, not reasons to invent
+missing venue evidence or to enable live access.
+
+1. **Portfolio behavior in historical replay.** `research/replay.py:run` drives
+   per-allocation domain simulators and marks their residuals at the last close.
+   It does not drive the I7 portfolio controller, enforce the consolidated +10%
+   cycle trigger or simulate its bounded exit. Its report explicitly excludes
+   hypothetical exit fees/slippage and does not liquidate inventory. A full-cycle
+   research adapter must preserve the same portfolio ownership, fee/liability,
+   conversion, halt and reconciliation rules under declared synthetic execution.
+   Ordinary mark-to-close results must remain distinguishable from executable
+   NAV, final proceeds and exit shortfall.
+2. **Scenario and comparison suite.** The current model accepts only
+   `strict_skip_ambiguous` and `touch_buy_priority`; cash and buy/hold are its
+   funded baselines. The PRD calls for conservative/baseline/optimistic treatment,
+   an independent-lot research reference, walk-forward and regime splits,
+   fee-tier sensitivity and survivorship/delisting checks. No orchestrated suite
+   covers all these yet. The two existing models are sensitivity scenarios,
+   not mathematical PnL bounds. Added scenarios must retain that honesty and
+   never treat OHLC touches as observed queue fills or use future bars to choose
+   favorable fills. Independent-lot comparison must stay outside live strategy.
+3. **Run provenance and metrics.** Replay binds supplied revision/config/input
+   hashes and CCXT version, but does not verify that the revision describes the
+   executing source or include a complete runtime/machine profile. It reports
+   per-allocation profit factor when defined, but not separate gross wins/losses
+   in the serialized report. Full exit metrics depend on item 1. Bind actual
+   source/runtime evidence while preserving deterministic financial result hashes;
+   machine timing must not silently make accounting nondeterministic.
+4. **Resource isolation and contention.** Input/queue bounds and sequential
+   decoding are not CPU/RSS/IO quotas. `operations/experiment.py:benchmark_case`
+   assesses up to 1,000 candidates, then supervises one allocation per logical
+   venue. It does not run an offline replay worker against a concurrent fill
+   storm. ADR benchmark 6 and Q18 require bounded competing research, measured
+   trading responsiveness, preserved durable fills and research yielding under
+   pressure. Develop the offline harness before claiming this acceptance.
+5. **Full storage benchmark matrix.** The current benchmark measures bounded
+   warm read/decode/repack/hash samples with byte-equivalent raw/Arrow/Parquet
+   reconstruction. Cold-ish scans, UTC/random slicing, 100/1,000-symbol merges,
+   repeated parameter replay reuse and deployment contention are not measured
+   by it. Existing SQLite mock stress/crash/backup tests are useful evidence,
+   but are not the complete on-deployment-hardware performance report. Keep raw
+   archives immutable and defer any full derived copies until justified.
+
+Continue with source/runtime provenance, then full-cycle historical integration
+and its comparisons, alongside a bounded mock contention harness. Use separate
+reviewable increments; preserve existing canonical financial records and report
+compatibility deliberately. Hardware measurements must describe the tested host
+and cannot certify an untested deployment. Tier B/C, compiled kernels, dashboards
+and distributed deployment remain deferred as specified; increasing lot sizing
+is not authorized by this review.
+
+## External acceptance and authorization
+
+`exchange/ccxt_transport.py` is a fixed public GET probe profile, scoped to
+BTC/USDT metadata/book endpoints on seven venues. `execution/executor.py` admits
+only the in-memory `SyntheticExchange`. Neither is an authenticated trading
+gateway. `universe/discovery.py` provides bounded cache/client coordination but
+does not turn probe evidence into certified account capabilities. The capability
+registry remains NOT_READY for each intended venue. Private fees, balances,
+permissions, client-ID behavior and order-event semantics require actual evidence.
+
+The completed one-hour OKX observation collected 460 validated books. Required
+public rules remained unknown, so it admitted no paper allocations/orders/fills.
+The combined retained attempts used 629/750 GETs and all 3/3 instrument requests.
+`I8-PAPER-EVIDENCE.md` records the exact run and limitations. Its authorization
+is spent; the unused GET allowance does not authorize another run. It does not
+replace the minimum observed 48-hour gate or intended-first-venue evidence.
+
+`deploy/grid-mock.service` remains an uninstalled, finite offline template with
+review placeholders and network denial. It is not a deployed trading service or
+evidence that quotas/alerts/restarts work in production. I9, private account
+access, sandbox/real orders, further public collection and deployment remain
+separately gated. Do not seek credentials or issue exchange requests to fill a
+documentation gap under the current offline authorization.
+
+Hosted CI remains pending because of the unchanged known account lock. Local
+validation is authorized, and GitHub Free-only preferences prohibit paid
+workarounds. Do not retry the lock without evidence it changed. Publish ordinary
+scoped commits with `[skip ci]`; verify the remote SHA rather than calling a
+skipped workflow a pass.

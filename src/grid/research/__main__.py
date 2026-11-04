@@ -6,9 +6,10 @@ import argparse
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import NoReturn
 
 from grid.domain.numbers import DomainError
-from grid.research.artifacts import publish
+from grid.research.artifacts import output_directory, publish
 from grid.research.benchmark import benchmark
 from grid.research.config import load
 from grid.research.demo import create
@@ -16,11 +17,13 @@ from grid.research.history import Source, validate
 from grid.research.replay import run
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="GRID I5 offline research; LIVE DISABLED")
-    commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("validate", "benchmark"):
-        command = commands.add_parser(name)
+class Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        self.exit(2, "research: invalid arguments; use --help\n")
+
+
+def configure(command: argparse.ArgumentParser, name: str) -> None:
+    if name in ("validate", "benchmark"):
         command.add_argument("source", type=Path)
         command.add_argument("--venue", required=True)
         command.add_argument("--symbol", required=True)
@@ -32,17 +35,40 @@ def main(argv: Sequence[str] | None = None) -> int:
         command.add_argument("--identity-evidence")
         command.add_argument("--collection-evidence")
         command.add_argument("--verified-unleveraged-spot", action="store_true")
-    replay = commands.add_parser("replay")
-    replay.add_argument("--config", type=Path, required=True)
-    replay.add_argument("--output", type=Path, required=True)
-    demo = commands.add_parser("demo")
-    demo.add_argument("--output-directory", type=Path, required=True)
-    demo.add_argument("--code-revision", required=True)
+    elif name == "replay":
+        command.add_argument("--config", type=Path, required=True)
+        command.add_argument("--output", type=Path, required=True)
+    elif name == "demo":
+        command.add_argument("--output-directory", type=Path, required=True)
+        command.add_argument("--code-revision", required=True)
+    else:
+        raise DomainError("unknown research operation")
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    operation: str | None = None,
+    prog: str = "python -m grid.research",
+) -> int:
+    parser = Parser(prog=prog, description="Bounded offline research; LIVE DISABLED")
+    if operation is None:
+        commands = parser.add_subparsers(dest="command", required=True)
+        for name in ("validate", "benchmark", "replay", "demo"):
+            configure(commands.add_parser(name), name)
+    else:
+        configure(parser, operation)
+        parser.set_defaults(command=operation)
     args = parser.parse_args(argv)
     try:
         if args.command == "demo":
-            print(create(args.output_directory, args.code_revision))
+            create(args.output_directory, args.code_revision)
+            print("Synthetic research bundle published; no exchange observations.")
             return 0
+        # Refuse a known occupied/protected destination before replay or derived writes.
+        output_directory(args.output.parent)
+        if args.output.exists() or args.output.is_symlink():
+            raise DomainError("existing result")
         if args.command == "replay":
             result: object = run(load(args.config))
             code = 0
@@ -73,10 +99,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 }
                 code = 0
         publish(args.output, result)
-        print(args.output)
+        print("Research report published; simulated execution only.")
         return code
-    except (DomainError, OSError) as exc:
-        print(f"research refused: {exc}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("research interrupted; inspect retained artifacts before retrying", file=sys.stderr)
+        return 130
+    except Exception:
+        # Arguments, config values, source paths and third-party exceptions may contain secrets.
+        print("research refused or failed; inspect output artifacts", file=sys.stderr)
         return 2
 
 

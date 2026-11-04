@@ -135,8 +135,14 @@ reconciliation. Configuration plus any new scoped exit commit in one transaction
 verification and durable storage-status receipts. Preserve incomplete/failed jobs
 and artifacts; replay must never perform a second copy. Only an owner's verified
 backup refreshes its backup stamp. Restore verification never activates a ledger.
-Continue offline research/storage CLI integration and the full requirements review.
-No new exchange or deployment authorization is implied.
+The research CLI follow-up is recorded in `docs/I8-RESEARCH-CLI.md`:
+`gridctl backtest` and `bench-storage` share the existing bounded offline engines,
+sanitize failures and preflight exclusive outputs. They do not impose OS resource
+quotas or integrate portfolio exits into historical replay. The current evidence
+and remaining requirements are mapped in `docs/IMPLEMENTATION-REVIEW.md`.
+Continue the offline research and resource gaps recorded there; a green mock suite
+does not close external acceptance gates. No new exchange or deployment
+authorization is implied.
 
 ## Invariants for subsequent approved iterations
 
