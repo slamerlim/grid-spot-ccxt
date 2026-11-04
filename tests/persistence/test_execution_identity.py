@@ -23,7 +23,8 @@ def old_schema(path: Path) -> str:
     try:
         connection.execute("DROP TABLE trade_keys")
         connection.execute("DROP TABLE order_bindings")
-        connection.execute("DELETE FROM migrations WHERE version=2")
+        connection.execute("DROP TABLE universe_revisions")
+        connection.execute("DELETE FROM migrations WHERE version>=2")
         connection.execute("PRAGMA user_version=1")
         verify_schema(connection, 1)
         digest = semantic_hash(connection)
@@ -52,7 +53,7 @@ def test_v1_migration_and_backup_restore_preserve_finances(
         ledger = Ledger(candidate, bounds, SOURCES, mock_storage=True)
         try:
             verify_schema(ledger.db)
-            assert ledger.db.execute("PRAGMA user_version").fetchone() == (2,)
+            assert ledger.db.execute("PRAGMA user_version").fetchone() == (schema.VERSION,)
             assert tuple(
                 ledger.db.execute("SELECT version,checksum FROM migrations ORDER BY version")
             ) == tuple((number, checksum) for number, checksum, _ in schema.MIGRATIONS)

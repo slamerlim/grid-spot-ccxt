@@ -1,6 +1,6 @@
 # GRID Spot CCXT
 
-**I5 historical validation and conservative replay implemented. LIVE: DISABLED.**
+**I6 dynamic universe and mock hot reconfiguration implemented. LIVE: DISABLED.**
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and a deterministic Decimal
@@ -12,11 +12,19 @@ through CCXT. A public pass observed BTC/USDT metadata on all seven venues and
 validated books on six; XT's book was rejected. A mock-only executor now consumes
 durable intents, captures LIMIT payloads and reconciles synthetic order/trade
 snapshots through the ledger. It has no authenticated or sandbox/live transport.
-The owner approved I5 with local validation while hosted CI remains pending.
+The owner approved I6 with local validation while hosted CI remains pending.
 Offline research now validates bounded immutable OHLC windows, replays the Decimal
 strategy under explicit synthetic fill assumptions, and compares raw/Arrow/Parquet
 samples. See [the approved plan](docs/I5-PLAN.md), [design](docs/I5-DESIGN.md) and
 [evidence](docs/I5-EVIDENCE.md). I5 performs no exchange calls.
+
+The mock universe controller now selects pre-funded allocations under explicit
+manual, automatic or hybrid policies. Deny and eligibility checks override pins.
+Policy revisions retire excluded allocations atomically while preserving their
+orders, funds and inventory; current evidence is checked again at the BUY send
+claim. Bounded single-flight discovery reuses the read-only client pool.
+I6 uses synthetic observations only and adds no trading command or exchange calls.
+See [I6 design](docs/I6-DESIGN.md) for integration, ranking, limits and restart rules.
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
@@ -140,14 +148,16 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
   [local evidence](docs/I4-EVIDENCE.md) cover mock sends, scoped identities and recovery.
 - [I5 approved plan](docs/I5-PLAN.md), [research design](docs/I5-DESIGN.md) and
   [local evidence](docs/I5-EVIDENCE.md) cover data validation, replay and sample storage.
-- [I6 proposal](docs/I6-PLAN.md) is the next review gate; it is not authorization.
+- [I6 approved plan](docs/I6-PLAN.md), [universe design](docs/I6-DESIGN.md) and
+  [local evidence](docs/I6-EVIDENCE.md) cover selection, hot changes and cache bounds.
+- [I7 proposal](docs/I7-PLAN.md) is the next review gate; it is not authorization.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)
 identifies fixed releases; a matching version is only one prerequisite, not
 proof of safe storage, approved production build provenance or live readiness.
 Mock ledger/restore tests do not certify a deployment filesystem or exchange
-reconciliation. I6 requires a separate approval.
+reconciliation. I7 requires a separate approval.
 
 Do not put credentials, account state, local configuration, research data or
 generated reports in Git. This repository does not request exchange credentials

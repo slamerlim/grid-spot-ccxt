@@ -31,7 +31,7 @@ Account-specific authentication and fee/event semantics remain NOT_TESTED.
 
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
-and approval history. I4 is now approved; `I5-PLAN.md` is the next authorization gate.
+and approval history. I4–I6 were subsequently approved; `I7-PLAN.md` is the next gate.
 
 ## Install and diagnose
 
@@ -221,8 +221,9 @@ explicitly authorized local validation for I1 despite the hosted account lock.
 I1 was published and I2 subsequently approved with local validation. I2's mock
 ledger/restore work is covered by that approval. I3 was subsequently explicitly
 approved with local validation and bounded public probes. I4 was subsequently
-approved with local validation for synthetic execution/recovery. Stop after I4
-review: I5 requires separate authorization. Operational commands, systemd hardening, deployment
+approved with local validation for synthetic execution/recovery. I5 research and
+I6 universe control were subsequently approved with local validation. Stop after
+I6 review: I7 requires separate authorization. Operational commands, systemd hardening, deployment
 storage drills, alerts and live arming belong to later accepted iterations;
 none can be exercised through this CLI.
 
@@ -361,5 +362,33 @@ name. Automatic deletion or overwrite is not part of recovery. No checkpointed
 live execution or power-loss durability is claimed for research JSON.
 
 See `I5-DESIGN.md` and `I5-EVIDENCE.md` for the precise model and measured scope.
-I6 requires separate approval of `I6-PLAN.md`. Hosted CI remains pending; do not
+I6 was subsequently approved with local validation. Hosted CI remains pending; do not
 retry the known account lock or use paid GitHub features to unblock this work.
+
+## I6 mock universe control
+
+`grid.universe` supplies typed selection, bounded read-only discovery and a mock
+controller API; no CLI trading service is available. Use explicitly funded
+synthetic allocations, reviewed `Facts` and a supplied UTC/monotonic clock.
+Attach one `UniverseController` to the sole `MockExecutor`; submit facts before
+configuring the manual/automatic/hybrid policy. Each policy change needs a unique
+request ID, expected revision, actor, reason and timestamp. To retry an uncertain
+configuration result, use the same exact request rather than assume it failed.
+
+On fee/rule/account changes, invalidate facts or publish a strictly newer reviewed
+revision. `invalidate(scope)` returns a revision tombstone; the next observation
+must exceed it. Missing/stale/evicted facts block new BUY claims. Status retains
+the entire supervised roster, even for disabled venues and retired symbols.
+Exclusion does not cancel an uncertain external order by assumption, remove an
+allocation, release its funds or liquidate its position.
+
+After restart retain every persisted scope, reconcile financial state and supply
+fresh facts. Universe membership alone does not authorize a BUY. An externally
+paused/retired/exit-controlled allocation is never automatically resumed. A
+canceled zero-fill seed still requires the domain's explicit new-round decision.
+
+The v3 migration adds universe audit records without changing v1/v2 definitions.
+Backups from all three versions are accepted; old versions migrate on opening.
+For rollback keep v3 history and use a verified separate pre-migration backup
+with matching old code. Never drop the new table or downgrade in place.
+See `I6-DESIGN.md` and `I6-EVIDENCE.md`. I7 requires approval of `I7-PLAN.md`.

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections import deque
+from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 from functools import partial
@@ -48,6 +49,7 @@ from grid.persistence.ledger import Ledger, client_identity, trade_identity
 from grid.persistence.records import Backpressure, Intent, Outcome
 from grid.persistence.storage import Fault, no_fault
 from grid.persistence.writer import AsyncWriter
+from grid.universe.model import BuyAdmission
 
 _OWNERS: WeakKeyDictionary[AsyncWriter, object] = WeakKeyDictionary()
 
@@ -107,6 +109,7 @@ class MockExecutor:
         self.epoch = 1
         self.last_error: str | None = "startup reconciliation required"
         self._closed = False
+        self.buy_admission: Callable[[Ledger, Scope, Order, Context], BuyAdmission] | None = None
 
     @property
     def degraded(self) -> bool:
@@ -560,15 +563,26 @@ class MockExecutor:
                     self.fault("executor:before_claim")
                     self._budget(scope, context.now_ms)
                     self._ready.pop(scope, None)
-                    await self.writer.submit(
-                        partial(
-                            Ledger.attempt_once,
-                            request_id=request_id(),
-                            scope=scope,
-                            expected=version,
-                            intent_id=intent.id,
+                    claim_id = request_id()
+
+                    def claim(
+                        ledger: Ledger,
+                        order: Order = order,
+                        placement: bool = payload is not None,
+                        claim_id: str = claim_id,
+                        version: int = version,
+                        intent_id: str = intent.id,
+                    ) -> Outcome:
+                        admission = (
+                            self.buy_admission(ledger, scope, order, context)
+                            if placement
+                            and order.side is Side.BUY
+                            and self.buy_admission is not None
+                            else None
                         )
-                    )
+                        return ledger.attempt_once(claim_id, scope, version, intent_id, admission)
+
+                    await self.writer.submit(claim)
                     self.fault("executor:after_claim")
                     async with asyncio.timeout(self.limits.timeout_ms / 1000):
                         if payload is not None:

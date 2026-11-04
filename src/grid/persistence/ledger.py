@@ -15,6 +15,7 @@ from grid.domain.model import (
     Context,
     Event,
     Fill,
+    Mode,
     Order,
     OrderReport,
     PlaceLimit,
@@ -32,6 +33,7 @@ from grid.domain.reducer import reduce, reserved
 from grid.persistence import codec
 from grid.persistence.records import Backup, Bounds, Conflict, Intent, LedgerError, Outcome
 from grid.persistence.storage import Fault, Storage, no_fault
+from grid.universe.model import BuyAdmission, UniverseSnapshot
 
 
 def client_identity(scope: Scope, order_id: int) -> str:
@@ -127,6 +129,17 @@ class Ledger:
         )
         self.db, self.bounds = self.storage.connection, bounds
         try:
+            row = self.db.execute(
+                "SELECT revision,payload FROM universe_revisions ORDER BY revision DESC LIMIT 1"
+            ).fetchone()
+            if row is not None:
+                policy = codec.loads(row[1], UniverseSnapshot, limit=self.bounds.snapshot_bytes)
+                if policy.revision != row[0]:
+                    raise LedgerError("universe revision differs from projection")
+                for member in policy.members:
+                    owned, _, _, _ = self._load(codec.digest(member.scope))
+                    if owned.scope != member.scope:
+                        raise LedgerError("universe membership lacks financial ownership")
             for venue, account, currency, value in self.db.execute(
                 "SELECT venue,account,currency,amount FROM pools ORDER BY venue,account,currency"
             ):
@@ -776,6 +789,7 @@ class Ledger:
         scope: Scope,
         expected: int,
         intent_id: str,
+        admission: BuyAdmission | None = None,
     ) -> Outcome:
         """Only a fresh committed claim can grant a send, never an old receipt.
 
@@ -784,7 +798,7 @@ class Ledger:
         """
         if self.lookup(request_id) is not None:
             raise Conflict("attempt receipt replay cannot authorize another send")
-        return self.attempt(request_id, scope, expected, intent_id)
+        return self.attempt(request_id, scope, expected, intent_id, admission)
 
     def intents(self, scope: Scope, *, after: str = "") -> tuple[Intent, ...]:
         rows = self.db.execute(
@@ -794,7 +808,14 @@ class Ledger:
         ).fetchall()
         return tuple(Intent(*row) for row in rows)
 
-    def attempt(self, request_id: str, scope: Scope, expected: int, intent_id: str) -> Outcome:
+    def attempt(
+        self,
+        request_id: str,
+        scope: Scope,
+        expected: int,
+        intent_id: str,
+        admission: BuyAdmission | None = None,
+    ) -> Outcome:
         """Mark a mock send boundary uncertain BEFORE any fake external effect.
 
         Replaying this request returns its receipt, never new send permission.
@@ -815,6 +836,33 @@ class Ledger:
             order = next((order for order in state.working if order.id == row[0]), None)
             if order is None:
                 raise LedgerError("intent order is no longer working")
+            if row[1] == "place" and order.side is Side.BUY:
+                universe_row = self.db.execute(
+                    "SELECT payload FROM universe_revisions ORDER BY revision DESC LIMIT 1"
+                ).fetchone()
+                if universe_row is not None:
+                    universe = codec.loads(
+                        universe_row[0], UniverseSnapshot, limit=self.bounds.snapshot_bytes
+                    )
+                    if (
+                        admission is None
+                        or admission.scope != scope
+                        or admission.universe_revision != universe.revision
+                        or not universe.observed_ms <= admission.now_ms <= admission.expires_ms
+                        or state.mode is not Mode.ACTIVE
+                        or not any(m.scope == scope and m.selected for m in universe.members)
+                        or admission.context_digest
+                        != codec.digest(
+                            (
+                                context.market,
+                                context.policy,
+                                context.buy_fee,
+                                context.sell_fee,
+                                context.config_revision,
+                            )
+                        )
+                    ):
+                        raise LedgerError("fresh current universe admission required")
             transition = reduce(state, SubmissionUnknown(scope, order.id), context)
             self.db.execute(
                 "UPDATE intents SET status='uncertain',attempt_run=? WHERE id=?",
@@ -824,8 +872,13 @@ class Ledger:
             intents = self._commands(allocation, transition.commands, version + 1)
             return Outcome(transition.state, version + 1, True, intents, transition.notices)
 
+        payload = ("attempt", scope, expected, intent_id)
         return self._request(
-            request_id, ("attempt", scope, expected, intent_id), "attempt", allocation, action
+            request_id,
+            payload if admission is None else (*payload, admission),
+            "attempt",
+            allocation,
+            action,
         )
 
     def compact(self, request_id: str, scope: Scope, expected: int) -> Outcome:

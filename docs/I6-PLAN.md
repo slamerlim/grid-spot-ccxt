@@ -1,8 +1,8 @@
 # I6 review proposal — dynamic universe and safe hot reconfiguration
 
-**Status: proposed, not authorized.** I5 approval stops at its review. The owner
-must separately approve this plan. Use local validation and GitHub Free only;
-hosted CI remains pending while the known account lock is unchanged.
+**Status: approved on 2026-11-04.** The owner explicitly selected "Approve I6
+with local validation". Approval ends after I6 review. Use local validation and
+GitHub Free only; hosted CI remains pending while the known account lock is unchanged.
 
 ## Proposed authorization
 

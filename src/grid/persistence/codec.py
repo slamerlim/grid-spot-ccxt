@@ -13,6 +13,14 @@ from typing import Any, Literal, TypeAliasType, Union, cast, get_args, get_origi
 from grid.domain import market, model
 from grid.domain.numbers import DomainError, decimal
 from grid.persistence.records import Outcome
+from grid.universe.model import (
+    BuyAdmission,
+    MarketKey,
+    Membership,
+    SelectionMode,
+    UniversePolicy,
+    UniverseSnapshot,
+)
 
 _CLASSES = (
     market.Precision,
@@ -40,6 +48,11 @@ _CLASSES = (
     model.State,
     model.Transition,
     Outcome,
+    MarketKey,
+    UniversePolicy,
+    Membership,
+    UniverseSnapshot,
+    BuyAdmission,
 )
 _RECORDS = {kind.__name__: kind for kind in _CLASSES}
 _ENUMS = {
@@ -49,6 +62,7 @@ _ENUMS = {
         model.Side,
         model.Phase,
         model.Mode,
+        SelectionMode,
     )
 }
 MAX_BYTES = 16 * 1024 * 1024

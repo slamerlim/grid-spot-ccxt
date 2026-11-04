@@ -2,7 +2,7 @@
 
 import hashlib
 
-VERSION = 2
+VERSION = 3
 STATEMENTS = (
     "CREATE TABLE migrations (version INTEGER PRIMARY KEY, checksum TEXT NOT NULL) STRICT",
     "CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT",
@@ -82,9 +82,15 @@ IDENTITY_STATEMENTS = (
         PRIMARY KEY(venue,account,symbol,external_id), UNIQUE(allocation,trade_id),
         FOREIGN KEY(allocation,trade_id) REFERENCES fills(allocation,trade_id)) STRICT""",
 )
+UNIVERSE_STATEMENTS = (
+    """CREATE TABLE universe_revisions (
+        revision INTEGER PRIMARY KEY CHECK(revision>=1),
+        request_id TEXT NOT NULL UNIQUE REFERENCES requests(id), payload TEXT NOT NULL) STRICT""",
+)
 MIGRATIONS = (
     (1, CHECKSUM, STATEMENTS),
     (2, hashlib.sha256("\n".join(IDENTITY_STATEMENTS).encode()).hexdigest(), IDENTITY_STATEMENTS),
+    (3, hashlib.sha256("\n".join(UNIVERSE_STATEMENTS).encode()).hexdigest(), UNIVERSE_STATEMENTS),
 )
 SEMANTIC_QUERIES = (
     ("pools", "SELECT * FROM pools ORDER BY venue,account,currency"),
@@ -102,4 +108,5 @@ SEMANTIC_QUERIES = (
     ("checkpoints", "SELECT * FROM checkpoints ORDER BY allocation"),
     ("order_bindings", "SELECT * FROM order_bindings ORDER BY allocation,order_id"),
     ("trade_keys", "SELECT * FROM trade_keys ORDER BY venue,account,symbol,external_id"),
+    ("universe_revisions", "SELECT * FROM universe_revisions ORDER BY revision"),
 )

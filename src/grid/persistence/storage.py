@@ -109,6 +109,11 @@ def semantic_hash(connection: sqlite3.Connection, check: Callable[[], None] | No
             and connection.execute("PRAGMA user_version").fetchone()[0] < 2
         ):
             continue
+        if (
+            table == "universe_revisions"
+            and connection.execute("PRAGMA user_version").fetchone()[0] < 3
+        ):
+            continue
         if check is not None:
             check()
         hasher.update(table.encode())
@@ -195,7 +200,7 @@ def restore(
         check_runtime(sqlite3.sqlite_version_info, source_id, approved_sources)
         source.execute("BEGIN")
         version = int(source.execute("PRAGMA user_version").fetchone()[0])
-        if version not in (1, schema.VERSION):
+        if version not in tuple(number for number, _, _ in schema.MIGRATIONS):
             raise LedgerError("unrecognized backup schema version")
         verify_schema(source, version)
         digest = _verify_backup(source, backup, deadline)
@@ -361,7 +366,7 @@ class Storage:
             current = 0
         else:
             current = int(connection.execute("PRAGMA user_version").fetchone()[0])
-            if current not in (1, schema.VERSION):
+            if current not in tuple(number for number, _, _ in schema.MIGRATIONS):
                 raise LedgerError("unrecognized schema version")
             verify_schema(connection, current)
         # Validate an old backup BEFORE changing its schema or semantic hash.
