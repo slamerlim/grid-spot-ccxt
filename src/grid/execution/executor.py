@@ -111,9 +111,14 @@ class MockExecutor:
         self.last_error: str | None = "startup reconciliation required"
         self._closed = False
         self.buy_admission: Callable[[Ledger, Scope, Order, Context], BuyAdmission] | None = None
+        self.operational_admission: Callable[[Ledger, Scope], int] | None = None
         self.portfolio_admission: (
             Callable[[Ledger, Scope, Order, Context], PortfolioPermit] | None
         ) = None
+
+    @property
+    def intake_depth(self) -> int:
+        return len(self._queue)
 
     @property
     def degraded(self) -> bool:
@@ -578,6 +583,11 @@ class MockExecutor:
                         version: int = version,
                         intent_id: str = intent.id,
                     ) -> Outcome:
+                        operations_revision = (
+                            self.operational_admission(ledger, scope)
+                            if placement and self.operational_admission is not None
+                            else None
+                        )
                         admission = (
                             self.buy_admission(ledger, scope, order, context)
                             if placement
@@ -593,7 +603,13 @@ class MockExecutor:
                             else None
                         )
                         return ledger.attempt_once(
-                            claim_id, scope, version, intent_id, admission, portfolio
+                            claim_id,
+                            scope,
+                            version,
+                            intent_id,
+                            admission,
+                            portfolio,
+                            operations_revision,
                         )
 
                     await self.writer.submit(claim)

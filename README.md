@@ -1,6 +1,6 @@
 # GRID Spot CCXT
 
-**I7 portfolio NAV and bounded mock cycle exit implemented. LIVE: DISABLED.**
+**I8 offline operational preparation implemented; observed soak pending. LIVE: DISABLED.**
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and a deterministic Decimal
@@ -12,7 +12,7 @@ through CCXT. A public pass observed BTC/USDT metadata on all seven venues and
 validated books on six; XT's book was rejected. A mock-only executor now consumes
 durable intents, captures LIMIT payloads and reconciles synthetic order/trade
 snapshots through the ledger. It has no authenticated or sandbox/live transport.
-The owner approved I7 with local validation while hosted CI remains pending.
+The owner approved I8 preparation with local validation while hosted CI remains pending.
 Offline research now validates bounded immutable OHLC windows, replays the Decimal
 strategy under explicit synthetic fill assumptions, and compares raw/Arrow/Parquet
 samples. See [the approved plan](docs/I5-PLAN.md), [design](docs/I5-DESIGN.md) and
@@ -33,7 +33,11 @@ reconciliation. Trigger NAV, final return, exit shortfall and approved residuals
 are distinct. Cashflows require classification; conversion allocations preserve
 asset ownership without fabricating fills. See [I7 design](docs/I7-DESIGN.md) and
 [local evidence](docs/I7-EVIDENCE.md). These APIs use synthetic facts and the mock
-executor; operational scheduling and the observed soak remain future work.
+executor. The mock operational supervisor now schedules reconciliation and exits,
+persists audited controls, exposes bounded local status/alerts and halts on
+storage/overload faults. Restart requires explicit reviewed resume. See
+[I8 design](docs/I8-DESIGN.md) and [preparation evidence](docs/I8-EVIDENCE.md).
+The minimum 48-hour observed soak and first-venue account evidence remain pending.
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric
@@ -92,6 +96,28 @@ in the optional `research` group, included by `dev` for tests; it is not a runti
 trading dependency. A minimal installation can use `uv sync --locked --no-dev`;
 add `--group research` only for format benchmarks. See the design for strict
 configuration bundles, limits, uncertainty and reporting conventions.
+
+## Offline operational experiments
+
+The finite synthetic runner uses temporary mock databases and makes no exchange
+calls. Select the reviewed patched runtime described below; the system Python
+and an old `.venv` may correctly refuse ledger creation. With that environment:
+
+```sh
+uv run --locked python -m grid.operations dry-run --code-revision "$(git rev-parse HEAD)" --sqlite-source-id '2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9' --output /tmp/grid-operations-new/dry-run.json
+uv run --locked python -m grid.operations benchmark --code-revision "$(git rev-parse HEAD)" --sqlite-source-id '2026-05-05 10:34:17 c88b22011a54b4f6fbd149e9f8e4de77658ce58143a1af0e3785e4e6475127e9' --output /tmp/grid-operations-new/benchmark.json
+```
+
+The source identity is approved for the existing **mock test builds only**; do
+not substitute an unfamiliar runtime's identity without provenance review.
+Use new result filenames on each run. Reports distinguish observed wall time,
+simulated time, evaluated candidates and funded allocations, and always leave
+I8 acceptance incomplete. Fees/fills/financial settings are invented fixtures.
+
+`deploy/grid-mock.service` is an uninstalled, inert review template. The typed
+controls are an in-process mock API, not a remotely accessible trading service.
+The [later observed-run proposal](docs/I8-SOAK-PLAN.md) needs separate approval
+before implementation/execution or public access.
 
 ## Verify
 
@@ -161,15 +187,17 @@ CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
   [local evidence](docs/I6-EVIDENCE.md) cover selection, hot changes and cache bounds.
 - [I7 approved plan](docs/I7-PLAN.md), [portfolio design](docs/I7-DESIGN.md) and
   [local evidence](docs/I7-EVIDENCE.md) cover valuation, cycle exits and recovery.
-- [I8 proposal](docs/I8-PLAN.md) is the next review gate; it is not authorization.
+- [I8 approved preparation plan](docs/I8-PLAN.md), [design](docs/I8-DESIGN.md) and
+  [evidence](docs/I8-EVIDENCE.md) cover mock operations, storage drills and bounded
+  local experiments. [The observed-run proposal](docs/I8-SOAK-PLAN.md) is unapproved.
 
 The linked SQLite runtime must be checked, not inferred from Python's version.
 The official [SQLite WAL guidance](https://www.sqlite.org/wal.html#walreset)
 identifies fixed releases; a matching version is only one prerequisite, not
 proof of safe storage, approved production build provenance or live readiness.
 Mock ledger/restore tests do not certify a deployment filesystem or exchange
-reconciliation. I8 requires a separate approval.
+reconciliation. Observed soak/venue access and I9 live work need separate approval.
 
 Do not put credentials, account state, local configuration, research data or
 generated reports in Git. This repository does not request exchange credentials
-and contains no service deployment or trading command.
+and contains no installed service or live trading command.

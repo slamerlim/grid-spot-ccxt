@@ -78,6 +78,10 @@ class AsyncWriter:
             raise Backpressure("writer queue is full; input was not admitted") from exc
         return await asyncio.shield(result)
 
+    @property
+    def depth(self) -> int:
+        return self._queue.qsize()
+
     async def _consume(self) -> None:
         while True:
             job = await self._queue.get()

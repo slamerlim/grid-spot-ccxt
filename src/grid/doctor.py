@@ -41,7 +41,7 @@ class DoctorReport:
     def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": 1,
-            "iteration": "I7",
+            "iteration": "I8 preparation",
             "mode": "offline",
             "live": "DISABLED",
             "ready": self.ready,
@@ -56,7 +56,7 @@ class DoctorReport:
 
     def to_text(self) -> str:
         lines = [
-            "GRID doctor — I7 offline diagnostics",
+            "GRID doctor — I8 preparation offline diagnostics",
             "LIVE: DISABLED",
             "Live readiness: BLOCKED",
             f"Python: {self.python_version}",
@@ -87,7 +87,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "offline_boundary",
             "BLOCKED",
-            "I7 mock portfolio exit exists; authenticated trading is unavailable.",
+            "I8 mock operational preparation exists; authenticated trading is unavailable.",
         ),
         Check(
             "live_request",
@@ -159,13 +159,14 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "fault_and_soak_tests",
             "NOT_TESTED",
-            "Mock execution fault tests exist; real venue recovery, "
-            "hardware limits and soak are unverified.",
+            "Offline operational drills exist; first-venue recovery, "
+            "deployment limits and the observed 48-hour soak are unverified.",
         ),
         Check(
             "operator_signoff",
             "BLOCKED",
-            "I7 local validation is authorized; I8 onward and live canary need separate approval.",
+            "I8 preparation is authorized; observed soak, venue access "
+            "and live need separate approval.",
         ),
     )
     return DoctorReport(

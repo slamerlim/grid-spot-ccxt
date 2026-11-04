@@ -5,7 +5,7 @@ under `docs/` before editing. They are authoritative over the legacy simulator.
 User instructions take precedence. Preserve imported specifications verbatim;
 record clarifications separately with evidence and approval requirements.
 
-## Current boundary: I7 with local validation
+## Current boundary: I8 operational preparation with local validation
 
 On 2026-11-03 the owner approved `docs/I1-PLAN.md`, including its partial-seed
 rule, then explicitly selected "Proceed with local validation for I1" to
@@ -69,6 +69,21 @@ I7 design and local evidence are recorded in `docs/I7-DESIGN.md` and
 operational preparation from the still-required observed 48-hour soak and
 venue/account validation. Preparation alone cannot complete I8 acceptance.
 
+The owner explicitly selected "Approve I8 operational preparation with local
+validation" for `docs/I8-PLAN.md`. This supersedes the stop-after-I7 gate for
+offline preparation only; do not request that approval again. Implement the
+mock supervisor, audited local controls/status, bounded synthetic resource tests,
+temporary storage drills, uninstalled service templates and a short synthetic
+dry run. No exchange access, public feeds, credentials, sandbox/real trading,
+external notifications, transfers, installed service, deployment, live databases
+or long-running soak are authorized. Use local checks and GitHub Free only.
+Publish preparation evidence and a concrete separately gated soak plan, then
+stop for review. I8 acceptance remains incomplete until its observed minimum
+48-hour soak and intended-first-venue evidence are actually obtained.
+Preparation implementation and local evidence are in `docs/I8-DESIGN.md` and
+`docs/I8-EVIDENCE.md`. The next unapproved proposal is `docs/I8-SOAK-PLAN.md`;
+it does not authorize external access or satisfy the observed acceptance gate.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one
@@ -109,7 +124,7 @@ message does not establish that an upgrade or payment is needed. Do not retry
 a known lock without evidence of changed access; report local checks separately
 and use free support/account review when needed. While the lock is unchanged,
 use the documented `[skip ci]` commit directive for necessary authorized pushes
-so publication does not retry it. A skipped run is not a CI pass. Use the I7
+so publication does not retry it. A skipped run is not a CI pass. Use the I8 preparation
 local-validation authorization above. See `docs/RUNBOOK.md` for sources and recovery
 guidance.
 
@@ -117,7 +132,7 @@ guidance.
 
 The user authorized reusable GitHub access and ordinary commits/pushes for work
 within an approved task. Git access alone does not authorize new iterations or
-live trading; the I7 authorization is recorded above. Use the
+live trading; the I8 preparation authorization is recorded above. Use the
 existing `origin` for `slamerlim/grid-spot-ccxt`; do not force-push or rewrite
 published history as part of routine development.
 

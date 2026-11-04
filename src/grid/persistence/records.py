@@ -18,6 +18,10 @@ class Backpressure(LedgerError):
     """Admission failed; retain the input and reconcile before retrying."""
 
 
+class StorageFault(LedgerError):
+    """Storage safety failed; halt placement until explicit reviewed recovery."""
+
+
 @dataclass(frozen=True)
 class Bounds:
     busy_ms: int

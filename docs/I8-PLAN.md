@@ -1,7 +1,8 @@
 # I8 proposal — operational preparation, then separately gated observed soak
 
-**Status: proposed; not approved.** I7 approval ends at review. This proposal
-requests **I8 operational preparation with local validation** only. Preparation
+**Status: approved for preparation only.** The owner explicitly selected
+"Approve I8 operational preparation with local validation". This authorizes
+**I8 operational preparation with local validation** only. Preparation
 does not satisfy or waive the original I8 acceptance requirement for an observed
 minimum 48-hour paper/sandbox soak and intended-first-venue evidence.
 

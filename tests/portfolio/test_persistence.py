@@ -152,7 +152,8 @@ def test_v3_backup_additive_migration_preserves_funds_and_requests(
     try:
         raw.execute("DROP TABLE portfolio_revisions")
         raw.execute("DROP TABLE portfolio_flows")
-        raw.execute("DELETE FROM migrations WHERE version=4")
+        raw.execute("DROP TABLE operations_revisions")
+        raw.execute("DELETE FROM migrations WHERE version>=4")
         raw.execute("PRAGMA user_version=3")
         verify_schema(raw, 3)
         digest = semantic_hash(raw)

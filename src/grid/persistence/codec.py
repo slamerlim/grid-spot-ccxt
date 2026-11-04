@@ -13,6 +13,7 @@ from typing import Any, Literal, TypeAliasType, Union, cast, get_args, get_origi
 from grid.domain import market, model
 from grid.domain.numbers import DomainError, decimal
 from grid.exchange.models import BookObservation
+from grid.operations import model as operations
 from grid.persistence.records import Outcome
 from grid.portfolio import model as portfolio
 from grid.universe.model import (
@@ -26,6 +27,9 @@ from grid.universe.model import (
 )
 
 _CLASSES = (
+    operations.Command,
+    operations.BackupStamp,
+    operations.Operations,
     market.Precision,
     market.Limits,
     market.Market,
@@ -84,6 +88,7 @@ _ENUMS = {
         model.Mode,
         SelectionMode,
         portfolio.CyclePhase,
+        operations.Action,
     )
 }
 MAX_BYTES = 16 * 1024 * 1024

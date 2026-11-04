@@ -31,6 +31,7 @@ from grid.domain.model import (
 )
 from grid.domain.numbers import ZERO, decimal, exact, identifier
 from grid.domain.reducer import reduce, reserved
+from grid.operations.model import Operations
 from grid.persistence import codec
 from grid.persistence.records import Backup, Bounds, Conflict, Intent, LedgerError, Outcome
 from grid.persistence.storage import Fault, Storage, no_fault
@@ -131,6 +132,11 @@ class Ledger:
         )
         self.db, self.bounds = self.storage.connection, bounds
         try:
+            operations = self.operations()
+            if operations is not None and {codec.digest(s) for s in operations.scopes} != set(
+                self._allocation_ids()
+            ):
+                raise LedgerError("operational ownership differs from allocations")
             cycle = self.portfolio()
             if cycle is not None and {codec.digest(r.scope) for r in cycle.policy.exits} != set(
                 self._allocation_ids()
@@ -811,6 +817,7 @@ class Ledger:
         intent_id: str,
         admission: BuyAdmission | None = None,
         portfolio: PortfolioPermit | None = None,
+        operations_revision: int | None = None,
     ) -> Outcome:
         """Only a fresh committed claim can grant a send, never an old receipt.
 
@@ -819,7 +826,9 @@ class Ledger:
         """
         if self.lookup(request_id) is not None:
             raise Conflict("attempt receipt replay cannot authorize another send")
-        return self.attempt(request_id, scope, expected, intent_id, admission, portfolio)
+        return self.attempt(
+            request_id, scope, expected, intent_id, admission, portfolio, operations_revision
+        )
 
     def intents(self, scope: Scope, *, after: str = "") -> tuple[Intent, ...]:
         rows = self.db.execute(
@@ -837,6 +846,7 @@ class Ledger:
         intent_id: str,
         admission: BuyAdmission | None = None,
         portfolio: PortfolioPermit | None = None,
+        operations_revision: int | None = None,
     ) -> Outcome:
         """Mark a mock send boundary uncertain BEFORE any fake external effect.
 
@@ -855,6 +865,13 @@ class Ledger:
             ).fetchone()
             if row is None or row[1] == "reconcile" or row[2] != "queued":
                 raise LedgerError("intent is not eligible for a first mock attempt")
+            operations = self.operations()
+            if operations is not None and (
+                scope in operations.held
+                or row[1] == "place"
+                and (operations.halted or operations_revision != operations.revision)
+            ):
+                raise LedgerError("operational halt or current admission required")
             order = next((order for order in state.working if order.id == row[0]), None)
             if order is None:
                 raise LedgerError("intent order is no longer working")
@@ -922,6 +939,14 @@ class Ledger:
             return Outcome(transition.state, version + 1, True, intents, transition.notices)
 
         payload = ("attempt", scope, expected, intent_id)
+        if operations_revision is not None:
+            return self._request(
+                request_id,
+                (*payload, admission, portfolio, operations_revision),
+                "attempt",
+                allocation,
+                action,
+            )
         return self._request(
             request_id,
             (*payload, admission, portfolio)
@@ -944,6 +969,17 @@ class Ledger:
         if cycle.revision != row[0]:
             raise LedgerError("portfolio revision projection differs")
         return cycle
+
+    def operations(self) -> Operations | None:
+        row = self.db.execute(
+            "SELECT revision,payload FROM operations_revisions ORDER BY revision DESC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        value = codec.loads(row[1], Operations, limit=self.bounds.snapshot_bytes)
+        if value.revision != row[0]:
+            raise LedgerError("operational revision projection differs")
+        return value
 
     def _funding_allowed(self) -> None:
         cycle = self.portfolio()

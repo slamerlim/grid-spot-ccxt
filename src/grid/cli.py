@@ -22,7 +22,7 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Return 0 for a report, 1 for blocked --check, or 2 for invalid config."""
-    parser = _ArgumentParser(prog="gridctl", description="GRID I5 offline diagnostics")
+    parser = _ArgumentParser(prog="gridctl", description="GRID I8 preparation offline diagnostics")
     commands = parser.add_subparsers(dest="command", required=True)
     doctor = commands.add_parser("doctor", help="report offline live-readiness blockers")
     doctor.add_argument(

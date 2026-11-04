@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from grid.persistence import schema
-from grid.persistence.records import Backup, Bounds, Checkpoint, LedgerError
+from grid.persistence.records import Backup, Bounds, Checkpoint, LedgerError, StorageFault
 
 type Fault = Callable[[str], None]
 
@@ -104,6 +104,11 @@ def verify_schema(connection: sqlite3.Connection, version: int = schema.VERSION)
 def semantic_hash(connection: sqlite3.Connection, check: Callable[[], None] | None = None) -> str:
     hasher = hashlib.sha256()
     for table, query in schema.SEMANTIC_QUERIES:
+        if (
+            table == "operations_revisions"
+            and connection.execute("PRAGMA user_version").fetchone()[0] < 5
+        ):
+            continue
         if (
             table in {"portfolio_revisions", "portfolio_flows"}
             and connection.execute("PRAGMA user_version").fetchone()[0] < 4
@@ -355,7 +360,7 @@ class Storage:
         for name, value in expected.items():
             actual = self.connection.execute(f"PRAGMA {name}").fetchone()[0]
             if actual != value:
-                raise LedgerError("required SQLite pragma mismatch")
+                raise StorageFault("required SQLite pragma mismatch")
 
     def _schema(self) -> None:
         connection = self.connection
@@ -398,9 +403,9 @@ class Storage:
 
     def integrity(self) -> None:
         if self.connection.execute("PRAGMA integrity_check(1)").fetchone() != ("ok",):
-            raise LedgerError("SQLite integrity check failed")
+            raise StorageFault("SQLite integrity check failed")
         if self.connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
-            raise LedgerError("SQLite foreign key check failed")
+            raise StorageFault("SQLite foreign key check failed")
 
     @contextmanager
     def transaction(self, label: str) -> Iterator[None]:
@@ -432,7 +437,7 @@ class Storage:
                 *self.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
             )
             if trimmed.busy:
-                raise LedgerError("WAL bound reached; release pinned readers before admission")
+                raise StorageFault("WAL bound reached; release pinned readers before admission")
             return trimmed
         return result
 

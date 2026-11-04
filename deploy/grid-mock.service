@@ -1,0 +1,51 @@
+# REVIEW TEMPLATE ONLY. Not installed, enabled or approved for deployment.
+# The marker, service user and reviewed runtime must be prepared under a later approval.
+# Replace both REVIEWED_* arguments and choose a new result filename before any run.
+[Unit]
+Description=GRID finite offline synthetic operational drill
+ConditionPathExists=/opt/grid/REVIEWED_OFFLINE_SERVICE
+StartLimitIntervalSec=3600
+StartLimitBurst=1
+
+[Service]
+Type=exec
+User=grid-mock
+Group=grid-mock
+WorkingDirectory=/opt/grid
+ExecStart=/opt/grid/.venv/bin/python -m grid.operations dry-run --code-revision REVIEWED_REVISION --sqlite-source-id REVIEWED_SQLITE_SOURCE_ID --output /var/lib/grid-mock/reviewed-report.json
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1
+StateDirectory=grid-mock
+StateDirectoryMode=0700
+UMask=0077
+Restart=no
+KillSignal=SIGINT
+KillMode=control-group
+TimeoutStartSec=60
+TimeoutStopSec=15
+RuntimeMaxSec=60
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/grid-mock
+# Fixture ceilings, not approved production sizing. No paid infrastructure.
+MemoryMax=512M
+MemorySwapMax=0
+CPUQuota=50%
+TasksMax=16
+LimitNOFILE=128
+StandardOutput=journal
+StandardError=journal

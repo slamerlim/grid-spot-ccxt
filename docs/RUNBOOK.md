@@ -223,9 +223,11 @@ ledger/restore work is covered by that approval. I3 was subsequently explicitly
 approved with local validation and bounded public probes. I4 was subsequently
 approved with local validation for synthetic execution/recovery. I5 research and
 I6 universe control and I7 portfolio exit were subsequently approved with local
-validation. Stop after I7 review: I8 requires separate authorization. Operational commands, systemd hardening, deployment
-storage drills, alerts and live arming belong to later accepted iterations;
-none can be exercised through this CLI.
+validation. I8 operational preparation was then explicitly approved with local
+validation. Its mock API, temporary drills, local alerts and uninstalled service
+template are described below. Stop after preparation review: observed soak,
+exchange access, deployment and live arming still need separate authorization.
+`gridctl` remains an offline diagnostic; the finite experiment CLI is separate.
 
 I1 adds no migration or external side effect. To roll it back, revert its scoped
 implementation and documentation commits on a branch, then run `uv sync --locked`
@@ -433,7 +435,63 @@ authorizes a repeat send. v4 adds portfolio audit/flow tables; backup/restore
 supports v1–v4 additively. Retain history and use separate verified compatible
 backups for rollback. Never drop tables or downgrade a financial ledger in place.
 
-See `I7-DESIGN.md` and `I7-EVIDENCE.md`. `I8-PLAN.md` proposes offline operational
-preparation; the required observed 48-hour soak remains a distinct unfulfilled
-acceptance gate. Stop after I7 review. Hosted CI remains pending, with GitHub Free
-only and no retry of the unchanged account lock.
+See `I7-DESIGN.md` and `I7-EVIDENCE.md`. The owner subsequently approved
+`I8-PLAN.md` for offline preparation with local validation. The required observed
+48-hour soak remains a distinct unfulfilled acceptance gate. Hosted CI remains
+pending, with GitHub Free only and no retry of the unchanged account lock.
+
+## I8 offline operations and recovery
+
+Use the finite commands in README in a reviewed patched mock environment.
+Reports go outside Git; original datasets and legacy code remain untouched.
+`dry-run` exercises the synthetic lifecycle and verified restore; `benchmark`
+measures six bounded cases. Neither starts a real exchange feed or long-running
+service. Return 0 means a synthetic report was published, not that I8 passed.
+Return 2 means refusal/failure; no successful report is published. Use the typed
+API and local tests for detailed diagnosis rather than printing exception or
+transport contents in operational logs.
+
+For an in-process supervisor, read `status()` before acting, retain the request
+ID and revision, and choose the specific typed control from `I8-DESIGN.md`.
+Pause new BUYs, cancel BUYs, stop a scope, retire it and globally halt have
+different effects. A halt does not liquidate inventory or undo a claimed send.
+Keep every owner in the roster and reconcile late/unknown orders and fills.
+
+On queue overflow retain the rejected input and require authoritative recovery;
+do not drop it and assume it was posted. On retry exhaustion review the failure
+and use a new explicit `RECONCILE`; this alone does not resume placement. On
+stale evidence obtain a genuinely newer observation instead of restamping old
+facts. A confirmed full-roster `RESUME` requires fresh reconciled NAV evidence.
+Replaying an old successful resume cannot clear a later local halt.
+
+On SQLite/permission/integrity/backup failure, keep admission halted, preserve
+the database/WAL/owner files and diagnose the disposable environment. Do not
+delete audit rows, clear unknowns or claim that a failed backup is fresh. Verify
+a backup into a different private path before recording its watermark. The
+status fee sums cover retained fills only; reconcile lifetime fees from the
+durable financial history when reviewing a full cycle or restoring a real ledger.
+
+Close is idempotent and shields admitted writer work. If its timeout reports
+pending cleanup, ownership is still held; await completion and check the final
+snapshot. Never start a second controller by deleting the owner file. After a
+crash, reopen with the complete roster, retain the startup halt, reconcile all
+orders/fills/fees and only then review explicit resume. A previous successful
+send receipt must never authorize another network send.
+
+The v5 additive operational table is included in backup/restore validation.
+Rollback means a scoped code revert plus a separately verified compatible
+backup, preserving newer history; no in-place downgrade or table deletion.
+Original v1–v4 backups remain migratable. Mock migration/crash tests are not a
+certification of production power-loss or account reconciliation.
+
+`deploy/grid-mock.service` has only been syntax-checked. Its review marker and
+arguments intentionally prevent casual use. Its current interpreter path must
+be prepared with an approved runtime in a later authorized deployment review.
+Do not create the service account/marker, install/enable the template, call
+`systemctl start`, or turn the synthetic runner into a live service under the
+preparation approval. Parser verification does not prove runtime isolation.
+
+Preparation evidence is in `I8-EVIDENCE.md`. Review the concrete
+`I8-SOAK-PLAN.md` before any later observed run. It separates public-paper
+observations from still-missing private-account evidence. Stop after preparation
+review; no I8 acceptance pass or I9 deployment follows from local tests.

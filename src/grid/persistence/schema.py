@@ -2,7 +2,7 @@
 
 import hashlib
 
-VERSION = 4
+VERSION = 5
 STATEMENTS = (
     "CREATE TABLE migrations (version INTEGER PRIMARY KEY, checksum TEXT NOT NULL) STRICT",
     "CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT",
@@ -96,11 +96,21 @@ PORTFOLIO_STATEMENTS = (
         cycle_id TEXT NOT NULL, id TEXT NOT NULL, payload TEXT NOT NULL,
         PRIMARY KEY(cycle_id,id)) STRICT""",
 )
+OPERATIONS_STATEMENTS = (
+    """CREATE TABLE operations_revisions (
+        revision INTEGER PRIMARY KEY CHECK(revision>=1),
+        request_id TEXT NOT NULL UNIQUE REFERENCES requests(id), payload TEXT NOT NULL) STRICT""",
+)
 MIGRATIONS = (
     (1, CHECKSUM, STATEMENTS),
     (2, hashlib.sha256("\n".join(IDENTITY_STATEMENTS).encode()).hexdigest(), IDENTITY_STATEMENTS),
     (3, hashlib.sha256("\n".join(UNIVERSE_STATEMENTS).encode()).hexdigest(), UNIVERSE_STATEMENTS),
     (4, hashlib.sha256("\n".join(PORTFOLIO_STATEMENTS).encode()).hexdigest(), PORTFOLIO_STATEMENTS),
+    (
+        5,
+        hashlib.sha256("\n".join(OPERATIONS_STATEMENTS).encode()).hexdigest(),
+        OPERATIONS_STATEMENTS,
+    ),
 )
 SEMANTIC_QUERIES = (
     ("pools", "SELECT * FROM pools ORDER BY venue,account,currency"),
@@ -121,4 +131,5 @@ SEMANTIC_QUERIES = (
     ("universe_revisions", "SELECT * FROM universe_revisions ORDER BY revision"),
     ("portfolio_revisions", "SELECT * FROM portfolio_revisions ORDER BY revision"),
     ("portfolio_flows", "SELECT * FROM portfolio_flows ORDER BY cycle_id,id"),
+    ("operations_revisions", "SELECT * FROM operations_revisions ORDER BY revision"),
 )

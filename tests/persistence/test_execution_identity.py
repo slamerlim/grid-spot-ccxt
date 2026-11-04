@@ -26,6 +26,7 @@ def old_schema(path: Path) -> str:
         connection.execute("DROP TABLE universe_revisions")
         connection.execute("DROP TABLE portfolio_revisions")
         connection.execute("DROP TABLE portfolio_flows")
+        connection.execute("DROP TABLE operations_revisions")
         connection.execute("DELETE FROM migrations WHERE version>=2")
         connection.execute("PRAGMA user_version=1")
         verify_schema(connection, 1)
