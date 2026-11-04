@@ -30,18 +30,25 @@ class ReadLimits:
     catalog_rows: int = 20_000
     cache_age_ms: int = 60_000
     min_interval_ms: int = 1_000
+    observed_hour: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.observed_hour) is not bool:
+            raise ReadError(Failure.POLICY)
         for value, low, high in (
-            (self.requests, 1, 32),
+            (self.requests, 1, 750 if self.observed_hour else 32),
             (self.timeout_ms, 1, 30_000),
             (self.close_ms, 1, 5_000),
             (self.response_bytes, 256, 16 * 1024 * 1024),
             (self.catalog_rows, 1, 30_000),
-            (self.cache_age_ms, 1, 300_000),
+            (self.cache_age_ms, 1, 3_600_000 if self.observed_hour else 300_000),
             (self.min_interval_ms, 1_000, 60_000),
         ):
             integer(value, low, high)
+        if self.observed_hour and (
+            self.timeout_ms > 5000 or self.response_bytes > 65536 or self.min_interval_ms < 5000
+        ):
+            raise ReadError(Failure.POLICY)
 
 
 class ReadTransport(Protocol):

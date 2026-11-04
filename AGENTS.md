@@ -5,7 +5,7 @@ under `docs/` before editing. They are authoritative over the legacy simulator.
 User instructions take precedence. Preserve imported specifications verbatim;
 record clarifications separately with evidence and approval requirements.
 
-## Current boundary: I8 operational preparation with local validation
+## Current boundary: I8 public-paper harness and approved one-hour run
 
 On 2026-11-03 the owner approved `docs/I1-PLAN.md`, including its partial-seed
 rule, then explicitly selected "Proceed with local validation for I1" to
@@ -81,8 +81,20 @@ Publish preparation evidence and a concrete separately gated soak plan, then
 stop for review. I8 acceptance remains incomplete until its observed minimum
 48-hour soak and intended-first-venue evidence are actually obtained.
 Preparation implementation and local evidence are in `docs/I8-DESIGN.md` and
-`docs/I8-EVIDENCE.md`. The next unapproved proposal is `docs/I8-SOAK-PLAN.md`;
-it does not authorize external access or satisfy the observed acceptance gate.
+`docs/I8-EVIDENCE.md`. The subsequent proposal was `docs/I8-SOAK-PLAN.md`;
+the owner's amended authorization is recorded below.
+
+The owner subsequently answered: "approve harness and perform a quick run for
+1 hour, then continue development". Implement and mock-test the published paper
+harness, then perform one observed hour of OKX BTC/USDT public-data collection
+and paper simulation under the bounded amended `docs/I8-SOAK-PLAN.md`. This
+supersedes the preparation review gate and the proposed 48-hour execution
+duration, but does not waive the original 48-hour acceptance requirement.
+Continue mock-based development afterward without requesting this approval again.
+Private accounts/credentials, real or sandbox orders/cancellations, transfers,
+deployment, other venues/endpoints and paid GitHub capabilities remain excluded.
+Record the actual one-hour evidence and any refusals honestly; never label the
+quick run a full I8 acceptance pass. Use local validation and `[skip ci]` pushes.
 
 ## Invariants for subsequent approved iterations
 
@@ -125,14 +137,14 @@ a known lock without evidence of changed access; report local checks separately
 and use free support/account review when needed. While the lock is unchanged,
 use the documented `[skip ci]` commit directive for necessary authorized pushes
 so publication does not retry it. A skipped run is not a CI pass. Use the I8 preparation
-local-validation authorization above. See `docs/RUNBOOK.md` for sources and recovery
+local-validation and public-paper authorization above. See `docs/RUNBOOK.md` for sources and recovery
 guidance.
 
 ## GitHub access for workspace agents
 
 The user authorized reusable GitHub access and ordinary commits/pushes for work
 within an approved task. Git access alone does not authorize new iterations or
-live trading; the I8 preparation authorization is recorded above. Use the
+live trading; the current I8 authorization is recorded above. Use the
 existing `origin` for `slamerlim/grid-spot-ccxt`; do not force-push or rewrite
 published history as part of routine development.
 

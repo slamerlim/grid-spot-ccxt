@@ -1,6 +1,6 @@
 # GRID Spot CCXT
 
-**I8 offline operational preparation implemented; observed soak pending. LIVE: DISABLED.**
+**I8 preparation and public-paper harness implemented; observed evidence pending. LIVE: DISABLED.**
 
 This repository establishes the specification, reproducible Python environment,
 strict safe configuration, offline diagnostics and a deterministic Decimal
@@ -38,6 +38,10 @@ persists audited controls, exposes bounded local status/alerts and halts on
 storage/overload faults. Restart requires explicit reviewed resume. See
 [I8 design](docs/I8-DESIGN.md) and [preparation evidence](docs/I8-EVIDENCE.md).
 The minimum 48-hour observed soak and first-venue account evidence remain pending.
+The owner approved a one-hour public-data check followed by mock development.
+The [paper harness](docs/I8-PAPER-DESIGN.md) persists the shared request budget,
+uses the existing financial writer and refuses paper admission when public market
+constraints are incomplete. The shorter run cannot close the 48-hour gate.
 
 The intended system is one Python process with official free CCXT (including its
 bundled `ccxt.pro`), one SQLite financial writer, Decimal accounting, geometric

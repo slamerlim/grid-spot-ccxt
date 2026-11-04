@@ -14,6 +14,7 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
+from email.utils import parsedate_to_datetime
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Protocol
@@ -122,6 +123,26 @@ def check_endpoint(venue: str, url: str, method: str, headers: object, body: obj
 class WireReply:
     status: int
     body: bytes
+    retry_after_ms: int | None = None
+
+
+def retry_after(value: str | None, now: float) -> int | None:
+    """Unknown/malformed Retry-After stops the observed runner, never shortens a wait."""
+    if value is None:
+        return None
+    if len(value) > 128:
+        raise ReadError(Failure.MALFORMED)
+    try:
+        seconds = (
+            int(value)
+            if value.isascii() and value.isdigit()
+            else (parsedate_to_datetime(value).timestamp() - now)
+        )
+        if seconds < 0 or seconds > 86400:
+            raise ValueError
+        return max(60000, int(seconds * 1000) + 1000)
+    except (ValueError, TypeError, OverflowError):
+        raise ReadError(Failure.MALFORMED) from None
 
 
 class PublicWire(Protocol):
@@ -149,7 +170,13 @@ class HTTPWire:
                 if len(chunks) + len(chunk) > limits.response_bytes:
                     raise ReadError(Failure.BUDGET)
                 chunks.extend(chunk)
-            return WireReply(response.status, bytes(chunks))
+            return WireReply(
+                response.status,
+                bytes(chunks),
+                retry_after(response.headers.get("Retry-After"), time.time())
+                if response.status in {418, 429}
+                else None,
+            )
 
     async def close(self) -> None:
         if self._session is not None:
@@ -220,7 +247,12 @@ class PublicCCXT:
     """Actual public implementation: no authenticated client can be configured."""
 
     def __init__(self, venue: str, limits: ReadLimits, *, wire: PublicWire | None = None) -> None:
-        if venue not in VENUE_IDS or metadata.version("ccxt") != CCXT_VERSION:
+        if (
+            venue not in VENUE_IDS
+            or metadata.version("ccxt") != CCXT_VERSION
+            or limits.observed_hour
+            and venue != "okx"
+        ):
             raise ReadError(Failure.POLICY)
         self.venue = venue
         self._limits = limits
@@ -316,6 +348,12 @@ class PublicCCXT:
     @property
     def evidence(self) -> tuple[RequestEvidence, ...]:
         return tuple(self._evidence)
+
+    def recover_observed(self) -> None:
+        """Explicit observer checkpoint; retains this client's request budget."""
+        if not self._limits.observed_hour or self.venue != "okx" or self._closed or self._fetching:
+            raise ReadError(Failure.POLICY)
+        self._halted = False
 
     @property
     def advertised(self) -> Mapping[str, object]:

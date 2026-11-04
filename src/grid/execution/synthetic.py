@@ -1,5 +1,6 @@
 """Finite in-memory venue. This is the only gateway admitted by MockExecutor."""
 
+from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 
@@ -10,7 +11,9 @@ from grid.persistence import codec
 
 
 class SyntheticExchange:
-    def __init__(self, capacity: int) -> None:
+    def __init__(
+        self, capacity: int, *, record: Callable[[str, object], None] | None = None
+    ) -> None:
         bounded_int(capacity, 1, 10000)
         self.capacity = capacity
         self.orders: dict[str, OrderFact] = {}
@@ -19,6 +22,11 @@ class SyntheticExchange:
         self.cancels: list[str] = []
         self.revision = 0
         self.reads = 0
+        self.record = record
+
+    def _record(self, kind: str, payload: object) -> None:
+        if self.record is not None:
+            self.record(kind, payload)
 
     async def submit_limit(self, request: LimitRequest) -> OrderFact:
         if type(request) is not LimitRequest or request.order_type != "limit":
@@ -27,9 +35,10 @@ class SyntheticExchange:
             fact.request.client_id == request.client_id for fact in self.orders.values()
         ):
             raise ExecutionError("synthetic capacity or duplicate submission")
-        self.sent.append(request)
-        external_id = "order-" + str(len(self.sent))
+        external_id = "order-" + str(len(self.sent) + 1)
         fact = OrderFact(request, external_id, "open", ZERO)
+        self._record("submit", request)
+        self.sent.append(request)
         self.orders[external_id] = fact
         self.revision += 1
         return fact
@@ -40,12 +49,14 @@ class SyntheticExchange:
         fact = self.orders.get(external_id)
         if fact is None or fact.request.scope != scope:
             raise ExecutionError("unknown cancellation outcome")
+        self._record("cancel", external_id)
         self.cancels.append(external_id)
         # Ack alone changes no order status. Tests explicitly settle or fill it.
 
     def settle_cancel(self, external_id: str) -> None:
         fact = self.orders[external_id]
         if fact.status == "open":
+            self._record("settle", external_id)
             self.orders[external_id] = replace(fact, status="canceled")
             self.revision += 1
 
@@ -74,6 +85,11 @@ class SyntheticExchange:
         )
         if fact.status != "open":
             raise ExecutionError("synthetic order is terminal")
+        if cumulative > codec.parse_amount(fact.request.amount) or any(
+            existing.external_id == trade_id for existing in self.trades
+        ):
+            raise ExecutionError("synthetic overfill or duplicate trade")
+        self._record("fill", trade)
         self.orders[external_id] = replace(
             fact,
             cumulative=cumulative,

@@ -103,7 +103,11 @@ def test_busy_timeout_cancellation_and_close_in_flight(
 )
 def test_resource_limits_reject_unbounded_configuration(limits: dict[str, int]) -> None:
     with pytest.raises(ReadError):
-        ReadLimits(**limits)
+        ReadLimits(
+            requests=limits.get("requests", 2),
+            timeout_ms=limits.get("timeout_ms", 15000),
+            min_interval_ms=limits.get("min_interval_ms", 1000),
+        )
 
 
 def test_close_is_bounded_and_caller_cancellation_preserves_cleanup(

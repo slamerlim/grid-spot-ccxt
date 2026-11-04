@@ -1,9 +1,31 @@
-# Proposed next I8 gate — public-paper harness and observed run
+# I8 public-paper harness — approved one-hour execution amendment
 
-**Not approved or started.** I8 preparation authorization excludes exchange
-access and the long-running soak. This is a concrete proposal for the next gate;
-approval of it would not authorize private-account access, real/sandbox trading,
-deployment, notifications, transfers, paid infrastructure or I9 canary.
+**Approved with a shorter duration.** The owner answered: "approve harness and
+perform a quick run for 1 hour, then continue development". Implement and test
+the harness, run it for **one observed wall-clock hour**, then continue mock-based
+development. Private-account access, real/sandbox trading, deployment,
+notifications, transfers, paid infrastructure and I9 canary remain excluded.
+
+This amendment overrides the proposed 48-hour execution schedule below, not the
+original I8 acceptance requirement. The one-hour report is partial evidence.
+Reduce the total public wire budget to **750 attempts**, with at most three
+instrument requests and book polling no faster than once per five seconds.
+Persist counters across restart. No catch-up bursts or additional endpoints.
+
+For this short run: inject a 60-second polling disconnect at minute 10, verify
+a backup at minute 20, perform one supervised process restart at minute 30,
+inject a local 60-second 429/backoff at minute 45, and verify another backup at
+minute 50. These are labeled injections; no extra server request is made to
+cause a 429. Observe status at least once per minute and at each fault/recovery.
+Use a private retained directory beneath `/opt/grid-runs/i8-public-hour/`,
+outside the repository and original data trees. Keep it for at least seven days
+after review; no automatic deletion. The original resource caps remain in force.
+End new polls at one elapsed hour; allow bounded cleanup, without extending the
+run to manufacture missing observations. A fault-stopped run remains partial.
+
+The following original proposal is retained for traceability. Its 48/49-hour
+duration, 36,000-request allowance, `/tmp` destination and hour-based fault
+schedule are superseded by the amendment above for this execution.
 
 ## Proposed work and evidence boundary
 
