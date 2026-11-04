@@ -196,6 +196,21 @@ def test_loser_and_unallocated_cash_remain_in_consolidated_nav(
     assert result["last_nav"].net == D(3190)
     assert result["cycle"].phase is CyclePhase.ACTIVE
     assert result["final_unallocated_pools"] == ((settings.policy.pools[0], D(1000)),)
+    risk = result["allocation_risk"]
+    assert risk["last_attribution"]["allocated_nav"] == D(2190)
+    assert risk["last_attribution"]["unallocated_pool_value"] == D(1000)
+    assert sorted(row["last"].inventory_unrealized_pnl_quote for row in risk["allocations"]) == [
+        D(-60),
+        D(250),
+    ]
+    assert sorted(row["last"].nonreporting_asset_value for row in risk["allocations"]) == [
+        D(40),
+        D(350),
+    ]
+    assert sorted(row["max_drawdown_fraction_observed"] for row in risk["allocations"]) == [
+        D(0),
+        D("0.06"),
+    ]
     backwards = replace(
         settings,
         liquidity=tuple(reversed(settings.liquidity)),

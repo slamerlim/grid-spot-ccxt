@@ -78,6 +78,12 @@ def test_portfolio_cli_benchmarks_share_funding_and_early_endpoint(
     assert D(stats["gross_wins_quote"]) == D(50) and D(stats["gross_losses_quote"]) == D(0)
     assert D(stats["posted_turnover_quote"]) == D(250)
     assert stats["profit_factor"] is None
+    risk = result["allocation_risk"]
+    assert risk["schema"] == "grid-portfolio-allocation-risk-v1"
+    allocation = risk["allocations"][0]
+    assert D(allocation["last"]["inventory_unrealized_pnl_quote"]) == 0
+    assert D(allocation["net_pnl_after_internal_flows"]) == D(50)
+    assert allocation["last"]["end_ms_exclusive"] == result["simulation_end_ms_exclusive"]
 
 
 def test_unused_future_prices_cannot_change_completed_benchmark(make_replay: MakeReplay) -> None:
@@ -92,6 +98,7 @@ def test_unused_future_prices_cannot_change_completed_benchmark(make_replay: Mak
     changed: Any = run(spec, settings_for(spec))
     assert changed["benchmarks"] == result["benchmarks"]
     assert changed["posted_performance"] == result["posted_performance"]
+    assert changed["allocation_risk"] == result["allocation_risk"]
     assert changed["inputs"] != result["inputs"]
 
 

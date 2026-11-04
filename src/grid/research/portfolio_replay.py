@@ -31,6 +31,7 @@ from grid.research.history import MINUTE, Bar, validate
 from grid.research.performance import posted
 from grid.research.portfolio_benchmarks import Benchmarks
 from grid.research.portfolio_config import Settings
+from grid.research.portfolio_risk import MAX_INTERVAL_POINTS, Movement, Risk, transfers
 from grid.research.replay import (
     Replay,
     candidates,
@@ -67,6 +68,8 @@ class Engine:
         self.owner = PortfolioController(self.executor, lambda: (self.now, self.now * 1000000))
         self.facts: ValuationFacts | None = None
         self.before_actions: Nav | None = None
+        self.before_states: tuple[State, ...] = ()
+        self.movements: tuple[Movement, ...] = ()
 
     def record(self, kind: str, payload: object) -> None:
         self.events.append((self.index, kind, payload))
@@ -249,6 +252,7 @@ class Engine:
         return await self.writer.submit(value)
 
     async def step(self, bars: tuple[Bar, ...]) -> Nav | None:
+        self.movements = ()
         for bar, allocation in zip(bars, self.spec.allocations, strict=True):
             check_precision(bar, allocation.context)
         self.now = bars[0].timestamp + MINUTE
@@ -271,6 +275,7 @@ class Engine:
         cycle = await self.cycle()
         value = await self.nav()
         self.before_actions = value
+        self.before_states = await self.states()
         if cycle.phase is CyclePhase.ACTIVE:
             if (
                 value is not None
@@ -283,11 +288,18 @@ class Engine:
                     "synthetic close valuation",
                 )
         elif cycle.phase is not CyclePhase.COMPLETE:
+            request_id = f"historical-advance-{self.index}"
             await self.owner.advance(
-                f"historical-advance-{self.index}",
+                request_id,
                 cycle.revision,
                 "research",
                 "synthetic bounded exit",
+            )
+            facts = self.facts
+            if facts is None:
+                raise DomainError("historical transfer evidence missing")
+            self.movements = await self.writer.submit(
+                lambda ledger: transfers(ledger, request_id, self.settings.policy, facts)
             )
         for scope in self.scopes:
             for _ in range(self.settings.actions_per_bar):
@@ -338,6 +350,7 @@ async def execute(
     complete = False
     value: Nav | None = None
     benchmarks: Benchmarks | None = None
+    risk: Risk | None = None
     benchmark_point: dict[str, object] = {}
     try:
         engine = Engine(spec, settings, writer)
@@ -357,6 +370,16 @@ async def execute(
             bars = tuple(bar for _, bar in rows)
             value = await engine.step(bars)
             cycle, states = await engine.cycle(), await engine.states()
+            if risk is None:
+                risk = Risk(spec, cycle.baseline)
+            risk_before, risk_after = risk.observe(
+                engine.before_states,
+                engine.before_actions,
+                states,
+                value,
+                engine.movements,
+                engine.now,
+            )
             if benchmarks is None:
                 benchmarks = Benchmarks(spec, settings, bars)
             if engine.facts is None:
@@ -392,6 +415,8 @@ async def execute(
                         "nav_before_actions": engine.before_actions,
                         "phase": cycle.phase,
                         "benchmarks": benchmark_point,
+                        "allocation_risk_before_actions": risk_before,
+                        "allocation_risk": risk_after,
                     }
                 )
             if (
@@ -409,7 +434,7 @@ async def execute(
         count = (spec.end_ms - spec.start_ms) // MINUTE
         if consumed != count:
             raise DomainError("historical stream length changed")
-        if benchmarks is None:
+        if benchmarks is None or risk is None:
             raise DomainError("historical benchmarks missing")
         performance = await writer.submit(
             lambda ledger: posted(ledger, states, settings.policy.reporting)
@@ -447,6 +472,7 @@ async def execute(
             "fees_quote": engine.fee_quote,
             "turnover_quote": engine.turnover,
             "posted_performance": performance,
+            "allocation_risk": risk.report(),
             "posted_performance_basis": (
                 "Committed unique fills and realized journal deltas only; synthetic venue "
                 "fills may still await reconciliation. Gross sums use net realized PnL."
@@ -482,6 +508,10 @@ def run(spec: Replay, settings: Settings, *, fault: Fault = no_fault) -> dict[st
         capital=tuple(sorted(spec.capital, key=lambda p: (p.venue, p.account, p.currency))),
     )
     settings = settings.checked(spec)
+    minutes = (spec.end_ms - spec.start_ms) // MINUTE
+    interval_count = (minutes + spec.interval_bars - 1) // spec.interval_bars
+    if 2 * len(spec.allocations) * interval_count > MAX_INTERVAL_POINTS:
+        raise DomainError("portfolio allocation risk interval point cap exceeded")
     scratch = output_directory(Path(gettempdir()))
     with TemporaryDirectory(prefix="grid-portfolio-replay-", dir=scratch) as temporary:
         return asyncio.run(execute(spec, settings, Path(temporary), fault))

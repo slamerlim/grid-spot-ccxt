@@ -19,6 +19,8 @@ The declared walk-forward/sensitivity runner based on `0fe53c2` is recorded in
 `I8-RESEARCH-STUDIES.md` and incorporated below.
 The resource-contention harness and measured schema-cache optimization based on
 `4c44624` are recorded in `I8-RESOURCE-CONTENTION.md` and incorporated below.
+Per-allocation portfolio risk based on `a14d940` is recorded in
+`I8-ALLOCATION-RISK.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -107,8 +109,12 @@ missing venue evidence or to enable live access.
    and funded cash/buy-hold references with the same ending timestamp and NAV
    constraints; unknown benchmark marks remain null. Trigger/final NAV, exit
    shortfall, observed drawdown/unknown bars, inventory time and committed capital
-   remain distinct. Full portfolio per-allocation unrealized/exposure/drawdown reporting and
-   the broader study suite remain incomplete. Extend metrics/comparisons while
+   remain distinct. Portfolio allocation risk now attributes the complete NAV
+   proof to paired committed holdings, reports unrealized inventory PnL and
+   exposure, and adjusts observed allocation drawdown for committed internal
+   conversion transfers. Unknown values remain null, with sampled completeness
+   and denominators explicit; no intrabar path or historical FX is invented.
+   The broader study suite remains incomplete. Extend metrics/comparisons while
    keeping machine observations outside deterministic accounting.
 4. **Resource isolation and contention.** Input/queue bounds and sequential
    decoding are not CPU/RSS/IO quotas. `operations/experiment.py:benchmark_case`

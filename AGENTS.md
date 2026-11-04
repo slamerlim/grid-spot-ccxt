@@ -194,6 +194,15 @@ research scheduler or completed Q18 hardware acceptance. Keep workers owned,
 bounded and reaped, and never mutate host cgroups to manufacture an acceptance
 result. Public-run, account, I9 and deployment authorization remain unchanged.
 
+`docs/I8-ALLOCATION-RISK.md` records per-allocation portfolio replay risk.
+Pair committed state with the same complete NAV proof; unknown marks remain
+null while quantities/costs remain visible. Account for committed internal
+conversion transfers before computing adjusted allocation PnL/drawdown. Never
+double-count reservations, reset shared FX capacity for independent marks or
+price unknown transfers from later data. Keep explicit sampling and report bounds.
+This is additive research reporting, not a change to financial authority or
+completion of the remaining research, observed I8, account or deployment gates.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

@@ -389,6 +389,14 @@ fill/fee totals can include unsettled fills, unlike the new committed statistics
 Gross wins/losses sum net realized postings, and profit factor requires losses
 and at least two distinct filled SELL orders. See `I8-RESEARCH-PERFORMANCE.md`.
 
+`allocation_risk` adds paired holdings/NAV attribution, unrealized inventory
+PnL, reservations, exposure and observed drawdown. Internal conversion transfers
+are adjusted using their committed postings and same-time explicit FX; unknown
+historical transfer values cannot be filled from later data. Read completeness
+flags and known-sample denominators before comparing results. The 20,000 retained
+allocation-point bound is checked before history/ledger work; use fewer intervals
+or a shorter study when refused. See `I8-ALLOCATION-RISK.md` for exact definitions.
+
 `backtest --compare-lots` produces `grid-lot-comparison-v1` with complete basket
 and fixed-anchor independent-lot members on the configured OHLC model. Read the
 declared replenishment and fee-escrow differences before interpreting their NAV
