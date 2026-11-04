@@ -23,6 +23,18 @@ after review; no automatic deletion. The original resource caps remain in force.
 End new polls at one elapsed hour; allow bounded cleanup, without extending the
 run to manufacture missing observations. A fault-stopped run remains partial.
 
+Execution recovery note (2026-11-04): the first process disappeared when the
+orchestrator interrupted its turn, after approximately 15 minutes. Preserve it as
+`partial-interrupted`; never extend its deadline or relabel it complete. To finish
+the owner's still-active one-hour request, permit **one separately identified
+replacement**, carrying all prior attempts into the same **750-request / three
+instrument-request aggregate ceiling**. Poll the replacement at least 7.5 seconds
+apart. Claim it once in the interrupted run's directory. It receives a fresh,
+fully observed one-hour window; publish both attempts. No further replacement is
+automatic. A transient local coordinator observes its worker every 30 seconds,
+performs only the approved code-75 restart, and records each process result. The
+worker stops if that coordinator dies. This is not an installed service.
+
 The following original proposal is retained for traceability. Its 48/49-hour
 duration, 36,000-request allowance, `/tmp` destination and hour-based fault
 schedule are superseded by the amendment above for this execution.

@@ -7,6 +7,7 @@ import pytest
 from persistence.conftest import SOURCES
 
 from grid.exchange.models import BookObservation, Failure, MarketObservation, ReadError
+from grid.paper.audit import audit
 from grid.paper.journal import Journal
 from grid.paper.runner import LIMITS, Observer
 from grid.paper.wire import ObservedWire
@@ -80,6 +81,10 @@ def test_complete_mock_schedule_restart_and_reports_never_claim_observation(
         assert not report["observed_clock"] and not report["observed_soak_complete"]
         assert report["real_orders"] == 0
         journal.close()
+        verified = audit(tmp_path)
+        assert verified["run_result"] == "mock-clock-complete"
+        assert verified["process_restarts"] == 1
+        assert len(str(verified["journal_file_sha256"])) == 64
 
     asyncio.run(run())
 

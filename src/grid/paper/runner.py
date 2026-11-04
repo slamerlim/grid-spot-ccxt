@@ -6,10 +6,12 @@ import argparse
 import asyncio
 import hashlib
 import os
+import select
 import sqlite3
 import sys
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +23,7 @@ from grid.operations.experiment import host, source_digest, utc
 from grid.operations.supervisor import resident_bytes
 from grid.paper.engine import PaperEngine
 from grid.paper.journal import CAP_BYTES, Journal, clock
+from grid.paper.recovery import claim_replacement
 from grid.paper.wire import ObservedWire
 from grid.persistence.storage import check_runtime
 from grid.research.artifacts import canonical, output_directory, publish
@@ -35,14 +38,20 @@ class Observer:
         sources: frozenset[str],
         wire: PublicWire,
         now: Callable[[], tuple[int, int]] = clock,
+        *,
+        observer_pid: int | None = None,
     ) -> None:
         self.journal, self.sources, self.now = journal, sources, now
-        self.transport = PublicCCXT("okx", LIMITS, wire=ObservedWire(journal, wire, now))
+        self.interval_ms = (
+            7500 if journal.kinds("start")[0]["payload"].get("prior_attempts") else 5000
+        )
+        limits = replace(LIMITS, min_interval_ms=self.interval_ms)
+        self.transport = PublicCCXT("okx", limits, wire=ObservedWire(journal, wire, now))
         self.client = ReadOnlyClient(
             "okx",
             self.transport,
             ("BTC/USDT",),
-            LIMITS,
+            limits,
             monotonic_ns=lambda: now()[1],
             wall_ms=lambda: now()[0],
         )
@@ -50,6 +59,13 @@ class Observer:
         self.market: MarketObservation | None = None
         self.cpu_ns, self.cpu_at = time.process_time_ns(), now()[1]
         self.observed_clock = journal.kinds("start")[0]["payload"].get("observed_clock") is True
+        self.observer_fd: int | None = None
+        self.observer_poll = select.poll()
+        if observer_pid is not None:
+            if observer_pid != os.getppid():
+                raise DomainError("observer must be the current coordinator parent")
+            self.observer_fd = os.pidfd_open(observer_pid)
+            self.observer_poll.register(self.observer_fd, select.POLLIN)
 
     def record(self, kind: str, value: object) -> dict[str, Any]:
         return self.journal.append(kind, value, *self.now())
@@ -159,6 +175,8 @@ class Observer:
             await self.initialize()
             last_checkpoint = self.now()[1]
             while self.elapsed() < 3600000:
+                if self.observer_fd is not None and self.observer_poll.poll(0):
+                    raise DomainError("coordinator exited; observation stopped")
                 if await self.scheduled():
                     code = 75
                     break
@@ -168,7 +186,7 @@ class Observer:
                 attempts = self.journal.kinds("attempt")
                 holds = self.journal.kinds("hold")
                 due = max(
-                    attempts[-1]["ns"] + 5 * 10**9 if attempts else 0,
+                    attempts[-1]["ns"] + self.interval_ms * 1000000 if attempts else 0,
                     max((r["payload"]["until_ns"] for r in holds), default=0),
                 )
                 wait = (due - self.now()[1]) / 10**9
@@ -237,6 +255,9 @@ class Observer:
                 # Cleanup failure is never hidden by an earlier successful duration.
                 code = 1
                 print('{"result":"cleanup-fault","observed_soak_complete":false}', flush=True)
+            if self.observer_fd is not None:
+                os.close(self.observer_fd)
+                self.observer_fd = None
         return code
 
 
@@ -246,6 +267,8 @@ def main() -> int:
     parser.add_argument("--approved-sqlite-source", required=True)
     parser.add_argument("--acknowledge-public-one-hour", action="store_true", required=True)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--replacement-for", type=Path)
+    parser.add_argument("--observer-pid", type=int)
     args = parser.parse_args()
     sources = frozenset({args.approved_sqlite_source})
     # The runtime is checked again by the storage owner; no auto-approval.
@@ -273,9 +296,13 @@ def main() -> int:
             raise DomainError("existing run requires explicit reviewed resume")
         else:
             root = Path(__file__).resolve().parents[3]
+            credit = (
+                claim_replacement(args.replacement_for, directory) if args.replacement_for else {}
+            )
             journal.append(
                 "start",
                 {
+                    **credit,
                     "source_sha256": source,
                     "lock_sha256": hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest(),
                     "boot_id": boot,
@@ -296,7 +323,9 @@ def main() -> int:
                 },
                 *clock(),
             )
-        return asyncio.run(Observer(journal, sources, HTTPWire()).run())
+        return asyncio.run(
+            Observer(journal, sources, HTTPWire(), observer_pid=args.observer_pid).run()
+        )
     finally:
         journal.close()
 

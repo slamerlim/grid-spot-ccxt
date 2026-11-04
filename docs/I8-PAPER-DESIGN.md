@@ -101,3 +101,18 @@ Local validation is authoritative for this approved increment. Hosted CI remains
 pending under the unchanged account lock; publish with `[skip ci]`, GitHub Free
 only. A separate first-account evidence plan and the original observed 48-hour
 gate remain necessary before I8 acceptance; I9 is outside this approval.
+
+The first actual attempt was interrupted by the orchestration environment after
+about 15 minutes. Offline recovery verifies its ledger and a backup before marking
+it partial. The one permitted replacement carries its spent requests forward,
+uses a slower 7.5-second cadence and preserves both evidence directories. The
+new `scripts/supervise_paper.py` transient coordinator observes the worker every
+30 seconds and restarts it only once after exit 75. A Linux pidfd lets the worker
+detect coordinator death before its next poll. No systemd service is installed.
+`grid.paper.audit` independently checks finished hash chains, response hashes,
+budgets (including the parent attempt), source freshness, spacing and duration;
+it refuses an active writer and never changes the journal.
+The coordinator's two narrow Bandit annotations cover the reviewed subprocess
+import/call: the executable is `sys.executable`, the module is fixed, user values
+are separate argv elements and `shell=False`. No financial/network subprocess
+interface was added to the application packages.

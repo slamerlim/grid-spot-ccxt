@@ -30,6 +30,15 @@ class ObservedWire:
         if len(starts) != 1 or self.journal.kinds("finished"):
             raise ReadError(Failure.POLICY)
         start = starts[0]
+        prior_attempts = start["payload"].get("prior_attempts", 0)
+        prior_instruments = start["payload"].get("prior_instruments", 0)
+        if (
+            type(prior_attempts) is not int
+            or not 0 <= prior_attempts < 750
+            or type(prior_instruments) is not int
+            or not 0 <= prior_instruments < 3
+        ):
+            raise ReadError(Failure.POLICY)
         if (
             ns < start["ns"]
             or ms < start["ms"]
@@ -41,14 +50,14 @@ class ObservedWire:
         if self.busy:
             raise ReadError(Failure.BUSY)
         if (
-            len(attempts) >= 750
+            prior_attempts + len(attempts) >= 750
             or endpoint == 0
-            and sum(r["payload"]["endpoint"] == 0 for r in attempts) >= 3
+            and prior_instruments + sum(r["payload"]["endpoint"] == 0 for r in attempts) >= 3
         ):
             raise ReadError(Failure.BUDGET)
         if (
             attempts
-            and ns - attempts[-1]["ns"] < 5 * 10**9
+            and ns - attempts[-1]["ns"] < (7500000000 if prior_attempts else 5 * 10**9)
             or any(ns < row["payload"]["until_ns"] for row in holds)
         ):
             raise ReadError(Failure.RATE_LIMIT)
