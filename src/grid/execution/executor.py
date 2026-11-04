@@ -49,6 +49,7 @@ from grid.persistence.ledger import Ledger, client_identity, trade_identity
 from grid.persistence.records import Backpressure, Intent, Outcome
 from grid.persistence.storage import Fault, no_fault
 from grid.persistence.writer import AsyncWriter
+from grid.portfolio.model import PortfolioPermit
 from grid.universe.model import BuyAdmission
 
 _OWNERS: WeakKeyDictionary[AsyncWriter, object] = WeakKeyDictionary()
@@ -110,6 +111,9 @@ class MockExecutor:
         self.last_error: str | None = "startup reconciliation required"
         self._closed = False
         self.buy_admission: Callable[[Ledger, Scope, Order, Context], BuyAdmission] | None = None
+        self.portfolio_admission: (
+            Callable[[Ledger, Scope, Order, Context], PortfolioPermit] | None
+        ) = None
 
     @property
     def degraded(self) -> bool:
@@ -552,6 +556,7 @@ class MockExecutor:
                         (current.config_revision, current.market_generation)
                         != (context.config_revision, context.market.generation)
                         or current.mode in (Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED)
+                        and order.role != "portfolio_exit"
                         or order.side is Side.BUY
                         and (
                             current.mode is not Mode.ACTIVE
@@ -580,7 +585,16 @@ class MockExecutor:
                             and self.buy_admission is not None
                             else None
                         )
-                        return ledger.attempt_once(claim_id, scope, version, intent_id, admission)
+                        portfolio = (
+                            self.portfolio_admission(ledger, scope, order, context)
+                            if placement
+                            and (order.side is Side.BUY or order.role == "portfolio_exit")
+                            and self.portfolio_admission is not None
+                            else None
+                        )
+                        return ledger.attempt_once(
+                            claim_id, scope, version, intent_id, admission, portfolio
+                        )
 
                     await self.writer.submit(claim)
                     self.fault("executor:after_claim")

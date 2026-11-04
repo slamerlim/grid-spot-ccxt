@@ -41,7 +41,7 @@ class DoctorReport:
     def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": 1,
-            "iteration": "I6",
+            "iteration": "I7",
             "mode": "offline",
             "live": "DISABLED",
             "ready": self.ready,
@@ -56,7 +56,7 @@ class DoctorReport:
 
     def to_text(self) -> str:
         lines = [
-            "GRID doctor — I6 offline diagnostics",
+            "GRID doctor — I7 offline diagnostics",
             "LIVE: DISABLED",
             "Live readiness: BLOCKED",
             f"Python: {self.python_version}",
@@ -87,7 +87,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "offline_boundary",
             "BLOCKED",
-            "I6 mock universe control exists; authenticated trading is unavailable.",
+            "I7 mock portfolio exit exists; authenticated trading is unavailable.",
         ),
         Check(
             "live_request",
@@ -165,7 +165,7 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "operator_signoff",
             "BLOCKED",
-            "I6 local validation is authorized; I7 onward and live canary need separate approval.",
+            "I7 local validation is authorized; I8 onward and live canary need separate approval.",
         ),
     )
     return DoctorReport(

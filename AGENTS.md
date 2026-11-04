@@ -5,7 +5,7 @@ under `docs/` before editing. They are authoritative over the legacy simulator.
 User instructions take precedence. Preserve imported specifications verbatim;
 record clarifications separately with evidence and approval requirements.
 
-## Current boundary: I6 with local validation
+## Current boundary: I7 with local validation
 
 On 2026-11-03 the owner approved `docs/I1-PLAN.md`, including its partial-seed
 rule, then explicitly selected "Proceed with local validation for I1" to
@@ -56,7 +56,18 @@ This supersedes the stop-after-I5 gate; do not request I6 approval again.
 No exchange access, real/sandbox trading, transfers or deployment are authorized.
 Use GitHub Free only. Publish I6 evidence and an I7 proposal; stop after I6 review.
 Implementation and local evidence are recorded in `docs/I6-EVIDENCE.md`.
-`docs/I7-PLAN.md` is a proposal only; do not start I7 without separate approval.
+The owner subsequently explicitly selected "Approve I7 with local validation"
+for `docs/I7-PLAN.md`. Implement portfolio NAV and durable bounded LIMIT-only
+global exit using synthetic facts/exchanges and temporary mock ledgers, including
+additive migration and crash/restore tests. This supersedes the I6 review gate;
+do not request I7 approval again. No exchange access, real/sandbox trading,
+transfers, deployment or live financial databases are authorized. Use local
+validation and GitHub Free only. Publish I7 evidence and an I8 proposal;
+stop after I7 review. I8 requires separate approval.
+I7 design and local evidence are recorded in `docs/I7-DESIGN.md` and
+`docs/I7-EVIDENCE.md`. The next proposal, `docs/I8-PLAN.md`, separates offline
+operational preparation from the still-required observed 48-hour soak and
+venue/account validation. Preparation alone cannot complete I8 acceptance.
 
 ## Invariants for subsequent approved iterations
 
@@ -98,7 +109,7 @@ message does not establish that an upgrade or payment is needed. Do not retry
 a known lock without evidence of changed access; report local checks separately
 and use free support/account review when needed. While the lock is unchanged,
 use the documented `[skip ci]` commit directive for necessary authorized pushes
-so publication does not retry it. A skipped run is not a CI pass. Use the I6
+so publication does not retry it. A skipped run is not a CI pass. Use the I7
 local-validation authorization above. See `docs/RUNBOOK.md` for sources and recovery
 guidance.
 
@@ -106,7 +117,7 @@ guidance.
 
 The user authorized reusable GitHub access and ordinary commits/pushes for work
 within an approved task. Git access alone does not authorize new iterations or
-live trading; the I6 authorization is recorded above. Use the
+live trading; the I7 authorization is recorded above. Use the
 existing `origin` for `slamerlim/grid-spot-ccxt`; do not force-push or rewrite
 published history as part of routine development.
 

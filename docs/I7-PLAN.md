@@ -1,6 +1,7 @@
 # I7 review proposal — portfolio accounting and global cycle exit
 
-**Status: proposed, not authorized.** I6 approval ends at I6 review.
+**Status: approved.** The owner explicitly selected "Approve I7 with local
+validation". Approval ends at I7 review.
 Use local validation and GitHub Free only; hosted CI remains pending while the
 known account lock is unchanged. Do not retry it or request paid capabilities.
 

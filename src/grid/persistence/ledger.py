@@ -13,6 +13,7 @@ from grid.domain.model import (
     CancelAcknowledged,
     Command,
     Context,
+    Control,
     Event,
     Fill,
     Mode,
@@ -33,6 +34,7 @@ from grid.domain.reducer import reduce, reserved
 from grid.persistence import codec
 from grid.persistence.records import Backup, Bounds, Conflict, Intent, LedgerError, Outcome
 from grid.persistence.storage import Fault, Storage, no_fault
+from grid.portfolio.model import Cycle, CyclePhase, PortfolioPermit
 from grid.universe.model import BuyAdmission, UniverseSnapshot
 
 
@@ -129,6 +131,11 @@ class Ledger:
         )
         self.db, self.bounds = self.storage.connection, bounds
         try:
+            cycle = self.portfolio()
+            if cycle is not None and {codec.digest(r.scope) for r in cycle.policy.exits} != set(
+                self._allocation_ids()
+            ):
+                raise LedgerError("portfolio ownership differs from allocations")
             row = self.db.execute(
                 "SELECT revision,payload FROM universe_revisions ORDER BY revision DESC LIMIT 1"
             ).fetchone()
@@ -335,6 +342,7 @@ class Ledger:
         decimal(money.amount, positive=True)
 
         def action() -> Outcome:
+            self._funding_allowed()
             self._pool_delta(request_id, venue, account, money)
             return Outcome(None, None, True)
 
@@ -358,6 +366,9 @@ class Ledger:
 
         @exact
         def action() -> Outcome:
+            self._funding_allowed()
+            if self.portfolio() is not None:
+                raise LedgerError("portfolio allocation roster is fixed")
             if self.db.execute("SELECT 1 FROM allocations WHERE id=?", (allocation,)).fetchone():
                 raise Conflict("allocation already exists")
             for money in funds:
@@ -505,6 +516,7 @@ class Ledger:
 
         @exact
         def action() -> Outcome:
+            self._funding_allowed()
             allocation, state, context, version, recovery = self._versioned(scope, expected)
             if recovery or state.reconcile_reason is not None:
                 raise LedgerError("cannot release funds before reconciliation")
@@ -599,6 +611,14 @@ class Ledger:
 
         def action() -> Outcome:
             _, state, previous_context, version, recovery = self._versioned(event.scope, expected)
+            cycle = self.portfolio()
+            if (
+                isinstance(event, Control)
+                and cycle is not None
+                and cycle.phase is not CyclePhase.ACTIVE
+                and event.mode not in (Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED)
+            ):
+                raise LedgerError("portfolio exit control cannot be overridden")
             if (previous_context.market.base, previous_context.market.quote) != (
                 context.market.base,
                 context.market.quote,
@@ -790,6 +810,7 @@ class Ledger:
         expected: int,
         intent_id: str,
         admission: BuyAdmission | None = None,
+        portfolio: PortfolioPermit | None = None,
     ) -> Outcome:
         """Only a fresh committed claim can grant a send, never an old receipt.
 
@@ -798,7 +819,7 @@ class Ledger:
         """
         if self.lookup(request_id) is not None:
             raise Conflict("attempt receipt replay cannot authorize another send")
-        return self.attempt(request_id, scope, expected, intent_id, admission)
+        return self.attempt(request_id, scope, expected, intent_id, admission, portfolio)
 
     def intents(self, scope: Scope, *, after: str = "") -> tuple[Intent, ...]:
         rows = self.db.execute(
@@ -815,6 +836,7 @@ class Ledger:
         expected: int,
         intent_id: str,
         admission: BuyAdmission | None = None,
+        portfolio: PortfolioPermit | None = None,
     ) -> Outcome:
         """Mark a mock send boundary uncertain BEFORE any fake external effect.
 
@@ -836,6 +858,33 @@ class Ledger:
             order = next((order for order in state.working if order.id == row[0]), None)
             if order is None:
                 raise LedgerError("intent order is no longer working")
+            cycle = self.portfolio()
+            if row[1] == "place" and cycle is not None:
+                if cycle.phase is not CyclePhase.ACTIVE and order.role != "portfolio_exit":
+                    raise LedgerError("portfolio exit freezes ordinary placements")
+                if (order.side is Side.BUY or order.role == "portfolio_exit") and (
+                    portfolio is None
+                    or portfolio.cycle != cycle.id
+                    or portfolio.revision != cycle.revision
+                    or portfolio.scope != scope
+                    or portfolio.order_id != order.id
+                    or cycle.pending_flows
+                    or portfolio.context_digest
+                    != codec.digest(
+                        (
+                            context.market,
+                            context.policy,
+                            context.buy_fee,
+                            context.sell_fee,
+                            context.config_revision,
+                        )
+                    )
+                    or order.role == "portfolio_exit"
+                    and cycle.phase in (CyclePhase.ACTIVE, CyclePhase.COMPLETE)
+                    or order.side is Side.BUY
+                    and (cycle.phase is not CyclePhase.ACTIVE or scope in cycle.policy.sinks)
+                ):
+                    raise LedgerError("current portfolio admission required")
             if row[1] == "place" and order.side is Side.BUY:
                 universe_row = self.db.execute(
                     "SELECT payload FROM universe_revisions ORDER BY revision DESC LIMIT 1"
@@ -875,11 +924,31 @@ class Ledger:
         payload = ("attempt", scope, expected, intent_id)
         return self._request(
             request_id,
-            payload if admission is None else (*payload, admission),
+            (*payload, admission, portfolio)
+            if portfolio is not None
+            else payload
+            if admission is None
+            else (*payload, admission),
             "attempt",
             allocation,
             action,
         )
+
+    def portfolio(self) -> Cycle | None:
+        row = self.db.execute(
+            "SELECT revision,payload FROM portfolio_revisions ORDER BY revision DESC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        cycle = codec.loads(row[1], Cycle, limit=self.bounds.snapshot_bytes)
+        if cycle.revision != row[0]:
+            raise LedgerError("portfolio revision projection differs")
+        return cycle
+
+    def _funding_allowed(self) -> None:
+        cycle = self.portfolio()
+        if cycle is not None and cycle.phase is not CyclePhase.COMPLETE:
+            raise LedgerError("cycle funding changes require classified cashflow/ownership records")
 
     def compact(self, request_id: str, scope: Scope, expected: int) -> Outcome:
         allocation = codec.digest(scope)

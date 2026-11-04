@@ -172,11 +172,30 @@ class Lot:
 
 
 @dataclass(frozen=True)
+class TransferredLot:
+    """Internal ownership movement, not an exchange execution or fabricated fill.
+
+    The reference mark supports existing round math; cycle return uses actual NAV.
+    Its provenance is the atomic transfer request, independently journaled.
+    """
+
+    provenance: str
+    quantity: Decimal
+    execution_price: Decimal
+    order_id: int = field(default=0, init=False)
+
+    def __post_init__(self) -> None:
+        identifier(self.provenance)
+        decimal(self.quantity, positive=True)
+        decimal(self.execution_price, positive=True)
+
+
+@dataclass(frozen=True)
 class Order:
     id: int
     round_id: int
     side: Side
-    role: Literal["seed", "ladder", "take_profit"]
+    role: Literal["seed", "ladder", "take_profit", "portfolio_exit"]
     price: Decimal
     amount: Decimal
     config_revision: int
@@ -204,9 +223,14 @@ class Order:
         for number in (self.filled, self.gross_cost, self.acquisition_fee):
             decimal(number)
         identifier(self.principal_currency)
-        if not isinstance(self.side, Side) or self.role not in ("seed", "ladder", "take_profit"):
+        if not isinstance(self.side, Side) or self.role not in (
+            "seed",
+            "ladder",
+            "take_profit",
+            "portfolio_exit",
+        ):
             raise DomainError("invalid order side or role")
-        if (self.side is Side.SELL) != (self.role == "take_profit"):
+        if (self.side is Side.SELL) != (self.role in ("take_profit", "portfolio_exit")):
             raise DomainError("order side and role disagree")
         if (self.role == "ladder") != (self.level is not None):
             raise DomainError("only ladder orders have a level")
@@ -373,7 +397,7 @@ class State:
     seed_id: int | None = None
     orders: tuple[Order, ...] = ()
     fills: tuple[Fill, ...] = ()
-    lots: tuple[Lot, ...] = ()
+    lots: tuple[Lot | TransferredLot, ...] = ()
     position_cost: Decimal = ZERO
     realized_pnl: Decimal = ZERO
     reconcile_reason: str | None = None
@@ -406,7 +430,7 @@ class State:
             raise DomainError("order identity collision")
         if self.seed_id is not None and self.seed_id not in ids:
             raise DomainError("seed order missing")
-        if any(lot.order_id not in ids for lot in self.lots):
+        if any(isinstance(lot, Lot) and lot.order_id not in ids for lot in self.lots):
             raise DomainError("lot provenance missing")
         if any(fill.scope != self.scope or fill.order_id not in ids for fill in self.fills):
             raise DomainError("fill scope or provenance mismatch")

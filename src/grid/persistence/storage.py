@@ -105,6 +105,11 @@ def semantic_hash(connection: sqlite3.Connection, check: Callable[[], None] | No
     hasher = hashlib.sha256()
     for table, query in schema.SEMANTIC_QUERIES:
         if (
+            table in {"portfolio_revisions", "portfolio_flows"}
+            and connection.execute("PRAGMA user_version").fetchone()[0] < 4
+        ):
+            continue
+        if (
             table in {"order_bindings", "trade_keys"}
             and connection.execute("PRAGMA user_version").fetchone()[0] < 2
         ):

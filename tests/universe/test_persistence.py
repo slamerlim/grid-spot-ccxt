@@ -10,7 +10,7 @@ import pytest
 from persistence.conftest import SOURCES
 
 from grid.domain.model import Context, Mode, State
-from grid.persistence import codec
+from grid.persistence import codec, schema
 from grid.persistence.ledger import Ledger
 from grid.persistence.records import Backup, Bounds, Conflict, LedgerError
 from grid.persistence.storage import restore, semantic_hash, verify_schema
@@ -121,7 +121,9 @@ def test_v2_backup_migrates_additively_and_preserves_financial_identity(
     raw = sqlite3.connect(backup.path, autocommit=True)
     try:
         raw.execute("DROP TABLE universe_revisions")
-        raw.execute("DELETE FROM migrations WHERE version=3")
+        raw.execute("DROP TABLE portfolio_revisions")
+        raw.execute("DROP TABLE portfolio_flows")
+        raw.execute("DELETE FROM migrations WHERE version>=3")
         raw.execute("PRAGMA user_version=2")
         verify_schema(raw, 2)
         digest = semantic_hash(raw)
@@ -138,7 +140,7 @@ def test_v2_backup_migrates_additively_and_preserves_financial_identity(
     ledger = Ledger(Path(restored.path), bounds, SOURCES, mock_storage=True)
     try:
         assert current(ledger) is None
-        assert ledger.db.execute("PRAGMA user_version").fetchone() == (3,)
+        assert ledger.db.execute("PRAGMA user_version").fetchone() == (schema.VERSION,)
         after = ledger.snapshot(state.scope)
         assert after.state is not None and before.state is not None
         assert (

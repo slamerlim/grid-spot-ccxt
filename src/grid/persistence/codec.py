@@ -12,9 +12,12 @@ from typing import Any, Literal, TypeAliasType, Union, cast, get_args, get_origi
 
 from grid.domain import market, model
 from grid.domain.numbers import DomainError, decimal
+from grid.exchange.models import BookObservation
 from grid.persistence.records import Outcome
+from grid.portfolio import model as portfolio
 from grid.universe.model import (
     BuyAdmission,
+    Facts,
     MarketKey,
     Membership,
     SelectionMode,
@@ -34,6 +37,7 @@ _CLASSES = (
     model.Context,
     model.ActualFee,
     model.Lot,
+    model.TransferredLot,
     model.Order,
     model.Start,
     model.Fill,
@@ -53,6 +57,22 @@ _CLASSES = (
     Membership,
     UniverseSnapshot,
     BuyAdmission,
+    Facts,
+    BookObservation,
+    portfolio.PoolKey,
+    portfolio.Conversion,
+    portfolio.Liability,
+    portfolio.ExitRule,
+    portfolio.DustRule,
+    portfolio.PortfolioPolicy,
+    portfolio.ValuationFacts,
+    portfolio.Mark,
+    portfolio.Nav,
+    portfolio.ExitSlot,
+    portfolio.Residual,
+    portfolio.Cycle,
+    portfolio.PortfolioPermit,
+    portfolio.Cashflow,
 )
 _RECORDS = {kind.__name__: kind for kind in _CLASSES}
 _ENUMS = {
@@ -63,6 +83,7 @@ _ENUMS = {
         model.Phase,
         model.Mode,
         SelectionMode,
+        portfolio.CyclePhase,
     )
 }
 MAX_BYTES = 16 * 1024 * 1024

@@ -32,6 +32,7 @@ from grid.domain.model import (
     Start,
     State,
     SubmissionUnknown,
+    TransferredLot,
     Transition,
 )
 from grid.domain.numbers import ZERO, DomainError, arithmetic, exact, proportional_cost
@@ -136,9 +137,11 @@ def _cancel(state: State, order: Order) -> tuple[State, tuple[Command, ...]]:
 
 
 @exact
-def _consume_lots(lots: tuple[Lot, ...], amount: Decimal) -> tuple[Lot, ...]:
+def _consume_lots(
+    lots: tuple[Lot | TransferredLot, ...], amount: Decimal
+) -> tuple[Lot | TransferredLot, ...]:
     remaining = amount
-    result: list[Lot] = []
+    result: list[Lot | TransferredLot] = []
     for lot in lots:
         take = min(lot.quantity, remaining)
         remaining -= take
@@ -150,7 +153,7 @@ def _consume_lots(lots: tuple[Lot, ...], amount: Decimal) -> tuple[Lot, ...]:
 
 
 @arithmetic
-def _weighted_price(first: Lot, quantity: Decimal, price: Decimal) -> Decimal:
+def _weighted_price(first: Lot | TransferredLot, quantity: Decimal, price: Decimal) -> Decimal:
     return (first.quantity * first.execution_price + quantity * price) / (first.quantity + quantity)
 
 

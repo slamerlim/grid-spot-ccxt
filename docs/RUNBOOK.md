@@ -31,7 +31,7 @@ Account-specific authentication and fee/event semantics remain NOT_TESTED.
 
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
-and approval history. I4–I6 were subsequently approved; `I7-PLAN.md` is the next gate.
+and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.
 
 ## Install and diagnose
 
@@ -222,8 +222,8 @@ I1 was published and I2 subsequently approved with local validation. I2's mock
 ledger/restore work is covered by that approval. I3 was subsequently explicitly
 approved with local validation and bounded public probes. I4 was subsequently
 approved with local validation for synthetic execution/recovery. I5 research and
-I6 universe control were subsequently approved with local validation. Stop after
-I6 review: I7 requires separate authorization. Operational commands, systemd hardening, deployment
+I6 universe control and I7 portfolio exit were subsequently approved with local
+validation. Stop after I7 review: I8 requires separate authorization. Operational commands, systemd hardening, deployment
 storage drills, alerts and live arming belong to later accepted iterations;
 none can be exercised through this CLI.
 
@@ -391,4 +391,49 @@ The v3 migration adds universe audit records without changing v1/v2 definitions.
 Backups from all three versions are accepted; old versions migrate on opening.
 For rollback keep v3 history and use a verified separate pre-migration backup
 with matching old code. Never drop the new table or downgrade in place.
-See `I6-DESIGN.md` and `I6-EVIDENCE.md`. I7 requires approval of `I7-PLAN.md`.
+See `I6-DESIGN.md` and `I6-EVIDENCE.md`. I7 was subsequently approved with local validation.
+
+## I7 mock portfolio supervision
+
+Use `PortfolioController` with the existing mock executor and single writer.
+The complete pre-funded roster, explicit owned pools, reporting currency,
+conversion sinks, fee/FX evidence, exit price floors/drift/outcome, TTL/order/time
+budgets and dust ceilings are required inputs. No operational trading CLI exists.
+The example YAML intentionally supplies no invented financial policy defaults.
+
+Register empty paused conversion sinks before the first cycle. Reconcile every
+scope and supply a fresh `ValuationFacts` packet before explicit `begin`. Supply
+UTC/monotonic clocks and strictly increasing observation revisions; `invalidate`
+removes admission until a newer packet arrives. The supervisor caches one bounded
+packet; callers schedule `evaluate` and `advance` explicitly. Nothing here starts
+a background service or fetches account data.
+
+When +10% net NAV latches the exit, service cancellations and reconcile every
+ordinary order before advancing exit SELL plans. Continue posting late fills.
+An acknowledgement does not prove cancellation. Missing facts, liabilities,
+unknown orders, stale context, exhausted budgets and unapproved residuals keep
+the cycle blocked. Do not clear the latch, widen floors, top up funds or restart
+to conceal a blocked exit. There is no automatic policy-widening or budget-reset API.
+
+Record external cashflows as unclassified first. Resolve them only with explicit
+evidence and the cycle's chosen convention. Under additive baseline accounting,
+only reporting-currency changes in owned pools can be posted. Internal movement
+to a same-account conversion sink creates auditable ownership lots, never fake
+fills or exchange transfers. Missing conversion routes stay visible and blocked.
+
+Inspect baseline, trigger NAV/trigger baseline, final NAV/return, shortfall,
+residuals, slot reasons and actual ledger fills/fees separately. Approved dust
+remains owned and marked, with zero executable final NAV. A +10% trigger can end
+below +10%, including a loss. An explicit new cycle requires completion and new
+fresh evidence; its resume scopes are chosen explicitly.
+
+After process death preserve the full roster, reconcile ledger/orders and supply
+fresh facts. Neither a persisted admission receipt nor a previous cached packet
+authorizes a repeat send. v4 adds portfolio audit/flow tables; backup/restore
+supports v1–v4 additively. Retain history and use separate verified compatible
+backups for rollback. Never drop tables or downgrade a financial ledger in place.
+
+See `I7-DESIGN.md` and `I7-EVIDENCE.md`. `I8-PLAN.md` proposes offline operational
+preparation; the required observed 48-hour soak remains a distinct unfulfilled
+acceptance gate. Stop after I7 review. Hosted CI remains pending, with GitHub Free
+only and no retry of the unchanged account lock.
