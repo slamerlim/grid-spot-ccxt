@@ -31,6 +31,8 @@ def rows(directory: Path) -> tuple[list[dict[str, Any]], str, str]:
             if len(raw) > RECORD_BYTES or not raw.endswith(b"\n") or len(result) >= MAX_RECORDS:
                 raise DomainError("audit record bound or incomplete tail")
             row = json.loads(raw)
+            if not isinstance(row, dict):
+                raise DomainError("audit record must be an object")
             checksum = row.pop("sha256")
             if (
                 row.get("sequence") != len(result) + 1

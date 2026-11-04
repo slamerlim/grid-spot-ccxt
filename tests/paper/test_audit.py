@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from grid.cli import main
 from grid.domain.numbers import DomainError
 from grid.paper.audit import audit
 from grid.paper.journal import Journal
@@ -82,3 +83,49 @@ def test_mock_clock_cannot_be_relabelled_an_observed_hour(tmp_path: Path) -> Non
     journal.close()
     with pytest.raises(DomainError, match="duration"):
         audit(tmp_path)
+
+
+def test_cli_audit_is_read_only_and_cannot_claim_live_readiness(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    completed(tmp_path)
+    source = tmp_path / "observations.jsonl"
+    original = source.read_bytes()
+    assert main(["paper-audit", "--directory", str(tmp_path)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["real_orders"] == 0 and report["i8_acceptance_complete"] is False
+    assert source.read_bytes() == original
+
+
+def test_cli_rejects_active_journal_without_echoing_input(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    directory = tmp_path / "not-for-diagnostics"
+    directory.mkdir(mode=0o700)
+    journal = Journal(directory)
+    try:
+        journal.append("start", {}, 1, 1)
+        assert main(["paper-audit", "--directory", str(directory)]) == 2
+        output = capsys.readouterr()
+        assert "not-for-diagnostics" not in output.out + output.err
+        assert "refused" in output.err
+    finally:
+        journal.close()
+
+
+@pytest.mark.parametrize("invalid", ["public-directory", "non-object-row"])
+def test_cli_invalid_storage_is_a_sanitized_refusal(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    invalid: str,
+) -> None:
+    source = tmp_path / "observations.jsonl"
+    source.write_text('"not-an-object"\n')
+    source.chmod(0o600)
+    if invalid == "public-directory":
+        tmp_path.chmod(0o755)
+    assert main(["paper-audit", "--directory", str(tmp_path)]) == 2
+    output = capsys.readouterr()
+    assert "refused" in output.err and "Traceback" not in output.err

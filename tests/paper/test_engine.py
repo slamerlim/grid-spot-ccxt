@@ -11,6 +11,7 @@ from grid.domain.numbers import DomainError
 from grid.exchange.models import BookObservation, MarketObservation, ObservedLimits, map_market
 from grid.paper.engine import PaperEngine, missing_rules
 from grid.paper.journal import Journal
+from grid.portfolio.model import CyclePhase
 
 
 def market(ms: int, complete: bool = True) -> MarketObservation:
@@ -138,6 +139,59 @@ def test_subsequent_fills_fees_and_restart_preserve_exact_ownership(tmp_path: Pa
             health = await engine.owner.status()
             assert health.allocations[0].base == D("0.05")
             assert health.allocations[0].quote_cash == D("994.99")
+        finally:
+            await engine.close()
+            journal.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.usefixtures("async_sockets")
+def test_exit_reference_refusal_stays_latched_after_price_recovery_and_restart(
+    tmp_path: Path,
+) -> None:
+    async def run() -> None:
+        journal = Journal(tmp_path)
+        now = [10000]
+
+        def clock() -> tuple[int, int]:
+            return now[0], now[0] * 1000000
+
+        engine = await PaperEngine.open(journal, SOURCES, clock)
+        rules = market(10000)
+        try:
+            for sequence in range(1, 4):
+                await engine.observe(rules, book(now[0]), sequence)
+                now[0] += 5000
+            await engine.observe(rules, book(now[0], "98"), 4)
+            # Synthetic external expiry leaves inventory owned. It is reconciled
+            # before evaluating the large invented price move below.
+            for external, order in engine.gateway.orders.items():
+                if order.request.side is Side.SELL:
+                    engine.gateway.settle_cancel(external)
+            now[0] += 5000
+            await engine.observe(rules, book(now[0], "2200"), 5)
+            cycle = await engine.writer.submit(lambda ledger: ledger.portfolio())
+            assert cycle is not None and cycle.phase is CyclePhase.REQUESTED
+            now[0] += 5000
+            with pytest.raises(DomainError, match="operator review"):
+                await engine.observe(rules, book(now[0], "1000"), 6)
+            sent = len(engine.gateway.sent)
+            now[0] += 5000
+            with pytest.raises(DomainError, match="latched"):
+                await engine.observe(rules, book(now[0], "2200"), 7)
+            assert len(engine.gateway.sent) == sent
+            assert engine.owner is not None and (await engine.owner.status()).admission_halted
+        finally:
+            await engine.close()
+            journal.close()
+        journal = Journal(tmp_path)
+        engine = await PaperEngine.open(journal, SOURCES, clock)
+        try:
+            with pytest.raises(DomainError, match="latched"):
+                await engine.observe(rules, book(now[0], "2200"), 8)
+            assert engine.fatal_reason == "exit-reference-moved"
+            assert len(engine.gateway.sent) == sent
         finally:
             await engine.close()
             journal.close()

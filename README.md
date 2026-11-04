@@ -12,7 +12,7 @@ through CCXT. A public pass observed BTC/USDT metadata on all seven venues and
 validated books on six; XT's book was rejected. A mock-only executor now consumes
 durable intents, captures LIMIT payloads and reconciles synthetic order/trade
 snapshots through the ledger. It has no authenticated or sandbox/live transport.
-The owner approved I8 preparation with local validation while hosted CI remains pending.
+The owner approved I8 public-paper work with local validation while hosted CI remains pending.
 Offline research now validates bounded immutable OHLC windows, replays the Decimal
 strategy under explicit synthetic fill assumptions, and compares raw/Arrow/Parquet
 samples. See [the approved plan](docs/I5-PLAN.md), [design](docs/I5-DESIGN.md) and

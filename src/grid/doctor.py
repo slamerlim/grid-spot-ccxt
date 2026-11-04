@@ -41,7 +41,7 @@ class DoctorReport:
     def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": 1,
-            "iteration": "I8 preparation",
+            "iteration": "I8 public-paper",
             "mode": "offline",
             "live": "DISABLED",
             "ready": self.ready,
@@ -56,7 +56,7 @@ class DoctorReport:
 
     def to_text(self) -> str:
         lines = [
-            "GRID doctor — I8 preparation offline diagnostics",
+            "GRID doctor — I8 public-paper offline diagnostics",
             "LIVE: DISABLED",
             "Live readiness: BLOCKED",
             f"Python: {self.python_version}",
@@ -87,7 +87,8 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "offline_boundary",
             "BLOCKED",
-            "I8 mock operational preparation exists; authenticated trading is unavailable.",
+            "I8 operational and public-paper harnesses exist; "
+            "authenticated trading is unavailable.",
         ),
         Check(
             "live_request",
@@ -165,8 +166,8 @@ def run_doctor(config: Config, *, environ: Mapping[str, str] | None = None) -> D
         Check(
             "operator_signoff",
             "BLOCKED",
-            "I8 preparation is authorized; observed soak, venue access "
-            "and live need separate approval.",
+            "A bounded one-hour OKX public-paper run is authorized; "
+            "the 48-hour acceptance gate, private account access and live signoff remain open.",
         ),
     )
     return DoctorReport(

@@ -491,7 +491,39 @@ Do not create the service account/marker, install/enable the template, call
 `systemctl start`, or turn the synthetic runner into a live service under the
 preparation approval. Parser verification does not prove runtime isolation.
 
-Preparation evidence is in `I8-EVIDENCE.md`. Review the concrete
-`I8-SOAK-PLAN.md` before any later observed run. It separates public-paper
-observations from still-missing private-account evidence. Stop after preparation
-review; no I8 acceptance pass or I9 deployment follows from local tests.
+Preparation evidence is in `I8-EVIDENCE.md`. The owner subsequently approved the
+public-paper harness and a one-hour observed run, then continued development.
+`I8-SOAK-PLAN.md` records the current execution bounds. No I8 acceptance pass or
+I9 deployment follows from local tests or the shorter run.
+
+## Public-paper evidence and interrupted runs
+
+The fixed public runner is `python -m grid.paper`; its only venue/symbol is OKX
+BTC/USDT. It requires an explicit private evidence directory, approved SQLite
+source identity and `--acknowledge-public-one-hour`. Never point it at a live
+ledger. All outputs, including fake funds, remain outside Git/original datasets.
+The source checkout used by an active run must remain frozen.
+
+At minute 30 the worker exits 75 for its one planned restart. The transient
+`scripts/supervise_paper.py` coordinator records worker liveness every 30 seconds
+and performs only that preauthorized restart. Other exit codes, missing processes
+and timeouts do not authorize blind retries. The worker uses a Linux pidfd to
+stop when its coordinator dies. No service is installed by this tool.
+
+A stopped, incomplete journal is partial evidence. Confirm the worker is gone;
+never infer termination solely from an observation timeout. Offline closure with
+`python -m grid.paper.recovery` requires the same directory and approved source,
+verifies the financial ledger and a separate backup restore, and writes a
+`partial-interrupted` report. It cannot turn missing time into an observed hour.
+The current recovery amendment allows exactly one linked replacement with the
+same aggregate 750/3 request ceilings and slower polling; it does not permit an
+unbounded rerun loop. Preserve both evidence directories and the claim marker.
+
+After a run finishes, use `gridctl paper-audit --directory PATH`. It reads the
+journal without changing it and refuses an active writer, incomplete tail,
+broken hash chain, stale/duplicate books or a budget/timing violation. Audit
+success proves the stated checks, not I8 acceptance, real fees or execution.
+For an exclusive JSON artifact, use `python -m grid.paper.audit --directory PATH
+--output NEW_PATH` on one line. Reports stay outside Git; retain evidence at
+least seven days after review. Unknown public constraints correctly produce an
+unallocated paper cash pool and zero paper orders.

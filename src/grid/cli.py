@@ -1,4 +1,4 @@
-"""The gridctl entrypoint remains an offline doctor."""
+"""Offline diagnostics and read-only verification of finished paper evidence."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Return 0 for a report, 1 for blocked --check, or 2 for invalid config."""
-    parser = _ArgumentParser(prog="gridctl", description="GRID I8 preparation offline diagnostics")
+    parser = _ArgumentParser(prog="gridctl", description="GRID I8 offline diagnostics")
     commands = parser.add_subparsers(dest="command", required=True)
     doctor = commands.add_parser("doctor", help="report offline live-readiness blockers")
     doctor.add_argument(
@@ -30,7 +30,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     doctor.add_argument("--json", action="store_true", help="emit a structured report")
     doctor.add_argument("--check", action="store_true", help="exit nonzero while live is blocked")
+    paper_audit = commands.add_parser("paper-audit", help="verify a finished paper journal offline")
+    paper_audit.add_argument("--directory", type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.command == "paper-audit":
+        from grid.paper.audit import audit
+        from grid.persistence.records import LedgerError
+
+        try:
+            result = audit(args.directory)
+        except (OSError, ValueError, TypeError, KeyError, LedgerError):
+            print(
+                "gridctl: paper audit refused; active, incomplete or invalid evidence.",
+                file=sys.stderr,
+            )
+            return 2
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
     try:
         config = load_config(args.config)
     except ConfigError as exc:

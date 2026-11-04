@@ -172,6 +172,8 @@ class PaperEngine:
         self.ready = False
         self.closed = False
         self.pool_cash = D(0)
+        faults = journal.kinds("admission-fault")
+        self.fatal_reason: str | None = faults[-1]["payload"]["reason"] if faults else None
         processed = journal.kinds("paper-observe")
         self.last_source_ms = processed[-1]["payload"]["source_ms"] if processed else 0
 
@@ -236,6 +238,10 @@ class PaperEngine:
     async def observe(
         self, market: MarketObservation, book: BookObservation, sequence: int
     ) -> None:
+        if self.fatal_reason is not None:
+            self.reason = (self.fatal_reason,)
+            await self.halt(self.fatal_reason)
+            raise DomainError("paper admission remains latched for operator review")
         ms, ns = self.now()
         book.require_fresh(ns, ms, 10000)
         market.require_fresh(ns, 3600 * 10**9)
@@ -336,9 +342,7 @@ class PaperEngine:
                     max(self.portfolio.exits[0].floor, slot.anchor_bid * D("0.95"), bid), up=True
                 )
                 if not bid * D("0.95") <= candidate <= bid * D("1.05"):
-                    await self.halt("exit-reference-moved")
-                    self.reason = ("exit-reference-moved-review-required",)
-                    return
+                    await self.refuse("exit-reference-moved")
         cross(self.gateway, book, sequence)
         context = replace(
             self.context,
@@ -389,6 +393,16 @@ class PaperEngine:
             await control(self.owner, Action.HALT, f"paper-halt-{len(self.journal.rows)}-{reason}")
         self.ready = False
 
+    async def refuse(self, reason: str) -> None:
+        """A risk refusal survives both fresh prices and process restart."""
+        self.fatal_reason = reason  # Stop locally even if either durable write fails.
+        self.reason = (reason,)
+        try:
+            self.journal.append("admission-fault", {"reason": reason}, *self.now())
+        finally:
+            await self.halt(reason)
+        raise DomainError("paper admission requires operator review")
+
     async def status(self) -> dict[str, object]:
         if not self.closed:
             self.pool_cash = await self.writer.submit(
@@ -398,6 +412,7 @@ class PaperEngine:
             "eligibility_missing": self.reason,
             "paper_active": self.ready,
             "real_account_verified": False,
+            "admission_fault": self.fatal_reason,
             "fee_assumption": "0.002 USDT-side rate",
             "synthetic_orders": len(self.gateway.sent),
             "synthetic_fills": len(self.gateway.trades),

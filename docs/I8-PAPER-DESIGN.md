@@ -66,7 +66,9 @@ I7's +10% net NAV trigger and LIMIT-only exit remain in use. The paper profile
 has a 30-second TTL, three attempts, a 120-second window and no widening. Its
 existing 95% trigger-anchor lower bound is stricter than the proposed 80% floor;
 a fresh-reference check additionally blocks a candidate outside the current bid's
-5% band. Unfilled/blocked inventory stays explicit. No automatic liquidation at
+5% band. In the follow-up, this refusal is durably latched in the observation
+journal and halts the financial supervisor. A later in-band price or process
+restart cannot clear it. Unfilled/blocked inventory stays explicit. No automatic liquidation at
 the end of the hour is invented.
 
 ## Schedule, evidence and recovery
