@@ -28,6 +28,8 @@ from grid.portfolio.controller import PortfolioController
 from grid.portfolio.model import Cycle, CyclePhase, Nav, ValuationFacts
 from grid.research.artifacts import canonical, digest, output_directory
 from grid.research.history import MINUTE, Bar, validate
+from grid.research.performance import posted
+from grid.research.portfolio_benchmarks import Benchmarks
 from grid.research.portfolio_config import Settings
 from grid.research.replay import (
     Replay,
@@ -335,6 +337,8 @@ async def execute(
     unknown = simulated = consumed = 0
     complete = False
     value: Nav | None = None
+    benchmarks: Benchmarks | None = None
+    benchmark_point: dict[str, object] = {}
     try:
         engine = Engine(spec, settings, writer)
         for index, (_, grouped) in enumerate(
@@ -350,8 +354,14 @@ async def execute(
                     check_precision(bar, allocation.context)
                 continue
             engine.index = index
-            value = await engine.step(tuple(bar for _, bar in rows))
+            bars = tuple(bar for _, bar in rows)
+            value = await engine.step(bars)
             cycle, states = await engine.cycle(), await engine.states()
+            if benchmarks is None:
+                benchmarks = Benchmarks(spec, settings, bars)
+            if engine.facts is None:
+                raise DomainError("benchmark facts unavailable")
+            benchmark_point = benchmarks.mark(engine.facts, cycle.baseline.net)
             simulated += 1
             complete = cycle.phase is CyclePhase.COMPLETE
             peak = max(peak, cycle.baseline.net)
@@ -381,6 +391,7 @@ async def execute(
                         "nav": value,
                         "nav_before_actions": engine.before_actions,
                         "phase": cycle.phase,
+                        "benchmarks": benchmark_point,
                     }
                 )
             if (
@@ -398,6 +409,11 @@ async def execute(
         count = (spec.end_ms - spec.start_ms) // MINUTE
         if consumed != count:
             raise DomainError("historical stream length changed")
+        if benchmarks is None:
+            raise DomainError("historical benchmarks missing")
+        performance = await writer.submit(
+            lambda ledger: posted(ledger, states, settings.policy.reporting)
+        )
         result: dict[str, object] = {
             "schema": "grid-portfolio-research-v1",
             "config": spec,
@@ -430,6 +446,12 @@ async def execute(
             "fees_by_currency": dict(engine.fees),
             "fees_quote": engine.fee_quote,
             "turnover_quote": engine.turnover,
+            "posted_performance": performance,
+            "posted_performance_basis": (
+                "Committed unique fills and realized journal deltas only; synthetic venue "
+                "fills may still await reconciliation. Gross sums use net realized PnL."
+            ),
+            "benchmarks": benchmarks.report(cycle.baseline.net, benchmark_point),
             "ambiguous_bars": engine.ambiguous,
             "final_states": states,
             "final_unallocated_pools": pools,

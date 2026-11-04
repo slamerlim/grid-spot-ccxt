@@ -3,6 +3,8 @@
 Later extension: `I8-RESEARCH-SCENARIOS.md` adds `--compare-scenarios` and the
 touch/SELL-priority convention. The validation below describes this adapter's
 original increment; the later comparison has its own evidence.
+`I8-RESEARCH-PERFORMANCE.md` subsequently adds committed realized statistics and
+funded cash/buy-hold comparisons; the original evidence below remains historical.
 
 Base: `84caf18916079be654417d81993d3af3ee5165c2`, branch
 `i8/public-paper-hour`. This increment continues the authorized offline/mock

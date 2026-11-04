@@ -306,6 +306,19 @@ def test_actual_fill_fees_use_declared_owned_currency(
         assert state.fee_balances == (Money("TOKEN", D(10) - paid),)
         assert result["cycle"].baseline.net == D(1020)
     assert result["last_nav"].net < result["cycle"].baseline.net
+    performance = result["posted_performance"]
+    assert performance["posted_fees_quote"] == D("0.1")
+    assert performance["posted_fees_by_currency"] == result["fees_by_currency"]
+    assert performance["gross_wins_quote"] == performance["gross_losses_quote"] == D(0)
+    assert performance["profit_factor"] is None
+    benchmarks = result["benchmarks"]
+    assert benchmarks["initial_owned_nav"] == result["cycle"].baseline.net
+    assert benchmarks["last"]["cash"]["net_nav"] == result["cycle"].baseline.net
+    held = benchmarks["entries"][0][1]
+    assert held.entry_fee_quote > D(0) and held.cash >= allocation.context.policy.quote_reserve
+    assert benchmarks["last"]["buy_hold"]["net_nav"] < (
+        held.cash + held.base * D(100) + sum((m.amount * D(2) for m in held.fees), D(0))
+    )  # Includes conservative estimated exit fees, not just entry fees.
 
 
 def test_fill_count_beyond_fee_reservation_refuses_success(make_replay: MakeReplay) -> None:

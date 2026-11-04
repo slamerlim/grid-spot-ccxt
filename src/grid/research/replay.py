@@ -42,6 +42,7 @@ from grid.research.history import (
     validate,
     validated_bars,
 )
+from grid.research.performance import realized
 
 type Model = Literal["strict_skip_ambiguous", "touch_buy_priority", "touch_sell_priority"]
 MODELS: tuple[Model, ...] = (
@@ -537,10 +538,7 @@ def run(spec: Replay) -> dict[str, object]:
                 if sellable
                 else state.owned_base,
                 "dust_note": "Conservative at-close amount/minimum/fee screen; not exit execution.",
-                "profit_factor": sim.gross_profit / sim.gross_loss
-                if sim.sell_count >= 2 and sim.gross_loss > ZERO
-                else None,
-                "profit_factor_note": "undefined without >=2 SELL fills and positive gross losses",
+                **realized(sim.gross_profit, sim.gross_loss, sim.sell_count),
                 "buy_hold": holds[i],
                 "notices": dict(sim.notices),
             }

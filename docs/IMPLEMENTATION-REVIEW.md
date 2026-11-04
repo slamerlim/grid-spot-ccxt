@@ -11,6 +11,8 @@ The optional historical portfolio adapter, based on `84caf18`, is recorded in
 `I8-PORTFOLIO-RESEARCH.md` and incorporated below.
 The three-convention comparison based on `f9ffa8a` is recorded in
 `I8-RESEARCH-SCENARIOS.md` and incorporated below.
+Realized statistics and funded portfolio benchmarks based on `553216d` are
+recorded in `I8-RESEARCH-PERFORMANCE.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -73,8 +75,9 @@ missing venue evidence or to enable live access.
    order through either engine. It retains complete results, checks common input
    manifests and withholds a shared NAV range for unknown valuations or different
    endpoints. The conservative/baseline/optimistic labels specify fill conventions,
-   not PnL ordering or bounds over all feasible executions. The pure replay retains
-   funded cash/buy-hold baselines. Independent-lot reference, walk-forward/regime
+   not PnL ordering or bounds over all feasible executions. Both engines now have
+   funded cash/buy-hold references using their respective valuation bases and
+   endpoints. Independent-lot reference, walk-forward/regime
    splits, fee-tier sensitivity and survivorship/delisting checks are still missing.
    No suite covers all these yet. Never select fills using future bars or treat
    touches as observed queue fills. Independent-lot comparison stays research-only.
@@ -83,12 +86,14 @@ missing venue evidence or to enable live access.
    the supplied full HEAD SHA against local application Python bytes/modes and
    dependency manifests, explicitly reporting mismatch/unavailability, and refuses
    publication on changes between snapshots. This is not loaded-code or installed
-   dependency attestation; direct engine APIs do not add the envelope. Replay
-   still reports per-allocation profit factor without separately serializing
-   gross wins/losses. Optional portfolio replay now reports trigger/final NAV,
-   exit shortfall, observed drawdown/unknown bars, inventory time and committed
-   capital, but lacks the default mode's funded cash/buy-hold comparisons and
-   complete per-allocation performance metrics. Extend metrics/comparisons while
+   dependency attestation; direct engine APIs do not add the envelope. Both
+   replay engines now serialize gross realized wins/losses and explicitly
+   defined profit factor. Portfolio replay adds committed-fill/fee statistics
+   and funded cash/buy-hold references with the same ending timestamp and NAV
+   constraints; unknown benchmark marks remain null. Trigger/final NAV, exit
+   shortfall, observed drawdown/unknown bars, inventory time and committed capital
+   remain distinct. Full portfolio per-allocation unrealized/exposure/drawdown reporting and
+   the broader study suite remain incomplete. Extend metrics/comparisons while
    keeping machine observations outside deterministic accounting.
 4. **Resource isolation and contention.** Input/queue bounds and sequential
    decoding are not CPU/RSS/IO quotas. `operations/experiment.py:benchmark_case`

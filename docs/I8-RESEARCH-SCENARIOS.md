@@ -1,5 +1,9 @@
 # I8 offline follow-up — fixed OHLC scenario comparisons
 
+Later extension: `I8-RESEARCH-PERFORMANCE.md` adds funded portfolio benchmarks and
+gross realized statistics within member results. Evidence below describes this
+comparison's original increment.
+
 Base: `f9ffa8a91d4fa5e0781e71e7b80cd4cf5e836064`, branch
 `i8/public-paper-hour`. This is authorized continued mock research development.
 It uses synthetic tests, local validation and GitHub Free only. It does not

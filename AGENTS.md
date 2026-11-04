@@ -158,6 +158,12 @@ distinct result schema. Complete source validation even after a cycle exits.
 their common immutable inputs. Scenario labels never rank profit or choose a
 live policy; unknown NAV or different ending horizons cannot form a shared range.
 Keep fresh state per sequential member and the combined result cap.
+`docs/I8-RESEARCH-PERFORMANCE.md` records additive gross realized statistics and
+funded portfolio cash/buy-hold references. Use committed ledger postings for
+realized results; preserve unrealized inventory and unposted venue fills separately.
+Benchmarks retain all owned pools and end with the strategy, use the same NAV
+constraints, and leave unavailable values null. Partial fills of one SELL order
+cannot satisfy the minimum distinct-order count for profit factor.
 Continue the offline research and resource gaps recorded there; a green mock suite
 does not close external acceptance gates. No new exchange or deployment
 authorization is implied.

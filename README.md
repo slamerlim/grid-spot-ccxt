@@ -132,6 +132,10 @@ conventions sequentially. The result retains all scenarios and shows a shared
 NAV range only when their valuations and endpoints are comparable. Scenario
 labels do not rank profits or certify execution. See
 [scenario comparison conventions](docs/I8-RESEARCH-SCENARIOS.md).
+Reports expose gross sums of net realized wins/losses. Portfolio replay also
+includes committed-fill statistics and funded cash/buy-hold references through
+the same evaluation endpoint and NAV constraints. Unknown benchmark valuations
+remain null. See [performance definitions](docs/I8-RESEARCH-PERFORMANCE.md).
 
 ## Offline operational experiments
 

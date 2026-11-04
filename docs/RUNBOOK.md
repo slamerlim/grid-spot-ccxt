@@ -381,6 +381,14 @@ the optimistic label has the highest return or tune live policy from this output
 All models must succeed on matching manifests for publication. See
 `I8-RESEARCH-SCENARIOS.md` for limits, uncertainty, schema and validation.
 
+Portfolio replay now includes `posted_performance` from committed ledger records
+and `benchmarks` for cash/buy-hold with matching owned funds and ending times.
+Read unknown benchmark marks as unavailable; a large benchmark can exceed the
+NAV depth or order budget while the grid position can still be valued. Root venue
+fill/fee totals can include unsettled fills, unlike the new committed statistics.
+Gross wins/losses sum net realized postings, and profit factor requires losses
+and at least two distinct filled SELL orders. See `I8-RESEARCH-PERFORMANCE.md`.
+
 `benchmark` writes a unique small sample directory beside its result. Review
 the original/derived byte-equivalence hash, reader timings, memory scope and
 cache/device evidence together. Cached CPU/hash timings do not establish storage
