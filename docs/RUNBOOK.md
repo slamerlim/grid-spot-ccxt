@@ -50,6 +50,13 @@ and investigate the source; do not rewrite old fills or manually free the SELL
 slot. A delayed private OPEN event and a current recovery report have different
 authority. Run `pytest -q tests/execution/test_reconcile_history.py` offline.
 
+The developer-only `read_order_history` helper in `exchange/private.py` is
+described in `I8-ORDER-HISTORY.md`. Its bounded unified calls return observations
+only; incomplete history, changing totals and interrupted reads do not authorize
+retries or replacement. The caller owns the transport's rate/HTTP byte budget
+and lifecycle. Run `pytest -q tests/exchange/test_order_history.py` using the
+offline fixtures. No operator command enables private access through this helper.
+
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
 and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.

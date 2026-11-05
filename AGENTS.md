@@ -316,6 +316,15 @@ transport, real pagination contract, venue certification or new access is implie
 
 ## Invariants for subsequent approved iterations
 
+`docs/I8-ORDER-HISTORY.md` adds a shared per-order read primitive, tested with
+offline fakes and guarded pinned OKX unified methods. At most three unified calls
+bracket one limited trade query; unique quantities must match stable cumulative
+reports. Preserve optional unknowns and cancellation. Quantity matching grants
+no ownership, fee, chronology or send authority. SDK internal HTTP requests and
+bytes still need transport enforcement. Keep the executor's existing omission
+and terminal checks until complete account-wide recovery replaces its fake
+history contract. No authenticated transport or new exchange access is implied.
+
 `docs/I8-TERMINAL-RECOVERY.md` distinguishes delayed private events from a current
 recovery snapshot. An observed OPEN or changed cumulative quantity for a durable
 terminal order invalidates the entire snapshot before new binding/fill posting.

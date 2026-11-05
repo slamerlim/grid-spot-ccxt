@@ -97,6 +97,11 @@ terminal facts, duplicate/conflict checks and detection of unexpected account
 activity. Pagination/retention evidence and settlement ordering must be explicit;
 neither deleting omission checks nor sorting CCXT timestamps proves completeness.
 Private transport and actual account validation remain separately gated.
+`I8-ORDER-HISTORY.md` now provides the first bounded read primitive: shared
+unified parsers, two order observations around one limited order-trade query,
+deduplication and exact cumulative matching. Pinned OKX offline SDK fixtures
+verify the request/parse path. Its result is observational, with no ledger or
+admission effect; the account-wide integration described above remains open.
 
 ## Unfinished offline research work
 
