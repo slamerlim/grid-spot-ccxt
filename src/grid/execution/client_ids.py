@@ -1,12 +1,15 @@
-"""Mock wire-ID adapter and strict lookup before normal reconciliation."""
+"""Unified CCXT observations bound to owned intents, exercised by a finite fake."""
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from decimal import Decimal
 from typing import Literal
 
-from grid.domain.model import Scope, Side
-from grid.domain.numbers import decimal
-from grid.execution.models import ExecutionError, LimitRequest, OrderFact, Page
+from grid.domain.market import Market
+from grid.domain.model import ActualFee, Scope, Side
+from grid.domain.numbers import ZERO, exact
+from grid.exchange import private
+from grid.exchange.models import ReadError
+from grid.execution.models import ExecutionError, LimitRequest, OrderFact, Page, TradeFact
 from grid.execution.synthetic import SyntheticExchange
 from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger
@@ -14,43 +17,52 @@ from grid.persistence.records import ClientIdentity, ClientIdPolicy
 from grid.persistence.writer import AsyncWriter
 
 
-@dataclass(frozen=True)
-class WireOrder:
-    """Invented venue report; it contains no internal order/allocation identity."""
-
-    symbol: str
-    client_id: str
-    external_id: str
-    order_type: str
-    side: Side
-    price: str
-    amount: str
-    status: Literal["open", "canceled", "rejected", "filled"]
-    cumulative: Decimal
-
-
-def normalize(ledger: Ledger, scope: Scope, wire: WireOrder) -> OrderFact:
-    if (
-        type(wire) is not WireOrder
-        or wire.symbol != scope.symbol
-        or wire.order_type != "limit"
-        or type(wire.side) is not Side
-    ):
-        raise ExecutionError("wire order is not an owned spot limit")
-    record = client_ids.resolve(ledger, scope.venue, scope.account, wire.client_id)
+@exact
+def normalize(ledger: Ledger, scope: Scope, wire: object) -> OrderFact:
+    """Read-only ownership proof; the executor validates the whole snapshot next."""
+    try:
+        observed = private.orders([wire], scope.symbol, 1)[0]
+    except ReadError as exc:
+        raise ExecutionError("invalid unified order") from exc
+    if observed.client_id is not None:
+        record = client_ids.resolve(ledger, scope.venue, scope.account, observed.client_id)
+    else:
+        # A missing optional client ID may use an already committed exact binding.
+        # A supplied but unknown/changed client ID must never take this fallback.
+        bound = ledger.db.execute(
+            "SELECT order_id FROM order_bindings WHERE allocation=? "
+            "AND venue=? AND account=? AND symbol=? AND external_id=?",
+            (codec.digest(scope), scope.venue, scope.account, scope.symbol, observed.order_id),
+        ).fetchone()
+        record = None if bound is None else client_ids.lookup(ledger, scope, bound[0])
     if record is None or record.scope != scope or not ledger.attempted(scope, record.order_id):
-        raise ExecutionError("wire client identity lacks a matching attempted order")
+        raise ExecutionError("unified order lacks a matching attempted identity")
     order = ledger.order(scope, record.order_id)
-    values = []
-    for text in (wire.price, wire.amount):
-        if type(text) is not str or not 1 <= len(text) <= 200:
-            raise ExecutionError("wire price and amount require bounded decimal strings")
-        try:
-            values.append(decimal(Decimal(text), positive=True))
-        except (ArithmeticError, ValueError) as exc:
-            raise ExecutionError("invalid wire decimal") from exc
-    if (wire.side, *values) != (order.side, order.price, order.amount):
-        raise ExecutionError("wire order differs from the reserved intent")
+    for actual, expected in (
+        (observed.order_type, "limit"),
+        (observed.side, str(order.side)),
+        (observed.price, order.price),
+        (observed.amount, order.amount),
+        (ledger.binding(scope, order.id), observed.order_id),
+    ):
+        if actual is not None and actual != expected:
+            raise ExecutionError("unified order contradicts the reserved intent or binding")
+    if observed.filled is None or (
+        observed.remaining is not None and observed.remaining != order.amount - observed.filled
+    ):
+        raise ExecutionError("unified order cumulative is missing or inconsistent")
+    status: Literal["open", "canceled", "rejected", "filled"]
+    match observed.status:
+        case "open":
+            status = "open"
+        case "closed":
+            status = "filled"
+        case "canceled" | "expired":
+            status = "canceled"
+        case "rejected":
+            status = "rejected"
+        case _:
+            raise ExecutionError("unified order status is unresolved")
     request = LimitRequest(
         scope,
         order.id,
@@ -61,7 +73,95 @@ def normalize(ledger: Ledger, scope: Scope, wire: WireOrder) -> OrderFact:
         order.config_revision,
         order.market_generation,
     )
-    return OrderFact(request, wire.external_id, wire.status, wire.cumulative)
+    return OrderFact(request, observed.order_id, status, observed.filled)
+
+
+@exact
+def normalize_trade(
+    wire: object,
+    owned: OrderFact,
+    market: Market,
+    sequence: int,
+    valued_fees: tuple[ActualFee, ...] | None = None,
+) -> TradeFact:
+    """Sequence/settlement FX are explicit source evidence, not CCXT arrival order."""
+    try:
+        observed = private.trades([wire], owned.request.scope.symbol, 1)[0]
+    except ReadError as exc:
+        raise ExecutionError("invalid unified trade") from exc
+    if (
+        market.symbol != observed.symbol
+        or observed.order_id != owned.external_id
+        or observed.side is not None
+        and observed.side != str(owned.request.side)
+        or observed.order_type not in (None, "limit")
+    ):
+        raise ExecutionError("unified trade lacks its owned limit order")
+    limit = codec.parse_amount(owned.request.price)
+    if (
+        owned.request.side is Side.BUY
+        and observed.price > limit
+        or owned.request.side is Side.SELL
+        and observed.price < limit
+        or observed.cost is not None
+        and observed.cost != observed.amount * observed.price
+    ):
+        raise ExecutionError("unified trade contradicts the limit or exact settlement cost")
+    fees = (
+        None
+        if observed.fees is None
+        else tuple(ActualFee(currency, amount, None) for currency, amount in observed.fees)
+    )
+    if valued_fees is not None:
+        if (
+            type(valued_fees) is not tuple
+            or not 1 <= len(valued_fees) <= 16
+            or any(type(fee) is not ActualFee for fee in valued_fees)
+            or tuple((fee.currency, fee.amount) for fee in valued_fees) != observed.fees
+        ):
+            raise ExecutionError("settlement valuation differs from the actual unified fees")
+        fees = valued_fees
+    if fees is not None:
+        # A known zero charge has zero reporting cost without an FX observation.
+        fees = tuple(
+            replace(fee, quote_value=ZERO)
+            if fee.currency not in (market.base, market.quote)
+            and fee.amount == ZERO
+            and fee.quote_value is None
+            else fee
+            for fee in fees
+        )
+    if fees is not None and any(
+        fee.currency not in (market.base, market.quote) and fee.quote_value is None for fee in fees
+    ):
+        raise ExecutionError("third-currency fee settlement valuation is missing")
+    return TradeFact(
+        owned.request.scope,
+        observed.order_id,
+        observed.trade_id,
+        sequence,
+        owned.request.side,
+        observed.amount,
+        observed.price,
+        fees,
+    )
+
+
+@exact
+def order_payload(fact: OrderFact, returned_id: str) -> dict[str, object]:
+    """Synthetic unified data, with no internal order or allocation identity."""
+    return {
+        "id": fact.external_id,
+        "clientOrderId": returned_id,
+        "symbol": fact.request.scope.symbol,
+        "type": "limit",
+        "side": str(fact.request.side),
+        "price": fact.request.price,
+        "amount": fact.request.amount,
+        "status": "closed" if fact.status == "filled" else fact.status,
+        "filled": codec.amount(fact.cumulative),
+        "remaining": codec.amount(codec.parse_amount(fact.request.amount) - fact.cumulative),
+    }
 
 
 class MappedSyntheticExchange(SyntheticExchange):
@@ -72,7 +172,8 @@ class MappedSyntheticExchange(SyntheticExchange):
         if type(policy) is not ClientIdPolicy:
             raise ExecutionError("mock mapping policy required")
         self.writer, self.policy = writer, policy
-        self.wire_orders: dict[str, WireOrder] = {}
+        self.wire_orders: dict[str, dict[str, object]] = {}
+        self.wire_trades: dict[str, dict[str, object]] = {}
         self.submitted_clients: dict[str, str] = {}
 
     async def submit_limit(self, request: LimitRequest) -> OrderFact:
@@ -90,28 +191,66 @@ class MappedSyntheticExchange(SyntheticExchange):
         record = await self.writer.submit(registered)
         fact = await super().submit_limit(request)
         self.submitted_clients[fact.external_id] = record.submitted_id
-        self.wire_orders[fact.external_id] = WireOrder(
-            request.scope.symbol,
-            record.returned_id,
-            fact.external_id,
-            request.order_type,
-            request.side,
-            request.price,
-            request.amount,
-            fact.status,
-            fact.cumulative,
-        )
+        self.wire_orders[fact.external_id] = order_payload(fact, record.returned_id)
         return fact
+
+    def settle_cancel(self, external_id: str) -> None:
+        super().settle_cancel(external_id)
+        status = self.orders[external_id].status
+        self.wire_orders[external_id]["status"] = "closed" if status == "filled" else status
+
+    @exact
+    def fill(
+        self,
+        external_id: str,
+        trade_id: str,
+        amount: Decimal,
+        price: Decimal,
+        fees: tuple[ActualFee, ...] | None,
+    ) -> TradeFact:
+        trade = super().fill(external_id, trade_id, amount, price, fees)
+        fact = self.orders[external_id]
+        self.wire_orders[external_id].update(
+            status="closed" if fact.status == "filled" else fact.status,
+            filled=codec.amount(fact.cumulative),
+            remaining=codec.amount(codec.parse_amount(fact.request.amount) - fact.cumulative),
+        )
+        self.wire_trades[trade_id] = {
+            "id": trade_id,
+            "order": external_id,
+            "symbol": trade.scope.symbol,
+            "type": None,
+            "side": str(trade.side),
+            "price": codec.amount(price),
+            "amount": codec.amount(amount),
+            "cost": codec.amount(price * amount),
+            "fees": None
+            if fees is None
+            else [{"currency": fee.currency, "cost": codec.amount(fee.amount)} for fee in fees],
+        }
+        return trade
 
     async def page(self, scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
         page = await super().page(scope, epoch, cursor, size)
-        wire = tuple(
-            replace(
-                self.wire_orders[fact.external_id], status=fact.status, cumulative=fact.cumulative
+
+        def observations(ledger: Ledger) -> Page:
+            orders = tuple(
+                normalize(ledger, scope, self.wire_orders[f.external_id]) for f in page.orders
             )
-            for fact in page.orders
-        )
-        orders = await self.writer.submit(
-            lambda ledger: tuple(normalize(ledger, scope, w) for w in wire)
-        )
-        return replace(page, orders=orders)
+            _, context, _, _ = ledger._load(codec.digest(scope))
+            trades = []
+            for fact in page.trades:
+                owned = normalize(ledger, scope, self.wire_orders[fact.external_order])
+                trade = normalize_trade(
+                    self.wire_trades[fact.external_id],
+                    owned,
+                    context.market,
+                    fact.sequence,
+                    fact.fees,
+                )
+                if trade.external_id != fact.external_id:
+                    raise ExecutionError("mock settlement context belongs to another trade")
+                trades.append(trade)
+            return replace(page, orders=orders, trades=tuple(trades))
+
+        return await self.writer.submit(observations)

@@ -38,7 +38,10 @@ The pinned asynchronous SDK request audit based on `1268e30` is recorded in
 The correction to documented CCXT string math, based on `97469fb`, is recorded
 in `I8-CCXT-UNIFIED-NUMBERS.md`. Seven-venue public fixtures and pure OKX
 order/trade parser fixtures cover numeric conversion; authenticated behavior
-and connection to the mock ledger remain unverified.
+remains unverified.
+The subsequent `I8-UNIFIED-RECONCILIATION.md` connects the shared order/trade
+observations to the mapped mock's existing ledger/executor. Real account source,
+pagination, trade ordering and fee provenance still require separate evidence.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -57,13 +60,13 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q01 LIMIT-only | Domain commands, mock executor boundary, manual/scoped/global exits and intercepted pinned-SDK request fixtures; `tests/execution/test_boundary.py`, `tests/exchange/test_order_audit.py`, operations exit tests | Authenticated HTTP encoding and venue acceptance untested; BingX fractional conversion is a known blocker; no real sender exists |
 | Q02 minimum lot | Decimal quantizers, independent buy/sell minima and fee-aware eligibility; `tests/domain/test_market.py`, `test_boundaries.py` | Verified account-specific fees/rules at actual venue placement unavailable |
 | Q03 finite funds | One ledger writer, atomic reservations and scope/pool ownership; `tests/persistence/test_ledger.py`, `tests/research/test_replay.py` | Dedicated real balances and external activity must be verified separately |
-| Q04 seed | Actual weighted fills, partial residual handling and approved terminal-seed anchor rule; `tests/domain/test_reducer.py` | Actual fee/fill normalization and venue event evidence remain untested |
+| Q04 seed | Actual weighted fills, partial residual handling and approved terminal-seed anchor rule; `tests/domain/test_reducer.py`, unified parser-to-ledger fixtures | Actual account settlement and venue event evidence remain untested |
 | Q05 one SELL | Possibly-active slot persists through cancellation/unknowns; domain, execution, scoped/global tests | Live cancel/fill races have synthetic evidence only |
 | Q06 ladder | Minimum lots, quantized distinct prices, range/budget/order bounds; domain market/reducer tests | Account/market limits not independently certified |
 | Q07 drain/late BUY | Drain, reconcile and retain late inventory without duplicate seed; domain/execution recovery tests | Exchange truth/restart behavior requires target-venue evidence |
-| Q08 idempotency | Scoped identities, atomic fill posting, replay and revision history; persistence/execution identity and crash tests | Private feed and actual paginated trade semantics untested |
+| Q08 idempotency | Scoped identities, atomic fill posting, unified observations, replay and revision history; persistence/execution identity, unified and crash tests | Private feed and actual paginated trade semantics untested |
 | Q09 unknown submit | Durable intents, no blind resend, schema-6 immutable external-ID mapping and returned-ID normalization through a mapped fake; SIGKILL/restore tests and SDK audit | No approved venue ID policy or real uniqueness/lookup/retention evidence; no authenticated sender |
-| Q10 fees/accounting | Base/quote/token fees, liabilities, rebates and conservation; ledger, portfolio and research tests | Actual account tiers, fee currencies and conversion evidence unavailable |
+| Q10 fees/accounting | Base/quote/token fees, liabilities, rebates and conservation; ledger, portfolio, research and pinned OKX parser-to-ledger tests | Actual account tiers, fee currencies and conversion evidence unavailable |
 | Q11 hot changes | Revisioned universe control, explicit retirement, confirmed local commands; `tests/universe/`, `tests/operations/test_configuration*.py` | Mock owner only; no live configuration changes authorized |
 | Q12 +10% portfolio exit | Net consolidated valuation, cash-flow handling, bounded LIMIT exits, conversion, residual review; `tests/portfolio/`, scoped dust and optional historical portfolio replay tests | Replay uses explicitly synthetic liquidity/FX/account facts; actual venue liquidity/account valuation remains unverified |
 | Q13 fallback | Bounded synthetic private hints and authoritative fake REST recovery; execution recovery/capacity tests | No real private subscription, disconnect or REST recovery integration |

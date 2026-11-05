@@ -37,6 +37,12 @@ corrections; do not restore a custom SDK-wide Decimal/safe-string mode or replac
 CCXT's venue parsers. Run the offline fixtures, not another public probe, when
 checking this boundary. Historical public evidence is not rerun by this change.
 
+`I8-UNIFIED-RECONCILIATION.md` documents the mapped fake's unified dictionaries
+and ownership bridge. Run `pytest -q tests/execution/test_unified.py` offline to
+exercise CCXT parser output through fee posting and restart. Keep account scope,
+snapshot completeness, chronology and settlement valuation explicit; never use
+array arrival order as a real fill sequence. This adds no private transport.
+
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
 and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.

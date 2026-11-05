@@ -51,7 +51,7 @@ async def main() -> None:
         result = await original(request)
         identity = (
             {
-                "wire_client_id": venue.wire_orders[result.external_id].client_id,
+                "wire_client_id": venue.wire_orders[result.external_id]["clientOrderId"],
                 "submitted_client_id": venue.submitted_clients[result.external_id],
             }
             if isinstance(venue, MappedSyntheticExchange)

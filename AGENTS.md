@@ -302,6 +302,18 @@ and reconciliation remain application responsibilities. Pure OKX parser fixtures
 do not establish authenticated support or certify the other venues. Continue
 offline development; completed public-run and live gates remain unchanged.
 
+`docs/I8-UNIFIED-RECONCILIATION.md` connects shared CCXT observation parsers to
+the mapped mock executor. Its reports now use unified dictionaries instead of
+`WireOrder`. Prove identity/attempt/terms through the sole writer. A missing client
+ID may use an existing exact scoped binding; a supplied unknown ID cannot.
+Optional order terms/trade side may come from the proven owned intent, while
+status, cumulative quantity and actual execution/fee evidence remain required
+for the complete reconciliation snapshot. Never infer chronology from page order
+or FX from later quotes. The fake supplies explicit ordering/settlement context;
+only a known zero fee has zero cost without FX. Preserve full-snapshot validation
+before binding/posting and all original financial/crash invariants. No private
+transport, real pagination contract, venue certification or new access is implied.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

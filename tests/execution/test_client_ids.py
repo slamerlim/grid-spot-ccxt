@@ -15,7 +15,7 @@ import pytest
 from persistence.conftest import SOURCES
 
 from grid.domain.model import Context, Side, State
-from grid.execution.client_ids import MappedSyntheticExchange, WireOrder, normalize
+from grid.execution.client_ids import MappedSyntheticExchange, normalize
 from grid.execution.executor import MockExecutor
 from grid.execution.models import ExecutionError
 from grid.persistence import client_ids, codec
@@ -44,8 +44,8 @@ def test_mapped_seed_ladder_and_fill_replay_keep_original_financial_identity(
                 assert len(venue.sent) == len(venue.wire_orders) == 5
                 for external, wire in venue.wire_orders.items():
                     assert len(venue.submitted_clients[external]) == 26
-                    assert wire.client_id == "t-" + venue.submitted_clients[external]
-                    assert wire.order_type == "limit"
+                    assert wire["clientOrderId"] == "t-" + venue.submitted_clients[external]
+                    assert wire["type"] == "limit"
                     normalized = await h.writer.submit(partial(normalize, scope=h.scope, wire=wire))
                     assert len(normalized.request.client_id) == 64
                 before = await h.current()
@@ -151,17 +151,17 @@ def test_sigkill_mapped_submit_recovers_by_only_the_returned_wire_identity(
             if effect:
                 values = json.loads(receipt.read_text())
                 assert "order_id" not in values and "client_id" not in values
-                wire = WireOrder(
-                    state.scope.symbol,
-                    values["wire_client_id"],
-                    values["external_id"],
-                    "limit",
-                    Side.BUY,
-                    values["price"],
-                    values["amount"],
-                    "open",
-                    D(0),
-                )
+                wire = {
+                    "symbol": state.scope.symbol,
+                    "clientOrderId": values["wire_client_id"],
+                    "id": values["external_id"],
+                    "type": "limit",
+                    "side": "buy",
+                    "price": values["price"],
+                    "amount": values["amount"],
+                    "status": "open",
+                    "filled": "0",
+                }
                 fact = await writer.submit(lambda ledger: normalize(ledger, state.scope, wire))
                 venue.orders[fact.external_id] = fact
                 venue.wire_orders[fact.external_id] = wire
@@ -204,10 +204,10 @@ def test_changed_wire_fact_cannot_bind_or_post(
                 assert await executor.dispatch(h.scope, context)
                 wire = venue.wire_orders["order-1"]
                 changes: dict[str, Any] = {
-                    "id": {"client_id": "unregistered"},
+                    "id": {"clientOrderId": "unregistered"},
                     "symbol": {"symbol": "OTHER/QUOTE"},
-                    "type": {"order_type": "market"},
-                    "side": {"side": Side.SELL},
+                    "type": {"type": "market"},
+                    "side": {"side": "sell"},
                     "price": {"price": "101"},
                     "float": {"price": 100.0},
                     "amount": {"amount": "2"},
@@ -220,7 +220,7 @@ def test_changed_wire_fact_cannot_bind_or_post(
                             )
                         )
                 else:
-                    venue.wire_orders["order-1"] = replace(wire, **changes[fault])
+                    venue.wire_orders["order-1"] = wire | changes[fault]
                     assert not await executor.service(h.scope, context)
                     assert not await executor.dispatch(h.scope, context)
                 assert await h.writer.submit(lambda ledger: ledger.binding(h.scope, 1)) is None

@@ -224,6 +224,10 @@ ordering; pure OKX order/trade parser fixtures cover charges, zero, rebates and
 missing fees. This does not resolve the outgoing BingX builder conversion above,
 provide private access or verify actual account fee tiers. CCXT continues to own
 venue schemas; application checks remain shared except for documented SDK gaps.
+`I8-UNIFIED-RECONCILIATION.md` subsequently connects those unified observations
+to owned intents and mock ledger posting. Its OKX parser fixtures cover exact
+fee accounting and restart, not a verified account or private endpoint. Unified
+fields alone do not prove fee settlement provenance or complete history.
 
 Client-order-ID acceptance/uniqueness/lookup consistency, new-order wire
 precision, post-only behavior, cancellation races, late fills, actual maker/taker

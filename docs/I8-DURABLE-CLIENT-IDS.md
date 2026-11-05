@@ -7,6 +7,11 @@ development after the completed public hour. No additional exchange access,
 credentials, trading or deployment is included. GitHub Free only; use local
 validation and `[skip ci]` while the hosted CI account lock is unchanged.
 
+Later API update: `I8-UNIFIED-RECONCILIATION.md` replaces the `WireOrder` mock
+report described below with CCXT unified dictionaries and shared observation
+parsers. This document retains the original increment's evidence; the durable
+schema, identity and attempt contracts below remain unchanged.
+
 ## Identity and transaction contract
 
 Internal order identities remain the original full 64-character digest of scope
