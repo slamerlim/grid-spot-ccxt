@@ -64,6 +64,14 @@ owned order invalidates the result. Run the offline
 `pytest -q tests/execution/test_recovery_plan.py` fixtures. The existing executor
 still uses its complete-history contract; this helper adds no operator command.
 
+For callers using unified `fetch_my_trades`, `inspect_account_orders` shares the
+same plan/ownership checks and reads one bounded symbol page for all known IDs.
+See `I8-ACCOUNT-HISTORY.md` and the offline `test_account_history.py` /
+`test_account_recovery.py` fixtures. Its limit covers unmatched rows as well as
+owned fills. Preserve unmatched or unattributed trades for ownership review;
+never count them as fills of a known order. A missing old fill remains incomplete,
+and inspection does not establish complete account recovery or enable dispatch.
+
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
 and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.

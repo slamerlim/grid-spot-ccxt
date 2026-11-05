@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 
 from grid.domain.model import Order, PlaceLimit, Scope
 from grid.domain.numbers import ZERO, bounded_int, exact, identifier
-from grid.exchange.private import OrderHistoryObservation, OrderReadTransport, read_order_history
+from grid.exchange.private import (
+    AccountReadTransport,
+    OrderHistoryBatch,
+    OrderHistoryObservation,
+    OrderReadTransport,
+    TradeObservation,
+    read_account_history,
+    read_order_history,
+)
 from grid.execution.models import ExecutionError
 from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger, client_identity
@@ -33,6 +42,7 @@ class RecoveryPlan:
 class RecoveryInspection:
     plan: RecoveryPlan
     histories: tuple[OrderHistoryObservation, ...]
+    unmatched_trades: tuple[TradeObservation, ...] = ()
 
     @property
     def unresolved(self) -> tuple[RecoveryTarget, ...]:
@@ -152,6 +162,77 @@ async def inspect_orders(
     the caller-owned transport enforces underlying HTTP, rate and source policy.
     This is a read-only inspection, never account completeness or send authority.
     """
+
+    async def read(identities: tuple[str, ...]) -> OrderHistoryBatch:
+        histories = []
+        for identity in identities:
+            histories.append(
+                await read_order_history(
+                    transport, identity, scope.symbol, max_trades=max_trades, timeout_ms=timeout_ms
+                )
+            )
+        return OrderHistoryBatch(tuple(histories))
+
+    return await _inspect(
+        writer,
+        scope,
+        read,
+        calls_per_order=3,
+        extra_calls=0,
+        max_orders=max_orders,
+        max_trades=max_trades,
+        max_calls=max_calls,
+        timeout_ms=timeout_ms,
+    )
+
+
+async def inspect_account_orders(
+    writer: AsyncWriter,
+    scope: Scope,
+    transport: AccountReadTransport,
+    *,
+    max_orders: int,
+    max_trades: int,
+    max_calls: int,
+    timeout_ms: int,
+) -> RecoveryInspection:
+    """One bounded symbol trade page for all known IDs; retain unmatched trades.
+
+    Explicit alternative to per-order trade reads, never an automatic error
+    fallback. The total trade cap covers the whole page, including unmatched
+    orders and duplicates. Unknown external IDs remain unresolved.
+    """
+
+    async def read(identities: tuple[str, ...]) -> OrderHistoryBatch:
+        return await read_account_history(
+            transport, identities, scope.symbol, max_trades=max_trades, timeout_ms=timeout_ms
+        )
+
+    return await _inspect(
+        writer,
+        scope,
+        read,
+        calls_per_order=2,
+        extra_calls=1,
+        max_orders=max_orders,
+        max_trades=max_trades,
+        max_calls=max_calls,
+        timeout_ms=timeout_ms,
+    )
+
+
+async def _inspect(
+    writer: AsyncWriter,
+    scope: Scope,
+    read: Callable[[tuple[str, ...]], Awaitable[OrderHistoryBatch]],
+    *,
+    calls_per_order: int,
+    extra_calls: int,
+    max_orders: int,
+    max_trades: int,
+    max_calls: int,
+    timeout_ms: int,
+) -> RecoveryInspection:
     bounded_int(max_orders, 1, 100)
     bounded_int(max_trades, 1, 100)
     bounded_int(max_calls, 1, 300)
@@ -160,24 +241,17 @@ async def inspect_orders(
         plan = await writer.submit(
             lambda ledger: recovery_plan(ledger, scope, max_orders=max_orders)
         )
-        if 3 * sum(target.external_id is not None for target in plan.targets) > max_calls:
+        known = {
+            target.external_id: target for target in plan.targets if target.external_id is not None
+        }
+        if calls_per_order * len(known) + (extra_calls if known else 0) > max_calls:
             raise ExecutionError("recovery unified-call budget is insufficient")
-        histories = []
-        for target in plan.targets:
-            if target.external_id is None:
-                continue
-            history = await read_order_history(
-                transport,
-                target.external_id,
-                scope.symbol,
-                max_trades=max_trades,
-                timeout_ms=timeout_ms,
-            )
-            _check_terms(plan, target, history)
-            histories.append(history)
+        batch = await read(tuple(known)) if known else OrderHistoryBatch(())
+        for history in batch.histories:
+            _check_terms(plan, known[history.order.order_id], history)
         current = await writer.submit(
             lambda ledger: recovery_plan(ledger, scope, max_orders=max_orders)
         )
         if current != plan:
             raise ExecutionError("recovery plan changed during observation")
-        return RecoveryInspection(plan, tuple(histories))
+        return RecoveryInspection(plan, batch.histories, batch.unmatched_trades)

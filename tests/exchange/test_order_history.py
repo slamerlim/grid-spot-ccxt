@@ -101,6 +101,7 @@ def test_quantity_matched_history_preserves_unknowns_and_exact_values(case: str)
         ("duplicate_hides_gap", Failure.INCOMPLETE, 3),
         ("conflict", Failure.MALFORMED, 3),
         ("foreign_order", Failure.MALFORMED, 3),
+        ("missing_trade_order", Failure.MALFORMED, 3),
         ("foreign_symbol", Failure.MALFORMED, 2),
         ("wrong_side", Failure.MALFORMED, 3),
         ("float", Failure.MALFORMED, 2),
@@ -138,6 +139,8 @@ def test_incomplete_changed_or_conflicting_reads_produce_no_result(
                 source.rows = [trade(), trade() | {"price": "99"}]
             case "foreign_order":
                 source.rows = [trade() | {"order": "foreign"}]
+            case "missing_trade_order":
+                source.rows = [trade() | {"order": None}]
             case "foreign_symbol":
                 source.rows = [trade() | {"symbol": "OTHER/QUOTE"}]
             case "wrong_side":

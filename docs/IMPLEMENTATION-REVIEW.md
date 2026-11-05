@@ -108,6 +108,12 @@ observations and revalidates the plan after the bounded reads. It is read-only:
 no fill posting, uncertainty resolution or readiness is derived from inspection.
 Account-wide discovery, unknown lookup, comparison with committed fills and
 settlement ordering remain required before replacing the executor's history path.
+`I8-ACCOUNT-HISTORY.md` implements an explicit alternative through unified
+`fetch_my_trades`, with guarded XT/BingX SDK fixtures. It queries one bounded
+symbol page for the known orders, preserves unmatched/unattributed observations,
+and shares sole-writer plan revalidation. Missing quantities and unknown orders
+remain unresolved; bounded continuation and complete account recovery are still
+required before financial integration.
 
 ## Unfinished offline research work
 

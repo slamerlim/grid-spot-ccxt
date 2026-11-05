@@ -91,6 +91,7 @@ def normalize_trade(
         raise ExecutionError("invalid unified trade") from exc
     if (
         market.symbol != observed.symbol
+        or observed.order_id is None
         or observed.order_id != owned.external_id
         or observed.side is not None
         and observed.side != str(owned.request.side)

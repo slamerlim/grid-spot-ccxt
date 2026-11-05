@@ -326,6 +326,16 @@ ordering are integrated. No new exchange access or acceptance waiver is implied.
 
 ## Invariants for subsequent approved iterations
 
+`docs/I8-ACCOUNT-HISTORY.md` adds the explicit unified `fetch_my_trades` alternative
+to per-order history. Query one bounded symbol page for all known order IDs and
+retain unmatched trades, including missing order attribution. Such observations
+cannot satisfy an owned order's cumulative total or enter financial posting.
+Check duplicate IDs across the entire page and preflight the full `2*N+1` call
+budget. Reuse the writer's plan/terms/revalidation checks without clearing halts
+or unknown submissions. Offline XT/BingX SDK fixtures are not account acceptance;
+bounded continuation, account-wide discovery and committed-fill comparison remain
+open. No new exchange access, live transport or acceptance waiver is implied.
+
 `docs/I8-ORDER-HISTORY.md` adds a shared per-order read primitive, tested with
 offline fakes and guarded pinned OKX unified methods. At most three unified calls
 bracket one limited trade query; unique quantities must match stable cumulative

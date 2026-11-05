@@ -175,13 +175,13 @@ def test_private_snapshots_preserve_missing_balances_and_actual_fee_identity() -
     assert parsed[0] == parsed[1]
     assert parsed[0].fees == (("TOKEN", Decimal("-.001")),)
     assert trades([trade | {"fees": []}], "BTC/USDT", 1)[0].fees is None
+    assert trades([trade | {"order": None}], "BTC/USDT", 1)[0].order_id is None
     # A closed order/status-only message has no financial effect.
     order = orders([{"id": "external-2", "symbol": "BTC/USDT", "status": "closed"}], "BTC/USDT", 1)[
         0
     ]
     assert order.filled is None and order.remaining is None
     for bad in (
-        trade | {"order": None},
         trade | {"symbol": "OTHER/USDT"},
         trade | {"fees": [{"currency": None, "cost": "0"}]},
     ):

@@ -40,7 +40,7 @@ def balances(raw: object, currencies: tuple[str, ...]) -> tuple[BalanceObservati
 @dataclass(frozen=True)
 class TradeObservation:
     trade_id: str
-    order_id: str
+    order_id: str | None
     symbol: str
     side: str | None
     amount: Decimal
@@ -74,7 +74,7 @@ def trades(raw: object, symbol: str, limit: int) -> tuple[TradeObservation, ...]
         result.append(
             TradeObservation(
                 token(row.get("id")),
-                token(row.get("order")),
+                None if row.get("order") is None else token(row["order"]),
                 token(symbol),
                 None if row.get("side") is None else token(row["side"]),
                 money(row.get("amount"), positive=True),
@@ -142,12 +142,34 @@ class OrderReadTransport(Protocol):
     async def fetch_order_trades(self, id: str, symbol: str, since: None, limit: int) -> object: ...
 
 
+class AccountReadTransport(Protocol):
+    """Unified fallback for venues without a per-order trade method."""
+
+    async def fetch_order(self, id: str, symbol: str) -> object: ...
+    async def fetch_my_trades(self, symbol: str, since: None, limit: int) -> object: ...
+
+
 @dataclass(frozen=True)
 class OrderHistoryObservation:
     """Quantity-matched observations, not ownership, fee or chronology authority."""
 
     order: OrderObservation
     trades: tuple[TradeObservation, ...]
+
+
+@dataclass(frozen=True)
+class OrderHistoryBatch:
+    histories: tuple[OrderHistoryObservation, ...]
+    unmatched_trades: tuple[TradeObservation, ...] = ()
+
+
+def _unique_trades(rows: tuple[TradeObservation, ...]) -> tuple[TradeObservation, ...]:
+    unique: dict[str, TradeObservation] = {}
+    for trade in rows:
+        if trade.trade_id in unique and unique[trade.trade_id] != trade:
+            raise ReadError(Failure.MALFORMED)
+        unique[trade.trade_id] = trade
+    return tuple(unique.values())
 
 
 @exact
@@ -168,18 +190,15 @@ def _order_history(
         first, last = getattr(before, name), getattr(after, name)
         if first is not None and last is not None and first != last:
             raise ReadError(Failure.INCOMPLETE)
-    unique: dict[str, TradeObservation] = {}
-    for trade in rows:
+    unique = _unique_trades(rows)
+    for trade in unique:
         if trade.order_id != after.order_id or (
             trade.side is not None and after.side is not None and trade.side != after.side
         ):
             raise ReadError(Failure.MALFORMED)
-        if trade.trade_id in unique and unique[trade.trade_id] != trade:
-            raise ReadError(Failure.MALFORMED)
-        unique[trade.trade_id] = trade
-    if sum((trade.amount for trade in unique.values()), ZERO) != after.filled:
+    if sum((trade.amount for trade in unique), ZERO) != after.filled:
         raise ReadError(Failure.INCOMPLETE)
-    return OrderHistoryObservation(after, tuple(unique.values()))
+    return OrderHistoryObservation(after, unique)
 
 
 async def read_order_history(
@@ -216,6 +235,68 @@ async def read_order_history(
             if after.order_id != order_id:
                 raise ReadError(Failure.INCOMPLETE)
             return _order_history(before, after, rows)
+    except ReadError:
+        raise
+    except TimeoutError:
+        raise ReadError(Failure.TIMEOUT) from None
+    except DomainError:
+        raise ReadError(Failure.MALFORMED) from None
+    except Exception:
+        raise ReadError(Failure.UNAVAILABLE) from None
+
+
+async def read_account_history(
+    transport: AccountReadTransport,
+    order_ids: tuple[str, ...],
+    symbol: str,
+    *,
+    max_trades: int,
+    timeout_ms: int,
+) -> OrderHistoryBatch:
+    """Bracket one symbol-scoped personal-trade query with N order reads each side.
+
+    At most 2*N+1 unified calls, with 1–100 distinct orders and 1–100 trade rows
+    total. Preserve unmatched trades for later ownership checks. This is neither
+    account completeness nor an atomic snapshot. No automatic fallback or retry.
+    """
+    token(symbol)
+    integer(max_trades, 1, 100)
+    integer(timeout_ms, 1, 30_000)
+    if not isinstance(order_ids, tuple) or not 1 <= len(order_ids) <= 100:
+        raise ReadError(Failure.BUDGET)
+    for identity in order_ids:
+        token(identity)
+    if len(set(order_ids)) != len(order_ids):
+        raise ReadError(Failure.MALFORMED)
+    try:
+        async with asyncio.timeout(timeout_ms / 1000):
+            before = []
+            for identity in order_ids:
+                observed = orders([await transport.fetch_order(identity, symbol)], symbol, 1)[0]
+                if (
+                    observed.order_id != identity
+                    or observed.status is None
+                    or observed.filled is None
+                ):
+                    raise ReadError(Failure.INCOMPLETE)
+                before.append(observed)
+            rows = _unique_trades(
+                trades(
+                    await transport.fetch_my_trades(symbol, None, max_trades), symbol, max_trades
+                )
+            )
+            grouped: dict[str, list[TradeObservation]] = {identity: [] for identity in order_ids}
+            unmatched = []
+            for trade in rows:
+                if trade.order_id is not None and trade.order_id in grouped:
+                    grouped[trade.order_id].append(trade)
+                else:
+                    unmatched.append(trade)
+            histories = []
+            for identity, first in zip(order_ids, before, strict=True):
+                after = orders([await transport.fetch_order(identity, symbol)], symbol, 1)[0]
+                histories.append(_order_history(first, after, tuple(grouped[identity])))
+            return OrderHistoryBatch(tuple(histories), tuple(unmatched))
     except ReadError:
         raise
     except TimeoutError:

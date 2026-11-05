@@ -203,6 +203,7 @@ def test_missing_optional_terms_use_intent_but_missing_identity_needs_prior_bind
         "remaining",
         "cumulative",
         "foreign_order",
+        "missing_order",
         "market_trade",
         "wrong_side",
         "above_limit",
@@ -236,6 +237,7 @@ def test_unified_snapshot_refuses_incomplete_or_conflicting_money_before_binding
             }
             trade_changes: dict[str, dict[str, object]] = {
                 "foreign_order": {"order": "foreign"},
+                "missing_order": {"order": None},
                 "market_trade": {"type": "market"},
                 "wrong_side": {"side": "sell"},
                 "above_limit": {"price": "101", "cost": "101"},

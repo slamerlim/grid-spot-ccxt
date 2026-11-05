@@ -24,6 +24,9 @@ order/trade observations with offline SDK fixtures. A
 [read-only recovery planner](docs/I8-RECOVERY-PLAN.md) selects outstanding owned
 orders, retains unknown submissions and rechecks durable identity after reads;
 account-wide recovery remains unfinished.
+An [account-trade alternative](docs/I8-ACCOUNT-HISTORY.md) reads one bounded
+unified trade page for the known orders and retains unmatched observations;
+guarded XT/BingX SDK fixtures cover this path offline.
 The public adapter uses [CCXT's documented string-number mode](docs/I8-CCXT-UNIFIED-NUMBERS.md)
 and converts unified financial values to Decimal at the application boundary.
 The owner approved I8 public-paper work with local validation while hosted CI remains pending.
