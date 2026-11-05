@@ -321,8 +321,20 @@ not an attempt. Validate original placement terms and exact durable bindings,
 preflight the whole call budget and recheck the plan after reads. Missing optional
 descriptive fields remain unknown. Inspection cannot post money, clear uncertainty
 or grant readiness. Retain the executor's complete-history/terminal checks until
-account-wide discovery, unknown lookup, committed-fill comparison and settlement
+account-wide discovery, unknown lookup, committed-fill posting and settlement
 ordering are integrated. No new exchange access or acceptance waiver is implied.
+
+`docs/I8-COMMITTED-RECOVERY.md` adds bounded durable fill baselines to both
+read-only inspection paths. Recent unified windows may omit old fills only when
+the ledger proves their identities, canonical payloads, fees and cumulative
+quantity/cost. Recheck this baseline after reads; every new quantity must be
+covered by new observed identities. Compare returned terminal and other-allocation
+trades by scoped identity without adopting them or rewriting settlement facts.
+Optional unknowns stay unknown. Keep standalone history readers strict, inspection
+classifications separate from financial posting, and all call/deadline/record
+bounds. The executor's full-history contract remains until account-wide discovery,
+unknown submissions, bounded continuation and settlement integration are complete.
+No new exchange access, schema change or readiness authority is implied.
 
 ## Invariants for subsequent approved iterations
 
@@ -333,7 +345,7 @@ cannot satisfy an owned order's cumulative total or enter financial posting.
 Check duplicate IDs across the entire page and preflight the full `2*N+1` call
 budget. Reuse the writer's plan/terms/revalidation checks without clearing halts
 or unknown submissions. Offline XT/BingX SDK fixtures are not account acceptance;
-bounded continuation, account-wide discovery and committed-fill comparison remain
+bounded continuation, account-wide discovery and financial integration remain
 open. No new exchange access, live transport or acceptance waiver is implied.
 
 `docs/I8-ORDER-HISTORY.md` adds a shared per-order read primitive, tested with

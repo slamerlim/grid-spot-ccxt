@@ -106,14 +106,25 @@ admission effect; the account-wide integration described above remains open.
 reads, preserves unbound attempted orders, checks owned terms against unified
 observations and revalidates the plan after the bounded reads. It is read-only:
 no fill posting, uncertainty resolution or readiness is derived from inspection.
-Account-wide discovery, unknown lookup, comparison with committed fills and
-settlement ordering remain required before replacing the executor's history path.
+Account-wide discovery, unknown lookup, committed-fill integration with posting
+and settlement ordering remain required before replacing the executor's history path.
 `I8-ACCOUNT-HISTORY.md` implements an explicit alternative through unified
 `fetch_my_trades`, with guarded XT/BingX SDK fixtures. It queries one bounded
 symbol page for the known orders, preserves unmatched/unattributed observations,
 and shares sole-writer plan revalidation. Missing quantities and unknown orders
 remain unresolved; bounded continuation and complete account recovery are still
 required before financial integration.
+`I8-COMMITTED-RECOVERY.md` now compares recent observations with a bounded baseline
+of committed working-order fills. Indexed reads validate retained state, canonical
+payloads, external identities, fee projections and cumulative quantity/gross cost;
+the entire plan is checked again after observation. New identities must cover the
+remaining reported quantity exactly. Returned terminal/foreign-allocation replays
+are checked by scoped identity without being adopted or scanning lifetime history.
+Standalone history helpers retain their full-quantity requirement. Inspection
+remains read-only and does not establish settlement order, account completeness,
+fee evidence for new fills or dispatch readiness. Missing new quantities, unknown
+submissions, unexpected activity, bounded continuation and atomic integration with
+the executor remain open; its original completeness checks are unchanged.
 
 ## Unfinished offline research work
 

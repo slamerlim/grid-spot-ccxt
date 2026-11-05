@@ -339,7 +339,9 @@ def test_actual_planning_queries_use_indexes_and_do_not_read_lifetime_history(
                 assert details and all(
                     "SCAN" not in detail and "SEARCH" in detail for detail in details
                 )
-                assert "FROM fills" not in sql and "FROM trade_keys" not in sql
+                if "FROM fills" in sql:
+                    assert "f.order_id=" in sql and " LIMIT " in sql
+                assert "FROM trade_keys" not in sql
             assert any("FROM intents WHERE id=" in sql for sql in statements)
 
     asyncio.run(run())

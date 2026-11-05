@@ -27,6 +27,9 @@ account-wide recovery remains unfinished.
 An [account-trade alternative](docs/I8-ACCOUNT-HISTORY.md) reads one bounded
 unified trade page for the known orders and retains unmatched observations;
 guarded XT/BingX SDK fixtures cover this path offline.
+The [committed-fill comparison](docs/I8-COMMITTED-RECOVERY.md) lets these
+inspections use recent windows that omit already-posted fills, while requiring
+every new quantity and rejecting conflicting identities. It remains read-only.
 The public adapter uses [CCXT's documented string-number mode](docs/I8-CCXT-UNIFIED-NUMBERS.md)
 and converts unified financial values to Decimal at the application boundary.
 The owner approved I8 public-paper work with local validation while hosted CI remains pending.

@@ -57,7 +57,7 @@ retries or replacement. The caller owns the transport's rate/HTTP byte budget
 and lifecycle. Run `pytest -q tests/exchange/test_order_history.py` using the
 offline fixtures. No operator command enables private access through this helper.
 
-`execution.recovery.inspect_orders` connects that reader to a bounded plan from
+`execution.recovery.inspect_orders` connects unified reads to a bounded plan from
 the sole writer; see `I8-RECOVERY-PLAN.md`. Unknown external IDs remain explicit
 and inspection never authorizes posting or dispatch. A changed plan or mismatched
 owned order invalidates the result. Run the offline
@@ -69,8 +69,21 @@ same plan/ownership checks and reads one bounded symbol page for all known IDs.
 See `I8-ACCOUNT-HISTORY.md` and the offline `test_account_history.py` /
 `test_account_recovery.py` fixtures. Its limit covers unmatched rows as well as
 owned fills. Preserve unmatched or unattributed trades for ownership review;
-never count them as fills of a known order. A missing old fill remains incomplete,
-and inspection does not establish complete account recovery or enable dispatch.
+never count them as fills of a known order. Inspection does not establish
+complete account recovery or enable dispatch.
+
+`I8-COMMITTED-RECOVERY.md` adds comparison against durable fills. Both inspection
+paths now use explicit recent-window readers: committed working-order fills must
+prove the old cumulative quantity, and newly observed identities must cover the
+entire remaining difference. `max_committed_trades` defaults to 1,000 across the
+allocation and accepts 1–10,000; exceeding it refuses before external reads.
+The original `read_order_history` / `read_account_history` helpers still require
+their returned trades to cover the whole reported quantity. Inspection classifies
+observations as new, committed and unmatched without posting or granting readiness.
+Unknown fees stay unknown and cannot replace saved settlement values. Run
+`pytest -q tests/execution/test_recovery_fills.py` offline. Preserve conflicts for
+review; do not erase old facts, adopt unmatched fills or relax the executor's
+complete-history contract to force a result.
 
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference

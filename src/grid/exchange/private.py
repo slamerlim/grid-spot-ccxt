@@ -151,7 +151,7 @@ class AccountReadTransport(Protocol):
 
 @dataclass(frozen=True)
 class OrderHistoryObservation:
-    """Quantity-matched observations, not ownership, fee or chronology authority."""
+    """Observed order/trades; the selected reader defines quantity coverage."""
 
     order: OrderObservation
     trades: tuple[TradeObservation, ...]
@@ -174,7 +174,11 @@ def _unique_trades(rows: tuple[TradeObservation, ...]) -> tuple[TradeObservation
 
 @exact
 def _order_history(
-    before: OrderObservation, after: OrderObservation, rows: tuple[TradeObservation, ...]
+    before: OrderObservation,
+    after: OrderObservation,
+    rows: tuple[TradeObservation, ...],
+    *,
+    complete: bool = True,
 ) -> OrderHistoryObservation:
     if (
         before.order_id != after.order_id
@@ -196,7 +200,8 @@ def _order_history(
             trade.side is not None and after.side is not None and trade.side != after.side
         ):
             raise ReadError(Failure.MALFORMED)
-    if sum((trade.amount for trade in unique), ZERO) != after.filled:
+    total = sum((trade.amount for trade in unique), ZERO)
+    if after.filled is None or total > after.filled or complete and total != after.filled:
         raise ReadError(Failure.INCOMPLETE)
     return OrderHistoryObservation(after, unique)
 
@@ -217,6 +222,38 @@ async def read_order_history(
     The caller supplies a transport with its own byte/rate/capability enforcement
     and owns its lifetime. Tests supply only offline fakes or guarded SDK clients.
     """
+    return await _read_order(
+        transport, order_id, symbol, max_trades=max_trades, timeout_ms=timeout_ms, complete=True
+    )
+
+
+async def read_order_window(
+    transport: OrderReadTransport,
+    order_id: str,
+    symbol: str,
+    *,
+    max_trades: int,
+    timeout_ms: int,
+) -> OrderHistoryObservation:
+    """Stable bounded observations; missing older quantities require ledger proof.
+
+    Unlike read_order_history, the returned trades may cover only part of the
+    reported cumulative quantity. This function grants no recovery authority.
+    """
+    return await _read_order(
+        transport, order_id, symbol, max_trades=max_trades, timeout_ms=timeout_ms, complete=False
+    )
+
+
+async def _read_order(
+    transport: OrderReadTransport,
+    order_id: str,
+    symbol: str,
+    *,
+    max_trades: int,
+    timeout_ms: int,
+    complete: bool,
+) -> OrderHistoryObservation:
     token(order_id)
     token(symbol)
     integer(max_trades, 1, 100)
@@ -234,7 +271,7 @@ async def read_order_history(
             after = orders([await transport.fetch_order(order_id, symbol)], symbol, 1)[0]
             if after.order_id != order_id:
                 raise ReadError(Failure.INCOMPLETE)
-            return _order_history(before, after, rows)
+            return _order_history(before, after, rows, complete=complete)
     except ReadError:
         raise
     except TimeoutError:
@@ -259,6 +296,34 @@ async def read_account_history(
     total. Preserve unmatched trades for later ownership checks. This is neither
     account completeness nor an atomic snapshot. No automatic fallback or retry.
     """
+    return await _read_account(
+        transport, order_ids, symbol, max_trades=max_trades, timeout_ms=timeout_ms, complete=True
+    )
+
+
+async def read_account_window(
+    transport: AccountReadTransport,
+    order_ids: tuple[str, ...],
+    symbol: str,
+    *,
+    max_trades: int,
+    timeout_ms: int,
+) -> OrderHistoryBatch:
+    """One stable symbol window; quantity coverage remains for the ledger to prove."""
+    return await _read_account(
+        transport, order_ids, symbol, max_trades=max_trades, timeout_ms=timeout_ms, complete=False
+    )
+
+
+async def _read_account(
+    transport: AccountReadTransport,
+    order_ids: tuple[str, ...],
+    symbol: str,
+    *,
+    max_trades: int,
+    timeout_ms: int,
+    complete: bool,
+) -> OrderHistoryBatch:
     token(symbol)
     integer(max_trades, 1, 100)
     integer(timeout_ms, 1, 30_000)
@@ -295,7 +360,9 @@ async def read_account_history(
             histories = []
             for identity, first in zip(order_ids, before, strict=True):
                 after = orders([await transport.fetch_order(identity, symbol)], symbol, 1)[0]
-                histories.append(_order_history(first, after, tuple(grouped[identity])))
+                histories.append(
+                    _order_history(first, after, tuple(grouped[identity]), complete=complete)
+                )
             return OrderHistoryBatch(tuple(histories), tuple(unmatched))
     except ReadError:
         raise
