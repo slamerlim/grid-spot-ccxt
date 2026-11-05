@@ -319,10 +319,9 @@ def test_strict_plan_and_separate_cli_process(make_replay: MakeReplay, tmp_path:
     assert digest(report["result"]) == report["result_payload_sha256"]
     assert (source.read_bytes(), source.stat().st_mtime_ns, study_path.read_bytes()) == before
     args[-1] = str(tmp_path / "unused.json")
-    for flag in ("--compare-lots", "--compare-scenarios"):
-        with pytest.raises(SystemExit) as refused:
-            main([*args, flag])
-        assert refused.value.code == 2
+    with pytest.raises(SystemExit) as refused:
+        main([*args, "--compare-scenarios"])
+    assert refused.value.code == 2
     for content in (
         '{"schema": "grid-study-plan-v1", "schema": "grid-study-plan-v1"}',
         json.dumps({**bundle(plan), "unknown": True}),

@@ -231,6 +231,15 @@ query timings, logical byte counts and observed NVMe backing are distinct from
 cold-device/replay throughput or deployment certification. Multi-source merges,
 replay reuse, resource evidence and external gates remain open. Keep raw inputs.
 
+`docs/I8-LOT-STUDIES.md` records `--study PLAN --compare-lots`.
+Select spacing independently from each research policy's training NAV and retain
+all held-out outcomes. Compare complete common configurations, slice manifests
+and funding; count both policies in replay/bar limits and the combined report
+cap. Distinguish matched-candidate differences from separately selected-candidate
+differences. Reference studies have no portfolio exits or live policy export;
+production still has one aggregate SELL. Historical assumptions, resource work
+and external acceptance gates remain open.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

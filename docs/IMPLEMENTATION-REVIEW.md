@@ -27,6 +27,8 @@ Portfolio walk-forward integration based on `9eecbca` is recorded in
 `I8-PORTFOLIO-STUDIES.md` and incorporated below.
 Bounded UTC storage queries based on `92cfdd4` are recorded in
 `I8-STORAGE-QUERIES.md` and incorporated below.
+Paired independent-lot walk-forward studies based on `1f3290e` are recorded in
+`I8-LOT-STUDIES.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -99,15 +101,18 @@ missing venue evidence or to enable live access.
    endpoints. `--compare-lots` now adds one declared fixed-anchor independent-lot
    reference using shared accounting and original-allocation OHLC ambiguity.
    Its complete results are compared with the ordinary basket on common funds
-   and manifests. It has no portfolio exit or automatic scenario cross-product.
+   and manifests. It has no portfolio exit. `--study --compare-lots` now pairs
+   full basket/reference studies across the plan's declared scenarios, with
+   independent training-only spacing selection and complete retained outcomes.
+   Combined work/output bounds apply; paired inputs and funding are checked.
    `--study` now evaluates declared chronological folds and spacing candidates
    under separate fee/model/latency scenarios using the basket or portfolio engine.
    Portfolio cycles carry within each window; all candidate endpoint marks must
    be known before selecting by training net NAV. Selection is frozen before test
    replay; all outcomes remain visible with fresh funding per window. Regime labels
    and universe evidence are caller declarations. Point-in-time survivorship/
-   delisting checks, verified historical fee tiers and independent-lot study
-   integration remain missing. A plan hash is not proof of preregistration.
+   delisting checks and verified historical fee/rule/FX changes remain missing.
+   A plan hash is not proof of preregistration.
    No suite covers all these yet. Never select fills using future bars or treat
    touches as observed queue fills. Independent-lot comparison stays research-only.
 3. **Remaining metrics and provenance limits.** The CLI now wraps unchanged

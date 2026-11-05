@@ -163,9 +163,13 @@ spacing candidates and separate fee/fill/latency scenarios. It selects spacing
 from training NAV only and retains every held-out result with fresh funds per
 window. Add `--portfolio` and optionally `--portfolio-cycles N` for consolidated
 cycles within each window, using a common endpoint and withholding selection
-when training NAV is unknown. It excludes the other comparison flags. See
-[basket study plans](docs/I8-RESEARCH-STUDIES.md) and
-[portfolio study rules and evidence](docs/I8-PORTFOLIO-STUDIES.md).
+when training NAV is unknown. Add `--compare-lots` without portfolio settings
+to compare basket and independent-lot studies, each selecting spacing from its
+own training NAV and retaining every test result. Work limits count both policies.
+`--compare-scenarios` remains excluded because the plan declares scenarios. See
+[basket study plans](docs/I8-RESEARCH-STUDIES.md),
+[portfolio study rules](docs/I8-PORTFOLIO-STUDIES.md) and
+[paired lot-study evidence](docs/I8-LOT-STUDIES.md).
 
 ## Offline operational experiments
 

@@ -420,8 +420,14 @@ spacing experiments. Each scenario fixes fees, latency and fill convention;
 selection uses training total NAV only, then every held-out candidate is retained.
 Each window starts fresh, so returns cannot be compounded into a continuous
 equity curve. `I8-RESEARCH-STUDIES.md` documents the strict plan, chronological
-boundaries, all-or-fail output and caps. Other comparison flags remain excluded.
-Optional `--portfolio SETTINGS.json --portfolio-cycles N` uses controller NAV
+boundaries, all-or-fail output and caps. `--compare-scenarios` remains excluded.
+Add `--compare-lots` without portfolio settings for a paired basket/reference
+study. Each policy selects spacing from its own training NAV; complete results
+and matched-candidate differences are retained. Replay/bar limits count both
+policies before reading history, and the combined report must fit the 64 MiB cap.
+Read `I8-LOT-STUDIES.md` before interpreting selected-return differences.
+For a basket study, optional `--portfolio SETTINGS.json --portfolio-cycles N`
+uses controller NAV
 and continuous cycles within each fresh-funded window. Every candidate is valued
 through the same endpoint, including after its final allowed exit. Unknown
 training NAV withholds selection for the entire fold/scenario while preserving

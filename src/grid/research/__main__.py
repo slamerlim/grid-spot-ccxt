@@ -20,6 +20,7 @@ from grid.research.portfolio_config import load as load_portfolio
 from grid.research.portfolio_replay import run as run_portfolio
 from grid.research.provenance import Observation
 from grid.research.replay import run
+from grid.research.study import compare_lots as compare_study_lots
 from grid.research.study import run as run_study
 from grid.research.study_config import load as load_study
 
@@ -79,8 +80,8 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
             action="store_true",
             help="compare basket and independent-lot research on the configured OHLC model",
         )
-        comparisons.add_argument(
-            "--study", type=Path, help="declared walk-forward sensitivity plan"
+        command.add_argument(
+            "--study", type=Path, help="declared walk-forward plan; supports --compare-lots"
         )
         command.add_argument("--output", type=Path, required=True)
     elif name == "demo":
@@ -105,6 +106,8 @@ def main(
         configure(parser, operation)
         parser.set_defaults(command=operation)
     args = parser.parse_args(argv)
+    if args.command == "replay" and args.study is not None and args.compare_scenarios:
+        parser.error("study already declares scenarios")
     try:
         if args.command == "demo":
             create(args.output_directory, args.code_revision)
@@ -123,7 +126,14 @@ def main(
             max_cycles = 1 if args.portfolio_cycles is None else args.portfolio_cycles
             result: object
             if args.study is not None:
-                result = run_study(spec, load_study(args.study), settings, max_cycles=max_cycles)
+                if args.compare_lots and settings is not None:
+                    raise DomainError("independent-lot studies have no portfolio exit model")
+                plan = load_study(args.study)
+                result = (
+                    compare_study_lots(spec, plan)
+                    if args.compare_lots
+                    else run_study(spec, plan, settings, max_cycles=max_cycles)
+                )
             elif args.compare_lots:
                 if settings is not None:
                     raise DomainError("independent-lot comparison has no portfolio exit model")
