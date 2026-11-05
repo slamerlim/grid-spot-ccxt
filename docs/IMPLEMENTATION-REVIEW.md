@@ -128,9 +128,9 @@ Hosted CI remains pending under the unchanged account lock; publication uses
 The standalone inspection helpers described in `I8-ORDER-HISTORY.md`,
 `I8-RECOVERY-PLAN.md`, `I8-ACCOUNT-HISTORY.md` and `I8-COMMITTED-RECOVERY.md` remain
 read-only. This integration does not make their observations dispatch authority.
-Real account-wide discovery, unknown-order lookup, bounded continuation after a
-history gap, actual settlement ordering/FX evidence and authenticated transport
-remain unfinished.
+Real account-wide discovery, executor integration of unknown-order lookup,
+bounded continuation after a history gap, actual settlement ordering/FX evidence
+and authenticated transport remain unfinished.
 A missing new quantity stops recovery; no wider unbounded scan or blind resend
 is attempted. CCXT dictionaries do not establish account completeness or an atomic
 snapshot. Continue integrating the essential runtime; no new exchange access,
@@ -172,6 +172,51 @@ are `3.12-1793864948837144663.json` and `3.13-1793864948836621048.json` under
 strict typing, Bandit, lock verification and the locked dependency audit passed.
 Hosted CI remains pending under the unchanged account lock; publication uses
 `[skip ci]` and GitHub Free only.
+
+### Locating attempted orders without an exchange ID
+
+`inspect_account_orders` now accepts explicit lookup through the same caller-owned
+account client. When an attempted working order has a registered returned client
+ID but no exchange ID, it queries bounded unified open and recent closed orders.
+Only an exact returned client-ID match can locate that order. Known terms must
+match the reserved intent; conflicting identities, multiple external IDs for
+one client ID and external IDs already bound to another intent refuse the batch.
+Unknown client IDs and missing client IDs remain unmatched observations.
+
+Located IDs use the existing bracketed order/personal-trade reader and committed
+fill comparison. The original sole-writer plan is rechecked after lookup and
+again after history reads. `discovered_orders` preserves the located targets,
+while `plan` and `unresolved` retain the original durable unknowns. Unmatched
+orders/trades remain available to the caller. Inspection performs no binding,
+financial posting, hold clearing or send admission; registration without an
+attempt causes no lookup. No schema or executor dispatch behavior changes.
+
+Lookup adds at most two unified calls and at most `2*max_orders` candidate rows.
+The whole worst-case call budget is checked before any read, including history
+for every potentially located target. One deadline covers both read phases;
+failures are sanitized, cancellation propagates and there is no automatic retry.
+Both methods must be supported by the selected account client. CCXT normalizes
+the responses, but method availability and retention vary; see its
+[order-query contract](https://github.com/ccxt/ccxt/wiki/Manual#querying-orders).
+The guarded pinned OKX fixture confirms that its default closed-order request
+selects `state=filled`, so absence cannot exclude canceled orders or establish
+rejection. All missing matches remain unresolved, even in an empty or short page.
+
+Tests cover lost acknowledgements for open, partial and filled orders, known and
+unknown orders in one pass, unrelated orders, duplicate claims, binding conflicts,
+plan changes, limits, cancellation and the actual pinned SDK read/parse methods
+with signing and transport prohibited. This remains offline evidence. Account-wide
+completeness, lookup-to-executor integration, pagination and authenticated transport
+remain unfinished.
+
+Local validation passed **1,534 tests on Python 3.12.16** (594.51 seconds) and
+**1,534 on Python 3.13.18** (612.23 seconds), with no skips. Application,
+test and dependency bytes were unchanged across both complete runs. Receipts
+are `3.12-1793887008961338028.json` and `3.13-1793887008957278017.json` under
+`/tmp/grid-i8-order-lookup-checks/`, with corresponding logs. The focused recovery
+and boundary checks passed 150 tests. Lint, formatting, strict typing, Bandit,
+lock verification and the locked dependency audit also passed. Hosted CI remains
+pending; publication uses `[skip ci]` and GitHub Free only.
 
 ## Unfinished offline research work
 

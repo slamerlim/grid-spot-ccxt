@@ -13,9 +13,12 @@ from grid.exchange.private import (
     AccountReadTransport,
     OrderHistoryBatch,
     OrderHistoryObservation,
+    OrderLookupTransport,
+    OrderObservation,
     OrderReadTransport,
     TradeObservation,
     read_account_window,
+    read_order_candidates,
     read_order_window,
 )
 from grid.execution.models import ExecutionError
@@ -53,10 +56,12 @@ class RecoveryInspection:
     unmatched_trades: tuple[TradeObservation, ...] = ()
     new_trades: tuple[TradeObservation, ...] = ()
     committed_trades: tuple[TradeObservation, ...] = ()
+    discovered_orders: tuple[RecoveryTarget, ...] = ()
+    unmatched_orders: tuple[OrderObservation, ...] = ()
 
     @property
     def unresolved(self) -> tuple[RecoveryTarget, ...]:
-        """Unknown external IDs remain obligations, never inferred rejections."""
+        """Durable unknowns remain obligations, including read-only discoveries."""
         return tuple(target for target in self.plan.targets if target.external_id is None)
 
 
@@ -206,10 +211,10 @@ def recovery_plan(
 
 
 @exact
-def _check_terms(
-    plan: RecoveryPlan, target: RecoveryTarget, history: OrderHistoryObservation
+def _check_order_identity(
+    plan: RecoveryPlan, target: RecoveryTarget, observed: OrderObservation
 ) -> None:
-    observed, order = history.order, target.order
+    order = target.order
     expected_client = (
         client_identity(plan.scope, order.id)
         if target.client is None
@@ -226,6 +231,14 @@ def _check_terms(
     ):
         if actual is not None and actual != expected:
             raise ExecutionError("recovery observation contradicts its owned intent")
+
+
+@exact
+def _check_terms(
+    plan: RecoveryPlan, target: RecoveryTarget, history: OrderHistoryObservation
+) -> None:
+    observed, order = history.order, target.order
+    _check_order_identity(plan, target, observed)
     if (
         observed.filled is None
         or not order.filled <= observed.filled <= order.amount
@@ -293,14 +306,19 @@ async def inspect_account_orders(
     max_calls: int,
     timeout_ms: int,
     max_committed_trades: int = 1000,
+    lookup: OrderLookupTransport | None = None,
 ) -> RecoveryInspection:
     """One bounded symbol trade page for all known IDs; retain unmatched trades.
 
     Explicit alternative to per-order trade reads, never an automatic error
     fallback. The total trade cap covers the whole page, including unmatched
-    orders and duplicates. Unknown external IDs remain unresolved. Existing
-    committed fills prove the old quantity; observations must cover the new gap.
+    orders and duplicates. Optional lookup locates unknown external IDs by saved
+    returned client IDs, then uses the same bracketed reads. Discoveries do not
+    bind orders or clear durable uncertainty. Existing committed fills prove the
+    old quantity; observations must cover the new gap.
     """
+    if lookup is not None and id(lookup) != id(transport):
+        raise ExecutionError("order lookup must use the same account transport")
 
     async def read(identities: tuple[str, ...]) -> OrderHistoryBatch:
         return await read_account_window(
@@ -318,6 +336,7 @@ async def inspect_account_orders(
         max_calls=max_calls,
         timeout_ms=timeout_ms,
         max_committed_trades=max_committed_trades,
+        lookup=lookup,
     )
 
 
@@ -333,6 +352,7 @@ async def _inspect(
     max_calls: int,
     timeout_ms: int,
     max_committed_trades: int,
+    lookup: OrderLookupTransport | None = None,
 ) -> RecoveryInspection:
     bounded_int(max_orders, 1, 100)
     bounded_int(max_trades, 1, 100)
@@ -348,8 +368,41 @@ async def _inspect(
         known = {
             target.external_id: target for target in plan.targets if target.external_id is not None
         }
-        if calls_per_order * len(known) + (extra_calls if known else 0) > max_calls:
+        discover = lookup is not None and any(
+            target.external_id is None and target.client is not None for target in plan.targets
+        )
+        maximum = len(known) + (
+            sum(target.external_id is None and target.client is not None for target in plan.targets)
+            if discover
+            else 0
+        )
+        if calls_per_order * maximum + (extra_calls if maximum else 0) + 2 * discover > max_calls:
             raise ExecutionError("recovery unified-call budget is insufficient")
+        discovered: tuple[RecoveryTarget, ...] = ()
+        unmatched: tuple[OrderObservation, ...] = ()
+        if discover and lookup is not None:
+            candidates = await read_order_candidates(
+                lookup, scope.symbol, max_orders=max_orders, timeout_ms=timeout_ms
+            )
+
+            def locate(
+                ledger: Ledger,
+            ) -> tuple[tuple[RecoveryTarget, ...], tuple[OrderObservation, ...]]:
+                current = recovery_plan(
+                    ledger, scope, max_orders=max_orders, max_committed_trades=max_committed_trades
+                )
+                if current != plan:
+                    raise ExecutionError("recovery plan changed during identity lookup")
+                return _discover(ledger, plan, candidates)
+
+            discovered, unmatched = await writer.submit(locate)
+            known.update(
+                {
+                    target.external_id: target
+                    for target in discovered
+                    if target.external_id is not None
+                }
+            )
         batch = await read(tuple(known)) if known else OrderHistoryBatch(())
 
         def finish(ledger: Ledger) -> RecoveryInspection:
@@ -358,9 +411,58 @@ async def _inspect(
             )
             if current != plan:
                 raise ExecutionError("recovery plan changed during observation")
-            return _compare(ledger, plan, batch)
+            return _compare(ledger, plan, batch, discovered, unmatched)
 
         return await writer.submit(finish)
+
+
+def _discover(
+    ledger: Ledger, plan: RecoveryPlan, rows: tuple[OrderObservation, ...]
+) -> tuple[tuple[RecoveryTarget, ...], tuple[OrderObservation, ...]]:
+    """Exact saved client IDs locate attempted orders; price/size never do."""
+    clients = {
+        target.client.returned_id: target for target in plan.targets if target.client is not None
+    }
+    known = {
+        target.external_id: target for target in plan.targets if target.external_id is not None
+    }
+    found: dict[int, RecoveryTarget] = {}
+    seen: dict[tuple[str, str], object] = {}
+    unmatched = []
+    for observed in rows:
+        for name in ("client_id", "order_type", "side", "amount", "price"):
+            value = getattr(observed, name)
+            key = (observed.order_id, name)
+            if value is not None:
+                if key in seen and seen[key] != value:
+                    raise ExecutionError("order lookup contains conflicting identities or terms")
+                seen[key] = value
+        target = clients.get(observed.client_id) if observed.client_id is not None else None
+        if target is None:
+            target = known.get(observed.order_id)
+        if target is None:
+            unmatched.append(observed)
+            continue
+        located = replace(target, external_id=observed.order_id)
+        _check_order_identity(plan, located, observed)
+        if target.external_id is not None and target.external_id != observed.order_id:
+            raise ExecutionError("order lookup contradicts the durable binding")
+        binding = ledger.db.execute(
+            "SELECT allocation,order_id FROM order_bindings "
+            "WHERE venue=? AND account=? AND symbol=? AND external_id=?",
+            (plan.scope.venue, plan.scope.account, plan.scope.symbol, observed.order_id),
+        ).fetchone()
+        if binding is not None and binding != (codec.digest(plan.scope), target.order.id):
+            raise ExecutionError("discovered external order already belongs to another intent")
+        if target.order.id in found and found[target.order.id].external_id != observed.order_id:
+            raise ExecutionError("multiple external orders claim one attempted client identity")
+        found[target.order.id] = located
+    return (
+        tuple(
+            found[t.order.id] for t in plan.targets if t.external_id is None and t.order.id in found
+        ),
+        tuple(unmatched),
+    )
 
 
 @exact
@@ -448,10 +550,19 @@ def _committed_observation(
 
 
 @exact
-def _compare(ledger: Ledger, plan: RecoveryPlan, batch: OrderHistoryBatch) -> RecoveryInspection:
+def _compare(
+    ledger: Ledger,
+    plan: RecoveryPlan,
+    batch: OrderHistoryBatch,
+    discovered: tuple[RecoveryTarget, ...] = (),
+    unmatched: tuple[OrderObservation, ...] = (),
+) -> RecoveryInspection:
     known = {
         target.external_id: target for target in plan.targets if target.external_id is not None
     }
+    known.update(
+        {target.external_id: target for target in discovered if target.external_id is not None}
+    )
     if tuple(history.order.order_id for history in batch.histories) != tuple(known):
         raise ExecutionError("recovery observations differ from the planned order roster")
     unique: dict[str, TradeObservation] = {}
@@ -477,5 +588,11 @@ def _compare(ledger: Ledger, plan: RecoveryPlan, batch: OrderHistoryBatch) -> Re
         if _committed_observation(ledger, plan.scope, observed, None):
             committed.append(observed)
     return RecoveryInspection(
-        plan, batch.histories, batch.unmatched_trades, tuple(new), tuple(committed)
+        plan,
+        batch.histories,
+        batch.unmatched_trades,
+        tuple(new),
+        tuple(committed),
+        discovered,
+        unmatched,
     )

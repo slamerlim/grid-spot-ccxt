@@ -28,7 +28,7 @@ class AccountReads(Reads):
 async def inspect(h: Harness, reads: AccountReads, **limits: int) -> RecoveryInspection:
     arguments = {"max_orders": 8, "max_trades": 8, "max_calls": 24, "timeout_ms": 1000}
     arguments.update(limits)
-    return await inspect_account_orders(h.writer, h.scope, reads, **arguments)
+    return await inspect_account_orders(h.writer, h.scope, reads, lookup=None, **arguments)
 
 
 @pytest.mark.parametrize("attributed", [False, True])
@@ -163,5 +163,237 @@ def test_account_inspection_refuses_changed_plans_contradictions_and_truncated_h
                 )
                 == 0
             )
+
+    asyncio.run(run())
+
+
+class LookupReads(AccountReads):
+    opened: list[dict[str, object]] | None = None
+    closed: list[dict[str, object]] | None = None
+
+    async def fetch_open_orders(self, symbol: str, since: None, limit: int) -> object:
+        self.calls.append(("open", symbol))
+        return deepcopy(
+            self.opened
+            if self.opened is not None
+            else [row for row in self.venue.wire_orders.values() if row["status"] == "open"][:limit]
+        )
+
+    async def fetch_closed_orders(self, symbol: str, since: None, limit: int) -> object:
+        self.calls.append(("closed", symbol))
+        return deepcopy(
+            self.closed
+            if self.closed is not None
+            else [row for row in self.venue.wire_orders.values() if row["status"] != "open"][:limit]
+        )
+
+
+async def locate(h: Harness, reads: LookupReads, **limits: int) -> RecoveryInspection:
+    arguments = {"max_orders": 8, "max_trades": 8, "max_calls": 24, "timeout_ms": 1000}
+    arguments.update(limits)
+    return await inspect_account_orders(h.writer, h.scope, reads, lookup=reads, **arguments)
+
+
+@pytest.mark.parametrize("filled", ["0", "0.5", "1"])
+def test_lost_ack_is_located_by_saved_client_id_and_inspected_without_binding_or_resend(
+    tmp_path: Path, bounds: Bounds, state: State, context: Context, filled: str
+) -> None:
+    async def run() -> None:
+        async with setup(tmp_path / "ledger.db", bounds, state, context) as (h, original):
+            reads = LookupReads(original.venue)
+            assert not (await locate(h, reads)).plan.targets and not reads.calls
+            assert await h.service() and await h.send()
+            if D(filled):
+                reads.venue.fill("order-1", "unobserved", D(filled), D(100), ZERO_FEES)
+            foreign = reads.venue.wire_orders["order-1"] | {
+                "id": "external-order",
+                "clientOrderId": "external-client",
+            }
+            reads.opened = [foreign] + (
+                [reads.venue.wire_orders["order-1"]] if filled != "1" else []
+            )
+            before = await h.writer.submit(lambda ledger: ledger.snapshot(h.scope))
+            with pytest.raises(ExecutionError, match="budget"):
+                await locate(h, reads, max_calls=4)
+            assert not reads.calls
+            result = await locate(h, reads, max_calls=5)
+            assert len(result.unresolved) == len(result.discovered_orders) == 1
+            assert result.plan.targets[0].external_id is None
+            assert result.discovered_orders[0].external_id == "order-1"
+            assert result.histories[0].order.filled == D(filled)
+            assert len(result.new_trades) == int(bool(D(filled)))
+            assert [row.order_id for row in result.unmatched_orders] == ["external-order"]
+            assert [call[0] for call in reads.calls] == [
+                "open",
+                "closed",
+                "order",
+                "account_trades",
+                "order",
+            ]
+            assert await h.writer.submit(lambda ledger: ledger.snapshot(h.scope)) == before
+            assert await h.writer.submit(lambda ledger: ledger.binding(h.scope, 1)) is None
+            assert not await h.send()
+            assert len(reads.venue.sent) == 1
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("case", ["absent", "missing_client", "unknown_client", "submitted_id"])
+def test_lookup_never_adopts_by_terms_or_infers_rejection_from_absence(
+    tmp_path: Path, bounds: Bounds, state: State, context: Context, case: str
+) -> None:
+    async def run() -> None:
+        async with setup(tmp_path / "ledger.db", bounds, state, context) as (h, original):
+            reads = LookupReads(original.venue)
+            assert await h.service() and await h.send()
+            row = reads.venue.wire_orders["order-1"]
+            if case == "absent":
+                reads.opened = []
+            else:
+                row["clientOrderId"] = (
+                    None
+                    if case == "missing_client"
+                    else reads.venue.submitted_clients["order-1"]
+                    if case == "submitted_id"
+                    else "other"
+                )
+            result = await locate(h, reads, max_calls=5)
+            assert result.unresolved and not result.histories and not result.discovered_orders
+            assert len(result.unmatched_orders) == int(case != "absent")
+            assert [call[0] for call in reads.calls] == ["open", "closed"]
+            assert not await h.send() and (await h.current()).quote_cash == 1000
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("case", ["duplicate_client", "terms", "conflict_after_null", "oversize"])
+def test_lookup_conflicts_refuse_before_followup_reads(
+    tmp_path: Path, bounds: Bounds, state: State, context: Context, case: str
+) -> None:
+    async def run() -> None:
+        async with setup(tmp_path / "ledger.db", bounds, state, context) as (h, original):
+            reads = LookupReads(original.venue)
+            assert await h.service() and await h.send()
+            row = reads.venue.wire_orders["order-1"]
+            if case == "duplicate_client":
+                reads.closed = [row | {"id": "duplicate-order"}]
+            elif case == "terms":
+                reads.closed = [row | {"amount": "2"}]
+            elif case == "conflict_after_null":
+                reads.closed = [row | {"clientOrderId": None}, row | {"clientOrderId": "other"}]
+            else:
+                reads.closed = [row] * 9
+            before = await h.writer.submit(lambda ledger: ledger.snapshot(h.scope))
+            with pytest.raises((ExecutionError, ReadError)):
+                await locate(h, reads)
+            assert [call[0] for call in reads.calls] == ["open", "closed"]
+            assert await h.writer.submit(lambda ledger: ledger.snapshot(h.scope)) == before
+            assert not await h.send()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("stage", ["lookup", "history"])
+def test_discovery_rechecks_the_plan_after_each_read_phase(
+    tmp_path: Path,
+    bounds: Bounds,
+    state: State,
+    context: Context,
+    stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def run() -> None:
+        async with setup(tmp_path / "ledger.db", bounds, state, context) as (h, original):
+            reads = LookupReads(original.venue)
+            assert await h.service() and await h.send()
+            method = "fetch_closed_orders" if stage == "lookup" else "fetch_my_trades"
+            fetch = getattr(reads, method)
+
+            async def changed(symbol: str, since: None, limit: int) -> object:
+                rows = await fetch(symbol, since, limit)
+                await h.writer.submit(
+                    lambda ledger: ledger.hold("operator-hold", h.scope, "review")
+                )
+                return rows
+
+            monkeypatch.setattr(reads, method, changed)
+            with pytest.raises(ExecutionError, match="plan changed"):
+                await locate(h, reads)
+            assert len(reads.calls) == (2 if stage == "lookup" else 5)
+            assert await h.writer.submit(lambda ledger: ledger.binding(h.scope, 1)) is None
+            assert (await h.current()).quote_cash == 1000 and not await h.send()
+
+    asyncio.run(run())
+
+
+def test_lookup_requires_the_same_account_client_and_ignores_registration_without_attempt(
+    tmp_path: Path, bounds: Bounds, state: State, context: Context
+) -> None:
+    from grid.persistence import client_ids
+
+    from .test_recovery_plan import POLICY
+
+    async def run() -> None:
+        async with setup(tmp_path / "ledger.db", bounds, state, context) as (h, original):
+            reads, other = LookupReads(original.venue), LookupReads(original.venue)
+            await h.writer.submit(
+                lambda ledger: client_ids.register(ledger, "registered", h.scope, 1, POLICY)
+            )
+            result = await locate(h, reads)
+            assert not result.discovered_orders and not result.plan.targets and not reads.calls
+            assert await h.service() and await h.send()
+            with pytest.raises(ExecutionError, match="same account"):
+                await inspect_account_orders(
+                    h.writer,
+                    h.scope,
+                    reads,
+                    lookup=other,
+                    max_orders=8,
+                    max_trades=8,
+                    max_calls=24,
+                    timeout_ms=1000,
+                )
+            assert not reads.calls and not other.calls
+            assert not await h.send()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("case", ["mixed", "claimed_binding", "rebound_known"])
+def test_known_and_discovered_orders_share_the_same_identity_and_quantity_checks(
+    tmp_path: Path, bounds: Bounds, state: State, context: Context, case: str
+) -> None:
+    async def run() -> None:
+        async with setup(tmp_path / "ledger.db", bounds, state, context) as (h, original):
+            reads = LookupReads(original.venue)
+            await h.seed()
+            assert await h.send() and await h.service()  # Bound SELL.
+            assert await h.send()  # BUY accepted, acknowledgement not reconciled.
+            reads.venue.fill("order-3", "new-buy", D(".25"), D(90), ZERO_FEES)
+            unknown = reads.venue.wire_orders["order-3"]
+            if case == "claimed_binding":
+                reads.opened = [unknown | {"id": "order-2"}]
+                reads.closed = []
+            elif case == "rebound_known":
+                reads.opened = [reads.venue.wire_orders["order-2"] | {"id": "another-sell"}]
+                reads.closed = []
+            before = await h.writer.submit(lambda ledger: ledger.snapshot(h.scope))
+            if case == "mixed":
+                with pytest.raises(ExecutionError, match="budget"):
+                    await locate(h, reads, max_calls=6)
+                assert not reads.calls
+                result = await locate(h, reads, max_calls=7)
+                assert [row.order.order_id for row in result.histories] == ["order-2", "order-3"]
+                assert result.discovered_orders[0].order.id == 3
+                assert [row.trade_id for row in result.new_trades] == ["new-buy"]
+                assert len(result.committed_trades) == 1  # Previously posted seed.
+                assert len(reads.calls) == 7
+            else:
+                with pytest.raises(ExecutionError, match="binding|another intent"):
+                    await locate(h, reads)
+                assert len(reads.calls) == 2
+            assert await h.writer.submit(lambda ledger: ledger.snapshot(h.scope)) == before
+            assert await h.writer.submit(lambda ledger: ledger.binding(h.scope, 3)) is None
+            assert not await h.send()
 
     asyncio.run(run())

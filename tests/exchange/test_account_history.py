@@ -10,7 +10,7 @@ import pytest
 
 from grid.exchange.models import Failure, ReadError
 from grid.exchange.order_audit import MARKET_ID, SYMBOL, market, refuse, refuse_async
-from grid.exchange.private import read_account_history
+from grid.exchange.private import read_account_history, read_order_candidates
 
 from .test_order_history import order, trade
 
@@ -370,5 +370,113 @@ def test_pinned_sdk_fallback_reads_spot_orders_and_personal_trades(
             assert len(calls) == 5
         finally:
             await client.close()
+
+    asyncio.run(run())
+
+
+def test_pinned_okx_open_and_closed_queries_preserve_unified_client_identity() -> None:
+    async def run() -> None:
+        calls: list[str] = []
+
+        async def request(
+            self: Any,
+            path: str,
+            api: object = None,
+            method: str = "GET",
+            params: object = None,
+            headers: object = None,
+            body: object = None,
+            config: object = None,
+        ) -> object:
+            assert api == ["private"] and method == "GET" and headers is None and body is None
+            assert path in ("trade/orders-pending", "trade/orders-history")
+            expected: dict[str, object] = {"instId": MARKET_ID, "limit": 2}
+            if path == "trade/orders-history":
+                expected.update(instType="SPOT", state="filled")
+            assert params == expected
+            calls.append(path)
+            return {
+                "code": "0",
+                "data": [
+                    {
+                        "instId": MARKET_ID,
+                        "ordId": "open-id" if len(calls) == 1 else "closed-id",
+                        "clOrdId": "saved-client",
+                        "ordType": "limit",
+                        "side": "buy",
+                        "px": "100.12345678901234567890123456789",
+                        "sz": "1",
+                        "accFillSz": "0" if len(calls) == 1 else "1",
+                        "state": "live" if len(calls) == 1 else "filled",
+                        "cTime": "1000",
+                        "uTime": "1000",
+                    }
+                ],
+            }
+
+        client_class = type(
+            "OfflineOrderLookup",
+            (ccxtpro.okx,),
+            {
+                "request": request,
+                "fetch": refuse_async,
+                "fetch2": refuse_async,
+                "sign": refuse,
+            },
+        )
+        client = client_class({"number": str, "options": {"defaultType": "spot"}})
+        try:
+            client.set_markets([market("okx")])
+            result = await read_order_candidates(client, SYMBOL, max_orders=2, timeout_ms=1000)
+            assert calls == ["trade/orders-pending", "trade/orders-history"]
+            assert [row.order_id for row in result] == ["open-id", "closed-id"]
+            assert [row.status for row in result] == ["open", "closed"]
+            assert all(row.client_id == "saved-client" for row in result)
+            assert all(row.price == Decimal("100.12345678901234567890123456789") for row in result)
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("stage", [1, 2])
+@pytest.mark.parametrize("failure", ["timeout", "cancel", "error"])
+def test_candidate_query_failures_are_bounded_sanitized_and_not_retried(
+    stage: int, failure: str
+) -> None:
+    async def run() -> None:
+        entered = asyncio.Event()
+
+        class Lookup:
+            calls = 0
+
+            async def fetch_open_orders(self, symbol: str, since: None, limit: int) -> object:
+                self.calls += 1
+                if self.calls == stage:
+                    entered.set()
+                    if failure == "error":
+                        raise RuntimeError("private-response-that-must-not-escape")
+                    await asyncio.Event().wait()
+                return []
+
+            fetch_closed_orders = fetch_open_orders
+
+        source = Lookup()
+        task = asyncio.create_task(
+            read_order_candidates(
+                source, SYMBOL, max_orders=2, timeout_ms=30 if failure == "timeout" else 1000
+            )
+        )
+        await entered.wait()
+        if failure == "cancel":
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            with pytest.raises(ReadError) as caught:
+                await task
+            expected = Failure.TIMEOUT if failure == "timeout" else Failure.UNAVAILABLE
+            assert caught.value.failure is expected and str(caught.value) == expected.value
+        assert source.calls == stage
 
     asyncio.run(run())

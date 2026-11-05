@@ -35,6 +35,10 @@ to post new fills from bounded recent windows. It checks every outstanding
 attempt, preserves terminal/conflict checks and retains fee stops across restart.
 Actual account discovery, history continuation and settlement evidence remain
 unfinished; no authenticated transport is enabled.
+Read-only account inspection can also locate an unknown exchange order ID by
+its saved returned client ID in bounded unified open/closed order queries.
+Located orders use the existing history checks; inspection cannot bind them,
+clear submission uncertainty or authorize a resend.
 Recovery also accepts distinct unified trade timestamps when no proven source
 sequence is available. Each accepted ordering position commits with its fill;
 ties, regressions and changed ordering modes keep dispatch blocked. Existing

@@ -367,6 +367,15 @@ The finite fake's source completeness and ordering are not CCXT guarantees.
 Real account discovery, history continuation and settlement evidence remain open.
 No new exchange access or schema change is implied.
 
+The account inspection can explicitly use the same caller-owned transport for
+bounded open/closed order lookup when an attempted order has a saved client ID
+but no exchange ID. Match only the exact registered returned client ID; preserve
+unmatched orders and reject duplicate claims or binding/term conflicts. Preflight
+the worst-case call budget and recheck the sole-writer plan after each read phase.
+Discovered IDs remain read-only observations; original unknowns, holds and send
+restrictions stay intact. Absence is never rejection, including when the SDK's
+closed-order method omits canceled orders. See `docs/IMPLEMENTATION-REVIEW.md`.
+
 ## Invariants for subsequent approved iterations
 
 `docs/I8-ACCOUNT-HISTORY.md` adds the explicit unified `fetch_my_trades` alternative

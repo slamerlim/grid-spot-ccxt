@@ -64,8 +64,9 @@ async def inspect(h: Harness, reads: Recent, account: bool, **limits: int) -> Re
         "max_committed_trades": 8,
     }
     arguments.update(limits)
-    function = inspect_account_orders if account else inspect_orders
-    return await function(h.writer, h.scope, reads, **arguments)
+    if account:
+        return await inspect_account_orders(h.writer, h.scope, reads, lookup=None, **arguments)
+    return await inspect_orders(h.writer, h.scope, reads, **arguments)
 
 
 async def partial(h: Harness, reads: Recent) -> None:

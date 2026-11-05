@@ -95,6 +95,17 @@ intent, so automatic recovery cannot erase the stop after compaction or restart.
 Preserve the evidence for review. Do not clear the intent or manufacture missing
 fills to resume. See `IMPLEMENTATION-REVIEW.md` for current integration and tests.
 
+For a submission with no saved exchange ID, the existing read-only
+`inspect_account_orders` accepts `lookup=transport`, using the same account
+client for bounded `fetch_open_orders` and `fetch_closed_orders`. Lookup is
+explicit and requires a previously registered returned client ID plus a durable
+attempt. It makes no discovery calls for registration alone. `discovered_orders`
+records matched IDs; `unresolved` still lists the ledger's unknown orders.
+Unmatched orders remain visible. Neither result changes the ledger or allows a
+resend. The pinned OKX closed query selects filled orders; canceled/expired or
+out-of-window orders may be absent. Keep them unresolved. Capability, retention,
+HTTP/rate limits and actual account evidence are still required for a real client.
+
 Execution ordering is now durable. The mapped mock can use a unified trade's
 integer `timestamp` when no proven source sequence is supplied. New trades must
 have distinct positions in one consistent ordering kind and advance the saved

@@ -151,6 +151,39 @@ class AccountReadTransport(Protocol):
     async def fetch_my_trades(self, symbol: str, since: None, limit: int) -> object: ...
 
 
+class OrderLookupTransport(Protocol):
+    """Explicitly selected unified order queries; availability is venue-specific."""
+
+    async def fetch_open_orders(self, symbol: str, since: None, limit: int) -> object: ...
+    async def fetch_closed_orders(self, symbol: str, since: None, limit: int) -> object: ...
+
+
+async def read_order_candidates(
+    transport: OrderLookupTransport, symbol: str, *, max_orders: int, timeout_ms: int
+) -> tuple[OrderObservation, ...]:
+    """Two bounded queries for identity lookup, never proof of absent orders."""
+    token(symbol)
+    integer(max_orders, 1, 100)
+    integer(timeout_ms, 1, 30_000)
+    try:
+        async with asyncio.timeout(timeout_ms / 1000):
+            opened = orders(
+                await transport.fetch_open_orders(symbol, None, max_orders), symbol, max_orders
+            )
+            closed = orders(
+                await transport.fetch_closed_orders(symbol, None, max_orders), symbol, max_orders
+            )
+            return opened + closed
+    except ReadError:
+        raise
+    except TimeoutError:
+        raise ReadError(Failure.TIMEOUT) from None
+    except DomainError:
+        raise ReadError(Failure.MALFORMED) from None
+    except Exception:
+        raise ReadError(Failure.UNAVAILABLE) from None
+
+
 @dataclass(frozen=True)
 class OrderHistoryObservation:
     """Observed order/trades; the selected reader defines quantity coverage."""
