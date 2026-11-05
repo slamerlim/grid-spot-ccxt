@@ -118,6 +118,12 @@ Every window must reproduce raw bytes, including empty gap results. Timings
 include lookup/open/read/decode/hash/close, with index preparation reported
 separately; caches are warmed and uncontrolled. See
 [query bounds and observed evidence](docs/I8-STORAGE-QUERIES.md).
+`--merge-plan PLAN.json` instead compares a declared roster of up to 1,000
+distinct source files chronologically across raw mmap, Arrow and Parquet. It
+retains gaps and deterministic ties, closes readers between bounded blocks and
+requires identical per-source/merged hashes. It cannot combine with single-source
+arguments. The measured 100/1,000-source synthetic cases favored raw mmap;
+see [merge plans, limits and evidence](docs/I8-STORAGE-MERGES.md).
 Research CLI reports now use a `grid-research-run-v1` envelope: read the existing
 engine output under `result`. `provenance` records observed source hashes, local
 Git comparison, runtime and host details. Its separate report hash changes with

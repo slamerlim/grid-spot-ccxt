@@ -449,6 +449,16 @@ windows; explicit duration and seed are required. Total queries are capped at
 `I8-STORAGE-QUERIES.md` for the shared index, preparation costs, rotating reader
 order and sample measurements. This mode does not perform calendar-month or
 multi-symbol sampling, cold-cache measurements or parameter replay reuse.
+For a declared multi-source comparison, use `bench-storage --merge-plan PLAN.json`
+with `--code-revision`, `--output` and optional `--repeats`. The strict
+`grid-storage-merge-plan-v1` plan contains only `schema` and `sources`; each source
+has the existing ten source fields. This mode excludes all single-source and UTC
+query options. It permits at most 1,000 distinct markets/files, 131,072 records
+per source and 1,048,576 in total. It closes each block reader before yielding,
+checks per-source and chronological hashes, and reports preparation separately.
+See `I8-STORAGE-MERGES.md` for the plan example, bounds and 100/1,000-source
+measurements. Failed samples are retained; results never overwrite existing files.
+Warm synthetic measurements do not certify cold-device or trading throughput.
 The main entry point is `gridctl bench-storage`; `gridctl backtest` runs the same
 replay engine as the module's `replay` command. Neither opens an operator socket
 or takes financial ownership. The CLI refuses an already occupied result path

@@ -240,6 +240,16 @@ differences. Reference studies have no portfolio exits or live policy export;
 production still has one aggregate SELL. Historical assumptions, resource work
 and external acceptance gates remain open.
 
+`docs/I8-STORAGE-MERGES.md` records `bench-storage --merge-plan PLAN`.
+Preserve source windows and lexicographic market tie ordering across formats;
+require individual source and combined chronological hashes. Bound the roster,
+aggregate records, decoded blocks, derived artifacts and reports. Close each
+block reader before yielding rows; do not hold one file open per symbol.
+Synthetic 100/1,000-source warm measurements favor retaining raw and do not
+certify device throughput, archive representativeness, replay or deployment.
+Keep all original inputs and remaining external gates unchanged. Continue the
+authorized offline gaps without further public requests or paid GitHub features.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

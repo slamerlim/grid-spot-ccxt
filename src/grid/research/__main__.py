@@ -16,6 +16,8 @@ from grid.research.config import load
 from grid.research.demo import create
 from grid.research.history import Source, validate
 from grid.research.lot_reference import compare as compare_lots
+from grid.research.merge_benchmark import benchmark as benchmark_merge
+from grid.research.merge_benchmark import load as load_merge
 from grid.research.portfolio_config import load as load_portfolio
 from grid.research.portfolio_replay import run as run_portfolio
 from grid.research.provenance import Observation
@@ -32,11 +34,11 @@ class Parser(argparse.ArgumentParser):
 
 def configure(command: argparse.ArgumentParser, name: str) -> None:
     if name in ("validate", "benchmark"):
-        command.add_argument("source", type=Path)
-        command.add_argument("--venue", required=True)
-        command.add_argument("--symbol", required=True)
-        command.add_argument("--offset", type=int, default=0)
-        command.add_argument("--count", type=int, required=True)
+        command.add_argument("source", type=Path, nargs="?" if name == "benchmark" else None)
+        command.add_argument("--venue", required=name == "validate")
+        command.add_argument("--symbol", required=name == "validate")
+        command.add_argument("--offset", type=int)
+        command.add_argument("--count", type=int, required=name == "validate")
         command.add_argument("--output", type=Path, required=True)
         command.add_argument("--code-revision", required=True)
         command.add_argument("--format-evidence")
@@ -44,6 +46,9 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
         command.add_argument("--collection-evidence")
         command.add_argument("--verified-unleveraged-spot", action="store_true")
         if name == "benchmark":
+            command.add_argument(
+                "--merge-plan", type=Path, help="bounded multi-source format merge"
+            )
             command.add_argument("--repeats", type=int, default=3, help="1..10 scan/query repeats")
             command.add_argument(
                 "--utc-start-ms", type=int, help="optional inclusive UTC query start"
@@ -108,6 +113,32 @@ def main(
     args = parser.parse_args(argv)
     if args.command == "replay" and args.study is not None and args.compare_scenarios:
         parser.error("study already declares scenarios")
+    if args.command == "benchmark":
+        if args.merge_plan is not None:
+            if (
+                any(
+                    value is not None
+                    for value in (
+                        args.source,
+                        args.venue,
+                        args.symbol,
+                        args.count,
+                        args.offset,
+                        args.format_evidence,
+                        args.identity_evidence,
+                        args.collection_evidence,
+                        args.utc_start_ms,
+                        args.utc_end_ms,
+                        args.window_minutes,
+                        args.query_seed,
+                    )
+                )
+                or args.verified_unleveraged_spot
+                or args.random_windows
+            ):
+                parser.error("merge plan cannot combine with single-source options")
+        elif any(value is None for value in (args.source, args.venue, args.symbol, args.count)):
+            parser.error("single-source benchmark requires source, venue, symbol and count")
     try:
         if args.command == "demo":
             create(args.output_directory, args.code_revision)
@@ -147,12 +178,21 @@ def main(
                     else run_portfolio(spec, settings, max_cycles=max_cycles)
                 )
             code = 0
+        elif args.command == "benchmark" and args.merge_plan is not None:
+            observation = Observation.start(args.code_revision)
+            result = {
+                "code_revision": args.code_revision,
+                **benchmark_merge(
+                    load_merge(args.merge_plan), args.output.parent, repeats=args.repeats
+                ),
+            }
+            code = 0
         else:
             source = Source(
                 args.source,
                 args.venue,
                 args.symbol,
-                args.offset,
+                0 if args.offset is None else args.offset,
                 args.count,
                 args.format_evidence,
                 args.identity_evidence,

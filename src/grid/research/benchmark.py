@@ -94,9 +94,12 @@ def query_windows(plan: QueryPlan, manifest: Manifest) -> tuple[tuple[int, int],
     return tuple(windows)
 
 
-def query_columnar(path: Path, kind: str, start: int, stop: int, total: int) -> Iterator[bytes]:
+def query_columnar(
+    path: Path, kind: str, start: int, stop: int, total: int, *, block_rows: int = BLOCK_ROWS
+) -> Iterator[bytes]:
     """Only this benchmark's verified fixed-size batches/row groups are supported."""
     bounded_int(total, 1, MAX_BENCH_RECORDS)
+    bounded_int(block_rows, 1, BLOCK_ROWS)
     bounded_int(start, 0, total)
     bounded_int(stop, start, total)
     if kind not in ("arrow", "parquet"):
@@ -114,10 +117,10 @@ def query_columnar(path: Path, kind: str, start: int, stop: int, total: int) -> 
         reader = ipc.open_file(stream) if kind == "arrow" else pq.ParquetFile(stream)
         schema = reader.schema if kind == "arrow" else reader.schema_arrow
         groups = reader.num_record_batches if kind == "arrow" else reader.num_row_groups
-        if not schema.equals(expected) or groups != (total + BLOCK_ROWS - 1) // BLOCK_ROWS:
+        if not schema.equals(expected) or groups != (total + block_rows - 1) // block_rows:
             raise DomainError("derived query layout differs")
-        for group in range(start // BLOCK_ROWS, (stop - 1) // BLOCK_ROWS + 1):
-            expected_rows = min(BLOCK_ROWS, total - group * BLOCK_ROWS)
+        for group in range(start // block_rows, (stop - 1) // block_rows + 1):
+            expected_rows = min(block_rows, total - group * block_rows)
             if kind == "parquet" and reader.metadata.row_group(group).num_rows != expected_rows:
                 raise DomainError("derived query rows differ")
             batch = (
@@ -127,8 +130,8 @@ def query_columnar(path: Path, kind: str, start: int, stop: int, total: int) -> 
             )
             if batch.num_rows != expected_rows or any(c.null_count for c in batch.columns):
                 raise DomainError("derived query rows differ")
-            offset = max(start - group * BLOCK_ROWS, 0)
-            count = min(stop - group * BLOCK_ROWS, expected_rows) - offset
+            offset = max(start - group * block_rows, 0)
+            count = min(stop - group * block_rows, expected_rows) - offset
             columns = [column.to_pylist() for column in batch.slice(offset, count).columns]
             for values in zip(*columns, strict=True):
                 yield RECORD.pack(*values)

@@ -29,6 +29,8 @@ Bounded UTC storage queries based on `92cfdd4` are recorded in
 `I8-STORAGE-QUERIES.md` and incorporated below.
 Paired independent-lot walk-forward studies based on `1f3290e` are recorded in
 `I8-LOT-STUDIES.md` and incorporated below.
+Bounded chronological storage merges based on `ffd02ed` are recorded in
+`I8-STORAGE-MERGES.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -152,9 +154,13 @@ missing venue evidence or to enable live access.
    retain byte equality, index preparation cost and cache limitations. A 131,072-
    record synthetic sample measured 17 windows with positive NVMe backing evidence
    but zero observed physical input blocks; raw mmap was faster on that warmed
-   sample. Cold-ish scans, representative multi-source/month sampling,
-   100/1,000-symbol merges, repeated parameter replay reuse and deployment
-   contention remain unmeasured by this benchmark. Existing SQLite mock
+   sample. `--merge-plan` now measures up to 1,000 distinct source files with
+   bounded packed blocks and no open reader per symbol. Synthetic 100/1,000-source
+   runs matched raw per-source and chronological hashes; raw mmap was fastest,
+   with zero observed physical input blocks. These are explicit small-block warm
+   merge measurements, not end-to-end replay or deployment certification.
+   Cold-ish scans, representative archive/month sampling, repeated parameter
+   replay reuse and deployment contention remain unmeasured. Existing SQLite mock
    stress/crash/backup tests are useful evidence,
    but are not the complete on-deployment-hardware performance report. Keep raw
    archives immutable and defer any full derived copies until justified.
