@@ -87,6 +87,14 @@ under `gridctl operator` and use its existing same-user mock owner.
 
 ## Unfinished bounded execution recovery
 
+The owner's latest direction is simplicity and robustness. The next priority is
+to connect and consolidate the existing recovery work into the executor's working
+path, rather than add more standalone inspection APIs. An unpublished separate
+account-discovery orchestrator was removed after that review; it is not a runtime
+capability. Keep the original one-process/one-writer architecture and retain all
+financial and unknown-submission checks. This prioritization does not remove any
+PRD requirement or external acceptance gate.
+
 The mock executor still fetches complete lifetime order/trade history on every
 reconciliation. Page/record bounds stop oversized runs, but cannot support
 indefinite operation. Its stable snapshot revision and explicit trade sequence

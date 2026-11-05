@@ -5,6 +5,20 @@ under `docs/` before editing. They are authoritative over the legacy simulator.
 User instructions take precedence. Preserve imported specifications verbatim;
 record clarifications separately with evidence and approval requirements.
 
+## Simplicity and development focus
+
+The owner reinforced: "don't overengineer, the system shall be easy and robust
+as ak-47, remember the initial prompt!" Keep the original single-process design:
+official CCXT, one executor, one SQLite writer and a pure strategy core.
+Prioritize a working, integrated execution/recovery path. Consolidate existing
+helpers before adding parallel APIs, frameworks or speculative abstractions.
+Add an abstraction only for a concrete implementation need or useful removal of
+duplication. Preserve exact accounting, ownership and unknown-order safeguards.
+Keep required tests focused on observable behavior and failure recovery. Update
+existing review/runbook documents for small changes instead of creating another
+plan/evidence document each time. Finish the essential runtime before expanding
+optional research or diagnostics. This changes priorities, not PRD acceptance.
+
 ## Current boundary: I8 public-paper harness and approved one-hour run
 
 On 2026-11-03 the owner approved `docs/I1-PLAN.md`, including its partial-seed
