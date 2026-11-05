@@ -271,6 +271,15 @@ not a trading gateway or venue acceptance. Do not truncate durable IDs or bypass
 BingX float conversion, XT/Bitfinex rules, account-mode verification or live gates
 based on this diagnostic alone.
 
+`docs/I8-BINGX-TEXT-PREPARATION.md` records the subsequent fixed `--bingx-text`
+trial. Its decimal-string override exists only in guarded disposable BingX
+diagnostic clients on the pinned SDK; never patch global classes or install it
+as a trading sender based on this experiment. Preserve unmodified controls,
+independent exact-payload/query checks and lower signing/transport refusals.
+No timestamp/signature or authenticated request is produced. Passing candidate
+fixtures does not establish venue ID acceptance, rules, account mode or readiness.
+Continue authorized offline work; exchange access and deployment gates remain.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

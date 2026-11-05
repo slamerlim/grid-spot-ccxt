@@ -188,7 +188,11 @@ uv run --locked python -m grid.exchange.order_audit --code-revision "$(git rev-p
 
 Exit 1 retains failed fixture checks, including numeric conversion and client-ID
 findings; it does not submit an order. See [SDK audit evidence and limits](docs/I8-SDK-ORDER-AUDIT.md).
-All venues remain NOT_READY.
+
+Add `--bingx-text` to run a fixed paired BingX decimal-string preparation trial.
+It retains unmodified controls and checks candidate unsigned query text without
+signing or sending. Exit 0 covers candidate fixtures only; all venues remain
+NOT_READY. See [preparation scope and evidence](docs/I8-BINGX-TEXT-PREPARATION.md).
 
 The finite synthetic runner uses temporary mock databases and makes no exchange
 calls. Select the reviewed patched runtime described below; the system Python

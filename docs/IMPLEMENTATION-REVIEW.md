@@ -210,6 +210,12 @@ prices. It neither sends an order nor removes any venue blocker. Full financial
 IDs remain unchanged; any future external encoding needs durable collision and
 recovery semantics, not a silent truncation or an SDK pass-through assumption.
 
+The fixed `--bingx-text` follow-up in `I8-BINGX-TEXT-PREPARATION.md` tests an
+offline decimal-string candidate against retained unmodified controls. Exact
+payload validation precedes independent unsigned-query comparison with pinned
+SDK helpers. It adds no sender, signing, durable ID translation or readiness
+override; the BingX production conversion blocker remains open.
+
 The completed one-hour OKX observation collected 460 validated books. Required
 public rules remained unknown, so it admitted no paper allocations/orders/fills.
 The combined retained attempts used 629/750 GETs and all 3/3 instrument requests.

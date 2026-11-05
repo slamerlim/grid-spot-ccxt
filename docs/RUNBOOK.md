@@ -493,7 +493,13 @@ supplying keys, shortening real IDs or enabling a venue. Review
 `I8-SDK-ORDER-AUDIT.md`; actual authenticated serialization and recovery remain
 unverified. Existing public-run authorization is not reused by this command.
 
-For repeated mixed BUY/SELL flows, add `--mixed-rounds 3` to that command and
+Add `--bingx-text` for the paired, fixed decimal-string preparation trial in
+`I8-BINGX-TEXT-PREPARATION.md`. It retains unmodified controls and independently
+checks candidate unsigned query text. Exit 0 covers candidate fixtures only;
+all venues remain NOT_READY. The override is confined to disposable diagnostic
+clients; do not patch global SDK classes, provide credentials or enable sending.
+
+For repeated mixed BUY/SELL flows, add `--mixed-rounds 3` to `operations contention` and
 choose a new output filename. The optional mode accepts 1–8 rounds and uses
 one funded allocation per synthetic venue, with a separate bounded research
 child in each round. Partial sells, late buys during cancellation, pressure

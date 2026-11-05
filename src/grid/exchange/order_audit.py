@@ -19,6 +19,7 @@ import ccxt.pro as ccxtpro  # type: ignore[import-untyped]
 from grid.config import VENUE_IDS
 from grid.domain.model import Scope, Side
 from grid.domain.numbers import DomainError
+from grid.exchange.bingx_numeric import decimal_text, unsigned_query
 from grid.persistence.ledger import client_identity
 from grid.research.artifacts import canonical, output_directory, publish
 from grid.research.provenance import Observation
@@ -214,7 +215,13 @@ def checks(
 
 
 async def case(
-    venue: str, side: Side, values: str, *, explicit: bool, short_id: bool
+    venue: str,
+    side: Side,
+    values: str,
+    *,
+    explicit: bool,
+    short_id: bool,
+    text_numbers: bool = False,
 ) -> dict[str, object]:
     if (
         venue not in VENUE_IDS
@@ -222,6 +229,9 @@ async def case(
         or values not in VALUES
         or type(explicit) is not bool
         or type(short_id) is not bool
+        or type(text_numbers) is not bool
+        or text_numbers
+        and (venue != "bingx" or not explicit or ccxt.__version__ != "4.5.91")
     ):
         raise DomainError("unknown fixed SDK audit fixture")
     recorder = Recorder()
@@ -230,10 +240,19 @@ async def case(
         await recorder.request(*args, **kwargs)
 
     base: Any = getattr(ccxtpro, venue)
+    overrides: dict[str, Any] = {
+        "request": intercept,
+        "fetch": refuse_async,
+        "fetch2": refuse_async,
+        "sign": refuse,
+    }
+    if text_numbers:
+        # Only this disposable, transport-denied experiment changes SDK conversion.
+        overrides["parse_to_numeric"] = staticmethod(decimal_text)
     offline: Any = type(
         "OfflineOrderAudit",
         (base,),
-        {"request": intercept, "fetch": refuse_async, "fetch2": refuse_async, "sign": refuse},
+        overrides,
     )
     chosen = options(venue, explicit)
     client: Any = offline({"options": chosen})
@@ -241,6 +260,7 @@ async def case(
     internal = client_identity(Scope(venue, "invented", SYMBOL, "audit", "grid", "fixture"), 1)
     supplied = "g" + internal[:15] if short_id else internal
     outcome = "intercepted"
+    query: str | None = None
     try:
         if any(getattr(client, k, None) for k in ("apiKey", "secret", "password", "token")):
             raise DomainError("audit client unexpectedly has credentials")
@@ -260,15 +280,24 @@ async def case(
             if venue != "gate" or short_id or recorder.frame is not None:
                 raise DomainError("unexpected SDK builder refusal") from None
             outcome = "builder_refused"
-        except TransportReached:
-            raise DomainError("forbidden SDK transport or signing path reached") from None
+        if text_numbers:
+            query = unsigned_query(recorder.frame, side, price, amount, supplied)
+            if recorder.frame is None:
+                raise DomainError("prepared request unavailable")
+            # Exercise only the pure encoding steps inspected in pinned BingX sign().
+            # Omit timestamp, credentials, HMAC, URL construction and sign() itself.
+            parsed = client.parse_params(client.keysort(recorder.frame["params"]))
+            if client.rawencode(parsed, True) != query or client.urlencode(parsed, True) != query:
+                raise DomainError("SDK unsigned encoding differs from validated text")
+    except TransportReached:
+        raise DomainError("forbidden SDK transport or signing path reached") from None
     finally:
         async with asyncio.timeout(3):
             await client.close()
     source = Path(inspect.getfile(base.create_order))
     if source.stat().st_size > 2 * 1024**2:
         raise DomainError("SDK source fingerprint exceeds bound")
-    return {
+    result = {
         "venue": venue,
         "side": str(side),
         "values": values,
@@ -283,6 +312,10 @@ async def case(
         "sdk_builder_file_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "external_requests": 0,
     }
+    if text_numbers:
+        result["numeric_policy"] = "offline_decimal_strings"
+        result["unsigned_query"] = query
+    return result
 
 
 async def experiment(revision: str) -> dict[str, object]:
@@ -321,6 +354,44 @@ async def experiment(revision: str) -> dict[str, object]:
     return observation.finish("sdk-order-audit", result)
 
 
+async def text_experiment(revision: str) -> dict[str, object]:
+    """Paired BingX controls and candidate; never alter the original 91-case audit."""
+    observation = Observation.start(revision)
+    controls, prepared = [], []
+    for side in Side:
+        for values in VALUES:
+            for short in (False, True):
+                controls.append(await case("bingx", side, values, explicit=True, short_id=short))
+                prepared.append(
+                    await case(
+                        "bingx", side, values, explicit=True, short_id=short, text_numbers=True
+                    )
+                )
+    result = {
+        "schema": "grid-bingx-text-preparation-v1",
+        "mode": "offline_synthetic",
+        "live": "DISABLED",
+        "ccxt_version": ccxt.__version__,
+        "fixture_calls": len(controls) + len(prepared),
+        "client_concurrency": 1,
+        "external_requests": 0,
+        "unmodified_controls": controls,
+        "prepared_cases": prepared,
+        "all_fixture_checks_passed": all(
+            isinstance(row["checks"], dict) and all(row["checks"].values()) for row in prepared
+        ),
+        "readiness": "NOT_READY",
+        "limitations": (
+            "Candidate checks only; unchanged SDK control failures are retained separately.",
+            "Only guarded disposable clients override numeric conversion; no SDK/global patch.",
+            "Unsigned text only: no timestamp, signature, credentials or external request.",
+            "Invented market/account/IDs; actual exchange acceptance and constraints untested.",
+            "No sender, durable venue ID mapping or authority to spend reserved funds.",
+        ),
+    }
+    return observation.finish("sdk-order-audit", result)
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         self.exit(2, "offline SDK audit: invalid arguments; use --help\n")
@@ -330,12 +401,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = Parser(description="Fixed offline CCXT request audit; signing/transport prohibited")
     parser.add_argument("--code-revision", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--bingx-text", action="store_true", help="fixed offline decimal-text trial"
+    )
     args = parser.parse_args(argv)
     try:
         output_directory(args.output.parent)
         if args.output.exists() or args.output.is_symlink():
             raise DomainError("existing audit result")
-        report = asyncio.run(experiment(args.code_revision))
+        run = text_experiment if args.bingx_text else experiment
+        report = asyncio.run(run(args.code_revision))
         result = report["result"]
         if (
             not isinstance(result, dict)
