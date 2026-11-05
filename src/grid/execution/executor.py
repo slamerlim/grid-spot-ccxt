@@ -288,13 +288,12 @@ class MockExecutor:
                 if bindings != [expected_binding]:
                     raise ExecutionError("external order contradicts durable binding")
                 bound.add(fact.external_id)
-            if (
-                order.terminal
-                and fact.status != "open"
-                and fact.cumulative == order.filled
-                and (fact.status != "filled" or fact.cumulative == order.amount)
-                and (fact.status != "rejected" or fact.cumulative == ZERO)
-            ):
+            if order.terminal:
+                # Unlike a delayed private event, this claims to be the current
+                # authoritative snapshot. A reopened or changed terminal order
+                # invalidates recovery before any new binding/fill is posted.
+                if fact.status == "open" or fact.cumulative != order.filled:
+                    raise ExecutionError("current order contradicts durable terminal state")
                 terminal.add(fact.external_id)
             facts[fact.external_id] = fact
             internal[order.id] = order

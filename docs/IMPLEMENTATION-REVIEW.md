@@ -42,6 +42,8 @@ remains unverified.
 The subsequent `I8-UNIFIED-RECONCILIATION.md` connects the shared order/trade
 observations to the mapped mock's existing ledger/executor. Real account source,
 pagination, trade ordering and fee provenance still require separate evidence.
+`I8-TERMINAL-RECOVERY.md` subsequently fixes current snapshots that contradict
+durable terminal orders, before any new financial posting or SELL replacement.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -61,7 +63,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q02 minimum lot | Decimal quantizers, independent buy/sell minima and fee-aware eligibility; `tests/domain/test_market.py`, `test_boundaries.py` | Verified account-specific fees/rules at actual venue placement unavailable |
 | Q03 finite funds | One ledger writer, atomic reservations and scope/pool ownership; `tests/persistence/test_ledger.py`, `tests/research/test_replay.py` | Dedicated real balances and external activity must be verified separately |
 | Q04 seed | Actual weighted fills, partial residual handling and approved terminal-seed anchor rule; `tests/domain/test_reducer.py`, unified parser-to-ledger fixtures | Actual account settlement and venue event evidence remain untested |
-| Q05 one SELL | Possibly-active slot persists through cancellation/unknowns; domain, execution, scoped/global tests | Live cancel/fill races have synthetic evidence only |
+| Q05 one SELL | Possibly-active slot persists through cancellation/unknowns; current terminal contradictions block recovery before replacement; domain, execution history, scoped/global tests | Live cancel/fill races have synthetic evidence only |
 | Q06 ladder | Minimum lots, quantized distinct prices, range/budget/order bounds; domain market/reducer tests | Account/market limits not independently certified |
 | Q07 drain/late BUY | Drain, reconcile and retain late inventory without duplicate seed; domain/execution recovery tests | Exchange truth/restart behavior requires target-venue evidence |
 | Q08 idempotency | Scoped identities, atomic fill posting, unified observations, replay and revision history; persistence/execution identity, unified and crash tests | Private feed and actual paginated trade semantics untested |
@@ -82,6 +84,19 @@ Evidence details are in `I1-EVIDENCE.md` through `I8-EVIDENCE.md` and the later
 operator/manual-exit/allocation-exit/hot-config/storage/scoped-dust documents.
 The main CLI now has research aliases; financial commands intentionally remain
 under `gridctl operator` and use its existing same-user mock owner.
+
+## Unfinished bounded execution recovery
+
+The mock executor still fetches complete lifetime order/trade history on every
+reconciliation. Page/record bounds stop oversized runs, but cannot support
+indefinite operation. Its stable snapshot revision and explicit trade sequence
+are fake-source contracts, not guarantees from CCXT's unified dictionaries.
+`I8-TERMINAL-RECOVERY.md` records the investigation and prerequisite correction.
+Continue toward bounded outstanding-order/history queries while retaining durable
+terminal facts, duplicate/conflict checks and detection of unexpected account
+activity. Pagination/retention evidence and settlement ordering must be explicit;
+neither deleting omission checks nor sorting CCXT timestamps proves completeness.
+Private transport and actual account validation remain separately gated.
 
 ## Unfinished offline research work
 

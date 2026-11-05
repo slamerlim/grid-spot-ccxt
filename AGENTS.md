@@ -316,6 +316,13 @@ transport, real pagination contract, venue certification or new access is implie
 
 ## Invariants for subsequent approved iterations
 
+`docs/I8-TERMINAL-RECOVERY.md` distinguishes delayed private events from a current
+recovery snapshot. An observed OPEN or changed cumulative quantity for a durable
+terminal order invalidates the entire snapshot before new binding/fill posting.
+Keep that check for compacted orders as well as retained ones. Do not erase old
+facts or loosen omission checks to implement bounded history; the existing fake's
+complete-history/revision/sequence contract is not a proven CCXT capability.
+
 - Spot only, limit only; geometric grid; minimum executable buy lots; one
   possibly active aggregate sell per allocation; no increasing lot sizing.
 - Confirmed fills drive progression. Persist reservations/intents before sends;

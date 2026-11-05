@@ -43,6 +43,13 @@ exercise CCXT parser output through fee posting and restart. Keep account scope,
 snapshot completeness, chronology and settlement valuation explicit; never use
 array arrival order as a real fill sequence. This adds no private transport.
 
+`I8-TERMINAL-RECOVERY.md` covers current reports that reopen a durable terminal
+order or change its cumulative quantity. Recovery refuses the whole snapshot
+before new binding/fill posting and keeps dispatch blocked. Preserve the reports
+and investigate the source; do not rewrite old fills or manually free the SELL
+slot. A delayed private OPEN event and a current recovery report have different
+authority. Run `pytest -q tests/execution/test_reconcile_history.py` offline.
+
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
 and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.

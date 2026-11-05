@@ -9,10 +9,12 @@ from typing import Any
 import pytest
 
 from grid.domain.model import ActualFee, Context, Fill, OrderReport, Reconciled, Side, State
+from grid.execution.client_ids import MappedSyntheticExchange
+from grid.execution.executor import MockExecutor
 from grid.persistence.ledger import Ledger
-from grid.persistence.records import Bounds
+from grid.persistence.records import Bounds, ClientIdPolicy
 
-from .helpers import ZERO_FEES, harness
+from .helpers import EVIDENCE, LIMITS, ZERO_FEES, harness
 
 
 def test_duplicate_closed_history_needs_only_hold_and_final_reconciliation(
@@ -154,5 +156,106 @@ def test_open_partial_order_still_requires_current_report_and_new_trade(
             assert sum(isinstance(e, OrderReport) and e.order_id == 1 for e in events) == 1
             after = await h.current()
             assert (after.quote_cash, after.owned_base) == (D(900), D(1))
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("mapped", [False, True])
+@pytest.mark.parametrize("archived", [False, True])
+@pytest.mark.parametrize("contradiction", ["open", "extra_fill"])
+def test_current_terminal_contradiction_blocks_replacement_and_all_new_posting(
+    tmp_path: Path,
+    bounds: Bounds,
+    state: State,
+    context: Context,
+    async_sockets: None,
+    mapped: bool,
+    archived: bool,
+    contradiction: str,
+) -> None:
+    async def run() -> None:
+        async with harness(tmp_path / "ledger.db", bounds, state, context) as h:
+            if mapped:
+                await h.executor.close()
+                h.venue = MappedSyntheticExchange(
+                    1000, h.writer, ClientIdPolicy("mock-terminal-v1", "t-")
+                )
+                h.executor = MockExecutor(h.writer, h.venue, (h.scope,), LIMITS, EVIDENCE)
+            try:
+                await h.seed()
+                for _ in range(4):
+                    assert await h.send() and await h.service(), h.executor.last_error
+                h.venue.fill("order-3", "lower", D(1), D(h.venue.sent[2].price), ZERO_FEES)
+                assert await h.service()
+                assert await h.send()  # Request cancellation of the original SELL.
+                h.venue.fill("order-2", "partial-sell", D("0.25"), D(110), ZERO_FEES)
+                h.venue.settle_cancel("order-2")
+                assert await h.service(), h.executor.last_error
+                original = h.venue.orders["order-2"]
+                assert original.status == "canceled"
+                if archived:
+                    snapshot = await h.writer.submit(lambda ledger: ledger.snapshot(h.scope))
+                    assert snapshot.version is not None
+                    version = snapshot.version
+                    await h.writer.submit(
+                        lambda ledger: ledger.compact("compact", h.scope, version)
+                    )
+                    assert not any(order.id == 2 for order in (await h.current()).orders)
+                before = await h.current()
+                sent = tuple(h.venue.sent)
+                fills = await h.writer.submit(
+                    lambda ledger: tuple(ledger.db.execute("SELECT * FROM fills ORDER BY trade_id"))
+                )
+                # A valid new BUY sorts before the impossible late SELL fill. The
+                # entire recovery must be checked before any of it reaches money.
+                h.venue.fill("order-4", "new-lower", D(1), D(h.venue.sent[3].price), ZERO_FEES)
+                h.venue.orders["order-2"] = replace(original, status="open")
+                if isinstance(h.venue, MappedSyntheticExchange):
+                    h.venue.wire_orders["order-2"]["status"] = "open"
+                if contradiction == "extra_fill":
+                    h.venue.fill("order-2", "impossible-late", D("0.25"), D(110), ZERO_FEES)
+                    h.venue.settle_cancel("order-2")
+                assert not await h.service()
+                assert not await h.send()
+                assert tuple(h.venue.sent) == sent
+                after = await h.current()
+                assert after.reconcile_reason is not None
+                assert (after.quote_cash, after.owned_base, after.position_cost) == (
+                    before.quote_cash,
+                    before.owned_base,
+                    before.position_cost,
+                )
+                assert (
+                    await h.writer.submit(
+                        lambda ledger: tuple(
+                            ledger.db.execute("SELECT * FROM fills ORDER BY trade_id")
+                        )
+                    )
+                    == fills
+                )
+                # Removing the contradictory observation permits the real new BUY
+                # exactly once and one replacement SELL for the reconciled inventory.
+                h.venue.orders["order-2"] = original
+                h.venue.trades = [t for t in h.venue.trades if t.external_id != "impossible-late"]
+                if isinstance(h.venue, MappedSyntheticExchange):
+                    h.venue.wire_orders["order-2"].update(
+                        status="canceled", filled="0.25", remaining="0.75"
+                    )
+                h.advance()
+                assert await h.service(), h.executor.last_error
+                assert await h.send(), h.executor.last_error
+                assert h.venue.sent[-1].side is Side.SELL
+                assert h.venue.sent[-1].amount == "2.75"
+                assert (
+                    sum(
+                        fact.request.side is Side.SELL and fact.status == "open"
+                        for fact in h.venue.orders.values()
+                    )
+                    == 1
+                )
+                assert await h.service(), h.executor.last_error
+                assert (await h.current()).owned_base == D("2.75")
+            finally:
+                await h.executor.close()
 
     asyncio.run(run())
