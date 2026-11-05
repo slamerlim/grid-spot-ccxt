@@ -22,7 +22,9 @@ from grid.exchange.models import Failure, ReadError
 
 
 def payloads(venue: str) -> tuple[object, object]:
-    bids, asks = [["100.123456789012345678901", "1"]], [["101.1", "2"]]
+    # Deliberately unsorted, with digit widths that expose string-price sorting.
+    bids = [["9.9", "3"], ["100.123456789012345678901", "1"], ["99.9", "4"]]
+    asks = [["1000", "3"], ["101.1", "2"], ["102.2", "4"]]
     if venue == "okx":
         return (
             {
@@ -150,7 +152,8 @@ def payloads(venue: str) -> tuple[object, object]:
         )
     return (
         [[["BTCUST", [None, None, None, "0.00001", "100"]]]],
-        [["100.123456789012345678901", 1, "1"], ["101.1", 1, "-2"]],
+        [[price, 1, amount] for price, amount in bids]
+        + [[price, 1, "-" + amount] for price, amount in asks],
     )
 
 
@@ -199,6 +202,16 @@ def test_pinned_sdk_public_parsers_signers_and_exact_book(venue: str, async_sock
             )
             assert book.bids[0][0] == Decimal("100.123456789012345678901")
             assert book.asks[0][1] == Decimal(2)
+            assert [p for p, _ in book.bids] == [
+                Decimal("100.123456789012345678901"),
+                Decimal("99.9"),
+                Decimal("9.9"),
+            ]
+            assert [p for p, _ in book.asks] == [
+                Decimal("101.1"),
+                Decimal("102.2"),
+                Decimal("1000"),
+            ]
             if venue == "bitfinex":
                 assert book.source_ms is None
                 assert market.quote_id == "UST"  # raw/unified identity preserved
@@ -326,5 +339,72 @@ def test_failed_refresh_cannot_resurrect_cached_market_as_fresh(async_sockets: N
                 await client.fetch_order_book("BTC/USDT")
         finally:
             await client.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "raw_fee,normalized_fee",
+    [("-0.00000001", "0.00000001"), ("0", "0"), ("0.00000001", "-0.00000001"), (None, None)],
+)
+def test_documented_numeric_mode_preserves_unified_order_and_trade_fees(
+    raw_fee: str | None,
+    normalized_fee: str | None,
+    raw_market: dict[str, object],
+    async_sockets: None,
+) -> None:
+    """Pure pinned OKX parsers over invented inputs; no account or order API."""
+
+    async def scenario() -> None:
+        wire = FakeWire([])
+        transport = PublicCCXT("okx", ReadLimits(), wire=wire)
+        try:
+            client = transport._client
+            client.set_markets([raw_market])
+            market = client.market("BTC/USDT")
+            raw = {
+                "instId": "BTC-USDT",
+                "instType": "SPOT",
+                "tdMode": "cash",
+                "ordId": "synthetic-order",
+                "clOrdId": "synthetic-client",
+                "tradeId": "synthetic-trade",
+                "side": "buy",
+                "ordType": "limit",
+                "px": "123456789.12345677",
+                "sz": "0.12345678",
+                "fillPx": "123456789.12345677",
+                "fillSz": "0.12345678",
+                "accFillSz": "0.12345678",
+                "avgPx": "123456789.12345677",
+                "state": "filled",
+                "fee": raw_fee,
+                "feeCcy": "USDT",
+                "cTime": "1700000000000",
+                "uTime": "1700000000001",
+                "ts": "1700000000001",
+            }
+            order = client.parse_order(raw, market)
+            trade = client.parse_trade(raw, market)
+            for parsed in (order, trade):
+                assert parsed["symbol"] == "BTC/USDT"
+                assert parsed["price"] == "123456789.12345677"
+                assert parsed["amount"] == "0.12345678"
+                assert Decimal(parsed["cost"]) == Decimal("15241577.6543209952934006")
+                assert type(parsed["timestamp"]) is int
+                if normalized_fee is None:
+                    assert not parsed["fees"]
+                    assert parsed["fee"] is None or parsed["fee"]["cost"] is None
+                else:
+                    assert parsed["fee"]["cost"] == normalized_fee
+                    assert parsed["fee"]["currency"] == "USDT"
+                    assert parsed["fees"] == [parsed["fee"]]
+            assert order["type"] == "limit" and order["status"] == "closed"
+            assert order["clientOrderId"] == "synthetic-client"
+            assert trade["order"] == order["id"] == "synthetic-order"
+            assert trade["type"] is None  # Optional unified fields remain unknown.
+            assert not wire.urls and not transport.evidence
+        finally:
+            await transport.close()
 
     asyncio.run(scenario())

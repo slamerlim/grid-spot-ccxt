@@ -290,6 +290,18 @@ No venue profile is certified, and default mocks remain unchanged. Old code
 cannot open v6; never drop mappings to downgrade or recreate unknown submissions
 after restoring an older backup. Continue offline work with external gates closed.
 
+The owner's CCXT clarification and numeric correction are recorded in
+`docs/I8-CCXT-UNIFIED-NUMBERS.md`. CCXT owns exchange-specific parsing and unified
+structures. Use its documented `number = str` mode with shared Decimal domain
+conversion; do not substitute `Decimal` into the SDK or duplicate venue parsers.
+Keep compatibility exceptions narrow, pinned and reproduced by offline fixtures.
+The current public boundary retains exact book-level parsing and numeric sorting
+for demonstrated SDK gaps. Missing optional data remains unknown; require only
+the evidence needed by the affected operation. Accounting, ownership, identity
+and reconciliation remain application responsibilities. Pure OKX parser fixtures
+do not establish authenticated support or certify the other venues. Continue
+offline development; completed public-run and live gates remain unchanged.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

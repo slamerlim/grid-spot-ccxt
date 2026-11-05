@@ -35,6 +35,10 @@ Repeated mixed BUY/SELL contention and committed-history reconciliation reuse
 based on `24bae1d` are recorded in `I8-MIXED-CONTENTION.md` and incorporated below.
 The pinned asynchronous SDK request audit based on `1268e30` is recorded in
 `I8-SDK-ORDER-AUDIT.md`; its numeric/account/ID findings are incorporated below.
+The correction to documented CCXT string math, based on `97469fb`, is recorded
+in `I8-CCXT-UNIFIED-NUMBERS.md`. Seven-venue public fixtures and pure OKX
+order/trade parser fixtures cover numeric conversion; authenticated behavior
+and connection to the mock ledger remain unverified.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live

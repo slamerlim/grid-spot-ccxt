@@ -13,7 +13,6 @@ import json
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
 from email.utils import parsedate_to_datetime
 from importlib import metadata
 from pathlib import Path
@@ -25,7 +24,7 @@ import ccxt.pro as ccxt  # type: ignore[import-untyped]
 
 from grid.config import VENUE_IDS
 from grid.exchange.adapter import ReadLimits
-from grid.exchange.models import Failure, ReadError, money
+from grid.exchange.models import Failure, ReadError, mapping, money
 
 CCXT_VERSION = "4.5.91"
 SYMBOL = "BTC/USDT"
@@ -288,23 +287,9 @@ class PublicCCXT:
                 "options": options,
             }
         )
-        self._client.number = Decimal
-        original_string = self._client.safe_string
-
-        def safe_string(container: Any, key: Any, default: Any = None) -> Any:
-            # CCXT's default safe_string explicitly excludes Decimal. Supporting
-            # it here preserves exact values through its market cache formatter.
-            try:
-                value = container[key]
-            except (KeyError, IndexError, TypeError):
-                return default
-            return (
-                str(value)
-                if isinstance(value, Decimal)
-                else original_string(container, key, default)
-            )
-
-        self._client.safe_string = safe_string
+        # Documented CCXT string math. Convert unified financial fields to
+        # Decimal at our boundary; Decimal is not a documented SDK numeric mode.
+        self._client.number = str
 
         def exact_bid_ask(
             bidask: Any,
@@ -497,7 +482,20 @@ class PublicCCXT:
         if symbol != SYMBOL or depth != (25 if self.venue == "bitfinex" else 20):
             raise ReadError(Failure.POLICY)
         try:
-            return await self._client.fetch_order_book(symbol, depth)
+            book = dict(mapping(await self._client.fetch_order_book(symbol, depth)))
+            # The pinned SDK sorts string prices lexicographically (Bitfinex
+            # uses its own book parser). Sort unified levels numerically;
+            # map_book still validates quantities, duplicates and crossed books.
+            for side in ("bids", "asks"):
+                levels = book.get(side)
+                if not isinstance(levels, list) or len(levels) > depth:
+                    raise ReadError(Failure.MALFORMED)
+                book[side] = sorted(
+                    levels,
+                    key=lambda level: money(level[0], positive=True),
+                    reverse=side == "bids",
+                )
+            return book
         except Exception as exc:
             raise ReadError(classify(exc)) from None
 

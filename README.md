@@ -15,6 +15,8 @@ snapshots through the ledger. It has no authenticated or sandbox/live transport.
 An optional [mapped synthetic adapter](docs/I8-DURABLE-CLIENT-IDS.md) now commits
 separate external client IDs before an attempt and tests lookup/recovery while
 retaining the original internal IDs. Its text-ID policy is mock evidence only.
+The public adapter uses [CCXT's documented string-number mode](docs/I8-CCXT-UNIFIED-NUMBERS.md)
+and converts unified financial values to Decimal at the application boundary.
 The owner approved I8 public-paper work with local validation while hosted CI remains pending.
 Offline research now validates bounded immutable OHLC windows, replays the Decimal
 strategy under explicit synthetic fill assumptions, and compares raw/Arrow/Parquet

@@ -217,6 +217,14 @@ payload and unsigned-query validation. It preserves the unmodified failures and
 establishes no actual signed request or venue acceptance. Future submission
 integration must resolve these constraints before any venue test.
 
+The subsequent `I8-CCXT-UNIFIED-NUMBERS.md` correction uses documented CCXT
+string math for incoming public data and removes the custom Decimal/safe-string
+mode. Seven-venue synthetic market/book tests cover exact values and numeric
+ordering; pure OKX order/trade parser fixtures cover charges, zero, rebates and
+missing fees. This does not resolve the outgoing BingX builder conversion above,
+provide private access or verify actual account fee tiers. CCXT continues to own
+venue schemas; application checks remain shared except for documented SDK gaps.
+
 Client-order-ID acceptance/uniqueness/lookup consistency, new-order wire
 precision, post-only behavior, cancellation races, late fills, actual maker/taker
 fees and unknown-submission recovery require I4 fake tests plus explicitly

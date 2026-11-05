@@ -92,11 +92,16 @@ Source inspection and offline tests found these version-specific requirements:
   The original public probe's amount-mode projection is superseded by this
   source-backed correction; no additional public request was made.
 
-JSON decimal literals decode as strings, followed by Decimal parsing. CCXT's
-numeric converter is Decimal, with a narrow `safe_string` extension for Decimal.
-Its base book-level parser nevertheless hardcodes `safe_float`; a narrow level
-parser override preserves exact prices/amounts before CCXT sorts them. Tests use
-a numeric JSON price with more significant digits than a float can preserve.
+JSON decimal literals decode as strings, followed by Decimal parsing at the
+application boundary. The later `I8-CCXT-UNIFIED-NUMBERS.md` correction uses the
+documented CCXT `number = str` mode and removes the original custom `safe_string`
+extension. CCXT owns venue-specific parsing and unified field names/types;
+the application converts financial strings and validates its domain contracts.
+The pinned base book-level parser still hardcodes `safe_float`; a narrow level
+override preserves exact prices/amounts. Unified book levels are numerically
+sorted before validation because the pinned Bitfinex parser sorts string prices
+lexicographically. Tests use multiple price widths and a numeric JSON price
+with more significant digits than a float can preserve.
 No `Decimal(str(float))` conversion is accepted at the financial boundary.
 Duplicate JSON keys, nonfinite, oversized and malformed numbers are rejected.
 

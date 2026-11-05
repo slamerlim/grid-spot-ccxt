@@ -29,6 +29,14 @@ report can contain rejected or unavailable observations. XT's first public book
 was rejected; its precise cause is unresolved. Do not rerun to turn it green.
 Account-specific authentication and fee/event semantics remain NOT_TESTED.
 
+The current numeric boundary uses CCXT's documented `number = str` mode, with
+Decimal conversion in the shared application mappers. See
+`I8-CCXT-UNIFIED-NUMBERS.md` before changing that mode or upgrading CCXT. The
+pinned book-level float conversion and string-price sorting have narrow tested
+corrections; do not restore a custom SDK-wide Decimal/safe-string mode or replace
+CCXT's venue parsers. Run the offline fixtures, not another public probe, when
+checking this boundary. Historical public evidence is not rerun by this change.
+
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
 and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.
