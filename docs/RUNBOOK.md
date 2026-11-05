@@ -483,6 +483,18 @@ measurement report whose timing checks failed; exit 2 is a refused/failed run,
 and caught interruption returns 130. Inspect reports before retrying. Kernel
 RSS/device quotas and on-deployment-hardware acceptance remain unverified.
 
+For repeated mixed BUY/SELL flows, add `--mixed-rounds 3` to that command and
+choose a new output filename. The optional mode accepts 1–8 rounds and uses
+one funded allocation per synthetic venue, with a separate bounded research
+child in each round. Partial sells, late buys during cancellation, pressure
+pauses and final draining are measured against the same 10-second fill-lag
+threshold. A 240-second wall timeout applies per 1/7-venue case. Inspect
+`grid-mixed-contention-v1` inside the common report envelope; the original mode
+is unchanged when the flag is absent. This is a finite isolated mock-executor
+workload, without the portfolio supervisor or a sustained fixed-rate feed.
+`I8-MIXED-CONTENTION.md` records the retained failed measurement, the subsequent
+reconciliation optimization and financial compatibility checks.
+
 If a run fails or is killed, leave originals intact. Temporary `.grid-research-*`
 siblings and incomplete format sample directories are diagnostic artifacts, not
 published results. Restart from the immutable input/config into a new output

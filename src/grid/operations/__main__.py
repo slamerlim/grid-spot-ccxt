@@ -9,6 +9,7 @@ from typing import NoReturn
 
 from grid.operations.contention import experiment as contention
 from grid.operations.experiment import experiment
+from grid.operations.mixed_contention import experiment as mixed_contention
 from grid.research.artifacts import output_directory, publish
 
 
@@ -23,14 +24,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--code-revision", required=True)
     parser.add_argument("--sqlite-source-id", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--mixed-rounds", type=int, help="contention only: 1..8 mixed BUY/SELL rounds"
+    )
     args = parser.parse_args(argv)
+    if args.mixed_rounds is not None and args.kind != "contention":
+        parser.error("mixed rounds require contention")
     code = 0
     try:
         output_directory(args.output.parent)
         if args.output.exists() or args.output.is_symlink():
             raise ValueError("existing result")
         report = asyncio.run(
-            contention(args.code_revision, args.sqlite_source_id)
+            mixed_contention(args.code_revision, args.sqlite_source_id, args.mixed_rounds)
+            if args.mixed_rounds is not None
+            else contention(args.code_revision, args.sqlite_source_id)
             if args.kind == "contention"
             else experiment(args.kind, args.code_revision, args.sqlite_source_id)
         )

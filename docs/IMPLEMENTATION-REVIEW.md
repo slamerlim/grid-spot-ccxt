@@ -31,6 +31,8 @@ Paired independent-lot walk-forward studies based on `1f3290e` are recorded in
 `I8-LOT-STUDIES.md` and incorporated below.
 Bounded chronological storage merges based on `ffd02ed` are recorded in
 `I8-STORAGE-MERGES.md` and incorporated below.
+Repeated mixed BUY/SELL contention and committed-history reconciliation reuse
+based on `24bae1d` are recorded in `I8-MIXED-CONTENTION.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -63,7 +65,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q15 OHLC ambiguity | Three fixed conventions and a comparison command preserve one side per allocation/bar and delayed new orders; `tests/research/test_replay.py`, `test_comparison.py` | The reported range covers only these assumptions, not every feasible execution path; queue/volume evidence and broader studies remain absent |
 | Q16 chronology/restart | UTC merge, canonical ties, final partial interval, deterministic restart, separately hashed source/runtime/Git report envelope; research replay/provenance/crash tests | No checkpoint resume or loaded-code/dependency attestation; broader multi-market study required |
 | Q17 cache | Single-flight refresh, freshness/generation gates, bounded LRU and 100-caller mock test; `tests/universe/test_discovery.py` | Full real-venue discovery/admission integration untested |
-| Q18 overload/resources | Bounded writer/intake/cache, overload halt, candidate matrix and a 1/7-venue distinct-fill contention harness with a bounded research child; execution/operations tests | Not 1,000 funded allocations, a sustained mixed-side workload, kernel RSS/device quotas or deployment sizing |
+| Q18 overload/resources | Bounded writer/intake/cache, overload halt, candidate matrix and 1/7-venue seed-partial and repeated mixed BUY/SELL contention with a bounded research child; execution/operations tests | Not 1,000 funded allocations, sustained fixed-rate traffic, kernel RSS/device quotas or deployment sizing |
 | Q19 controller/storage | Exclusive mock ownership, WAL/FULL ledger, crash, backup/restore and audited storage controls; `tests/persistence/`, `tests/operations/test_storage*.py` | Real venue reconciliation after restore, deployment filesystem/power faults and production runtime remain unverified |
 | Q20 security/deployment | Live unavailable, sanitized CLI, same-UID IPC, audited confirmations, secret scan and inert service template; config/doctor/operations tests | No installed service, withdrawal-permission verification, real restart drill or external alert delivery |
 
@@ -143,9 +145,15 @@ missing venue evidence or to enable live access.
    and resumes with matching replay hashes. It checks durable fill identities,
    duplicate recovery, conservation and writer reopen. A measured codec schema
    cache avoids repeated type reflection without caching financial state.
+   Optional `--mixed-rounds N` adds finite repeated lower BUY fills, partial SELLs,
+   cancellation races and late BUY inventory. The initial seven-venue three-round
+   case failed the unchanged 10-second lag gate; both measurements are retained.
+   Full-snapshot validation now avoids re-posting exactly verified immutable
+   bindings/fills and already terminal reports, preserving financial records.
+   Open/partial/uncertain facts and all new fills still require normal posting.
    CPU-time/address-space ceilings and logical read pacing are explicitly
    distinguished from kernel CPU bandwidth, RSS and device-I/O quotas. Sustained
-   mixed-side workloads, 1,000 funded allocations, deployment limits and actual
+   fixed-rate mixed traffic, 1,000 funded allocations, deployment limits and actual
    NVMe contention remain outstanding; this is partial Q18/ADR evidence.
 5. **Full storage benchmark matrix.** The current benchmark measures bounded
    warm read/decode/repack/hash samples with byte-equivalent raw/Arrow/Parquet

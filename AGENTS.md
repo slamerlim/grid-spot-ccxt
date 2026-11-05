@@ -250,6 +250,17 @@ certify device throughput, archive representativeness, replay or deployment.
 Keep all original inputs and remaining external gates unchanged. Continue the
 authorized offline gaps without further public requests or paid GitHub features.
 
+`docs/I8-MIXED-CONTENTION.md` records optional repeated BUY/SELL contention rounds.
+Keep minimum buys, one possibly active SELL, late inventory and cancellation
+finality under pressure. The executor may avoid duplicate posting only after
+the complete snapshot and exact immutable SQLite binding/fill records have been
+validated by its sole writer. Do not cache financial facts or skip current open,
+partial, uncertain or changed reports. Retain failed timing evidence and the
+unchanged workload/threshold when measuring improvements. This finite isolated
+mock experiment does not cover 1,000 funded allocations, sustained fixed-rate
+traffic, the portfolio supervisor, deployment quotas or the observed I8 gate.
+Continue authorized offline work; no further public access is implied.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

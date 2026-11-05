@@ -193,6 +193,10 @@ The contention command reconciles distinct synthetic partial fills while a
 separate bounded research process runs, pauses under pressure and resumes.
 It reports measurements and failures without claiming deployed RSS/device quotas.
 See [contention limits, lifecycle and evidence](docs/I8-RESOURCE-CONTENTION.md).
+Add `--mixed-rounds 3` to run three BUY/SELL rounds on each of 1/7 synthetic
+venues, including lower buys, partial sells, cancellation races and late buys.
+This optional mode accepts 1–8 rounds and retains measured timing failures.
+See [mixed workload and reconciliation evidence](docs/I8-MIXED-CONTENTION.md).
 
 The source identity is approved for the existing **mock test builds only**; do
 not substitute an unfamiliar runtime's identity without provenance review.

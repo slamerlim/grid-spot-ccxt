@@ -10,7 +10,7 @@ import asyncio
 import uuid
 from collections import deque
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from functools import partial
 from weakref import WeakKeyDictionary
@@ -53,6 +53,18 @@ from grid.portfolio.model import PortfolioPermit
 from grid.universe.model import BuyAdmission
 
 _OWNERS: WeakKeyDictionary[AsyncWriter, object] = WeakKeyDictionary()
+
+
+@dataclass(frozen=True)
+class SnapshotPlan:
+    """One bounded validated page set; immutable committed facts need no new posting."""
+
+    facts: dict[str, OrderFact]
+    trades: tuple[TradeFact, ...]
+    fee_breach: bool
+    bound: frozenset[str]
+    posted: frozenset[str]
+    terminal: frozenset[str]
 
 
 def request_id() -> str:
@@ -219,9 +231,13 @@ class MockExecutor:
         scope: Scope,
         orders: tuple[OrderFact, ...],
         trades: tuple[TradeFact, ...],
-    ) -> tuple[dict[str, OrderFact], tuple[TradeFact, ...], bool]:
+    ) -> SnapshotPlan:
         facts: dict[str, OrderFact] = {}
         internal: dict[int, Order] = {}
+        allocation = codec.digest(scope)
+        bound: set[str] = set()
+        posted: set[str] = set()
+        terminal: set[str] = set()
         for fact in orders:
             request = fact.request
             if (
@@ -237,25 +253,46 @@ class MockExecutor:
             if request.order_id in internal:
                 raise ExecutionError("multiple external orders for one internal order")
             order = ledger.order(scope, request.order_id)
-            if (
-                not ledger.attempted(scope, order.id)
-                or (
-                    order.side,
-                    order.amount,
-                    order.price,
-                    order.config_revision,
-                    order.market_generation,
-                )
-                != (
-                    request.side,
-                    codec.parse_amount(request.amount),
-                    codec.parse_amount(request.price),
-                    request.config_revision,
-                    request.market_generation,
-                )
-                or ledger.binding(scope, order.id) not in (None, fact.external_id)
+            if not ledger.attempted(scope, order.id) or (
+                order.side,
+                order.amount,
+                order.price,
+                order.config_revision,
+                order.market_generation,
+            ) != (
+                request.side,
+                codec.parse_amount(request.amount),
+                codec.parse_amount(request.price),
+                request.config_revision,
+                request.market_generation,
             ):
                 raise ExecutionError("external order contradicts durable intent")
+            expected_binding = (
+                allocation,
+                order.id,
+                scope.venue,
+                scope.account,
+                scope.symbol,
+                fact.external_id,
+                request.client_id,
+            )
+            bindings = ledger.db.execute(
+                "SELECT * FROM order_bindings WHERE allocation=? AND order_id=? "
+                "OR venue=? AND account=? AND symbol=? AND external_id=?",
+                (allocation, order.id, scope.venue, scope.account, scope.symbol, fact.external_id),
+            ).fetchall()
+            if bindings:
+                if bindings != [expected_binding]:
+                    raise ExecutionError("external order contradicts durable binding")
+                bound.add(fact.external_id)
+            if (
+                order.terminal
+                and fact.status != "open"
+                and fact.cumulative == order.filled
+                and (fact.status != "filled" or fact.cumulative == order.amount)
+                and (fact.status != "rejected" or fact.cumulative == ZERO)
+            ):
+                terminal.add(fact.external_id)
             facts[fact.external_id] = fact
             internal[order.id] = order
         snapshot = ledger.snapshot(scope)
@@ -283,6 +320,28 @@ class MockExecutor:
             ):
                 raise ExecutionError("trade lacks matching order, fee evidence or unique sequence")
             unique[trade.external_id] = trade
+            trade_id = trade_identity(scope, trade.external_id)
+            order_id = facts[trade.external_order].request.order_id
+            key = ledger.db.execute(
+                "SELECT allocation,trade_id FROM trade_keys "
+                "WHERE venue=? AND account=? AND symbol=? AND external_id=?",
+                (scope.venue, scope.account, scope.symbol, trade.external_id),
+            ).fetchone()
+            stored = ledger.db.execute(
+                "SELECT order_id,payload FROM fills WHERE allocation=? AND trade_id=?",
+                (allocation, trade_id),
+            ).fetchone()
+            if key is not None or stored is not None:
+                fill = Fill(scope, trade_id, order_id, trade.amount, trade.price, trade.fees)
+                if (
+                    key != (allocation, trade_id)
+                    or stored != (order_id, codec.dumps(fill, limit=ledger.bounds.snapshot_bytes))
+                    or trade.external_order not in bound
+                ):
+                    raise ExecutionError(
+                        "external trade contradicts committed fill identity or payload"
+                    )
+                posted.add(trade.external_id)
             sequences[trade.sequence] = trade.external_id
             totals[trade.external_order] = totals.get(trade.external_order, ZERO) + trade.amount
             counts[trade.external_order] = counts.get(trade.external_order, 0) + 1
@@ -291,7 +350,6 @@ class MockExecutor:
                 order_fees[fee.currency] = order_fees.get(fee.currency, ZERO) + fee.amount
         # This mock contract is a complete history, not an unproved rolling
         # window. Previously posted orders/trades cannot disappear on reconnect.
-        allocation = codec.digest(scope)
         for (external_id,) in ledger.db.execute(
             "SELECT external_id FROM order_bindings WHERE allocation=?",
             (allocation,),
@@ -315,7 +373,14 @@ class MockExecutor:
                 amount > (forecast.amount if currency == forecast.currency else ZERO)
                 for currency, amount in fees.get(external, {}).items()
             )
-        return facts, tuple(sorted(unique.values(), key=lambda trade: trade.sequence)), fee_breach
+        return SnapshotPlan(
+            facts,
+            tuple(sorted(unique.values(), key=lambda trade: trade.sequence)),
+            fee_breach,
+            frozenset(bound),
+            frozenset(posted),
+            frozenset(terminal),
+        )
 
     async def _apply(
         self,
@@ -341,10 +406,14 @@ class MockExecutor:
             lambda ledger: ledger.hold(request_id(), scope, "executor reconciliation")
         )
         orders, trades = await self._pages(scope, context.now_ms, epoch)
-        facts, ordered_trades, fee_breach = await self.writer.submit(
+        plan = await self.writer.submit(
             lambda ledger: self._validate_snapshot(ledger, scope, orders, trades)
         )
-        for fact in facts.values():
+        # These sets describe immutable SQLite rows checked in the sole writer, not TTL state.
+        # Full pages, identities, quantities, fee bounds and omissions were validated above.
+        for fact in plan.facts.values():
+            if fact.external_id in plan.bound:
+                continue
             await self.writer.submit(
                 partial(
                     Ledger.bind,
@@ -356,8 +425,10 @@ class MockExecutor:
                 )
             )
         intake_context = replace(context, allow_new_exposure=False)
-        for trade in ordered_trades:
-            order_id = facts[trade.external_order].request.order_id
+        for trade in plan.trades:
+            if trade.external_id in plan.posted:
+                continue
+            order_id = plan.facts[trade.external_order].request.order_id
             fill = Fill(
                 scope,
                 trade_identity(scope, trade.external_id),
@@ -369,7 +440,9 @@ class MockExecutor:
             await self._apply(
                 scope, intake_context, fill, (trade.external_order, trade.external_id)
             )
-        for fact in facts.values():
+        for fact in plan.facts.values():
+            if fact.external_id in plan.terminal:
+                continue
             await self._apply(
                 scope,
                 intake_context,
@@ -408,7 +481,7 @@ class MockExecutor:
                             raise ExecutionError("unsent revocation was rejected")
 
                 await self.writer.submit(revoke)
-        if fee_breach:
+        if plan.fee_breach:
             raise ExecutionError("actual fees exceed the reserved forecast")
         if epoch != self.epoch:
             raise ExecutionError("stream changed while posting recovery")
