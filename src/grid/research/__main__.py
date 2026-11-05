@@ -10,7 +10,7 @@ from typing import NoReturn
 
 from grid.domain.numbers import DomainError
 from grid.research.artifacts import output_directory, publish
-from grid.research.benchmark import benchmark
+from grid.research.benchmark import QueryPlan, benchmark
 from grid.research.comparison import run as compare_scenarios
 from grid.research.config import load
 from grid.research.demo import create
@@ -42,6 +42,24 @@ def configure(command: argparse.ArgumentParser, name: str) -> None:
         command.add_argument("--identity-evidence")
         command.add_argument("--collection-evidence")
         command.add_argument("--verified-unleveraged-spot", action="store_true")
+        if name == "benchmark":
+            command.add_argument("--repeats", type=int, default=3, help="1..10 scan/query repeats")
+            command.add_argument(
+                "--utc-start-ms", type=int, help="optional inclusive UTC query start"
+            )
+            command.add_argument("--utc-end-ms", type=int, help="optional exclusive UTC query end")
+            command.add_argument(
+                "--random-windows",
+                type=int,
+                default=0,
+                help="seeded UTC query count; at most 32 queries total",
+            )
+            command.add_argument(
+                "--window-minutes", type=int, help="explicit random query duration"
+            )
+            command.add_argument(
+                "--query-seed", type=int, help="explicit random query seed, 0..2^64-1"
+            )
     elif name == "replay":
         command.add_argument("--config", type=Path, required=True)
         command.add_argument("--portfolio", type=Path, help="explicit synthetic portfolio settings")
@@ -141,9 +159,29 @@ def main(
                 }
                 code = 0 if manifest.replay_eligible else 1
             else:
+                queries = None
+                if (
+                    any(
+                        value is not None
+                        for value in (
+                            args.utc_start_ms,
+                            args.utc_end_ms,
+                            args.window_minutes,
+                            args.query_seed,
+                        )
+                    )
+                    or args.random_windows != 0
+                ):
+                    queries = QueryPlan(
+                        args.utc_start_ms,
+                        args.utc_end_ms,
+                        args.random_windows,
+                        args.window_minutes,
+                        args.query_seed,
+                    )
                 result = {
                     "code_revision": args.code_revision,
-                    **benchmark(source, args.output.parent),
+                    **benchmark(source, args.output.parent, repeats=args.repeats, queries=queries),
                 }
                 code = 0
         publish(args.output, observation.finish(args.command, result))

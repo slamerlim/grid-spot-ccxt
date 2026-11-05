@@ -25,6 +25,8 @@ Bounded continuous portfolio replay based on `41138d5` is recorded in
 `I8-PORTFOLIO-SERIES.md` and incorporated below.
 Portfolio walk-forward integration based on `9eecbca` is recorded in
 `I8-PORTFOLIO-STUDIES.md` and incorporated below.
+Bounded UTC storage queries based on `92cfdd4` are recorded in
+`I8-STORAGE-QUERIES.md` and incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -140,9 +142,15 @@ missing venue evidence or to enable live access.
    NVMe contention remain outstanding; this is partial Q18/ADR evidence.
 5. **Full storage benchmark matrix.** The current benchmark measures bounded
    warm read/decode/repack/hash samples with byte-equivalent raw/Arrow/Parquet
-   reconstruction. Cold-ish scans, UTC/random slicing, 100/1,000-symbol merges,
-   repeated parameter replay reuse and deployment contention are not measured
-   by it. Existing SQLite mock stress/crash/backup tests are useful evidence,
+   reconstruction. Optional single-source UTC and seeded minute-window queries
+   now use one manifest-bound timestamp index, read only selected blocks and
+   retain byte equality, index preparation cost and cache limitations. A 131,072-
+   record synthetic sample measured 17 windows with positive NVMe backing evidence
+   but zero observed physical input blocks; raw mmap was faster on that warmed
+   sample. Cold-ish scans, representative multi-source/month sampling,
+   100/1,000-symbol merges, repeated parameter replay reuse and deployment
+   contention remain unmeasured by this benchmark. Existing SQLite mock
+   stress/crash/backup tests are useful evidence,
    but are not the complete on-deployment-hardware performance report. Keep raw
    archives immutable and defer any full derived copies until justified.
 

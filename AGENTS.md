@@ -222,6 +222,15 @@ Retain all outcomes, preflight every effective configuration and count EOF plus
 completion intervals in the risk bound. Static historical assumptions, independent-
 lot studies, resource/deployment evidence and external I8/I9 gates remain unfinished.
 
+`docs/I8-STORAGE-QUERIES.md` records the bounded UTC query benchmark.
+Keep the optional shared timestamp index manifest-bound and account for its
+preparation cost. Exact half-open windows preserve gaps/empty results; all
+formats and repeats must match raw record bytes before publishing. Retain work
+caps, rotating reader order and source/derived identity checks. Warm-cache
+query timings, logical byte counts and observed NVMe backing are distinct from
+cold-device/replay throughput or deployment certification. Multi-source merges,
+replay reuse, resource evidence and external gates remain open. Keep raw inputs.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

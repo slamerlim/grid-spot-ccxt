@@ -434,6 +434,15 @@ plan and all outcomes, including unfavorable ones. There is no live policy expor
 the original/derived byte-equivalence hash, reader timings, memory scope and
 cache/device evidence together. Cached CPU/hash timings do not establish storage
 throughput. Do not convert the archive because compressed Parquet is smaller.
+Optional `--utc-start-ms START --utc-end-ms END` selects an exact half-open UTC
+minute range within the selected source. Add
+`--random-windows N --window-minutes M --query-seed S` for reproducible minute
+windows; explicit duration and seed are required. Total queries are capped at
+32, summed selected records at 1,048,576 per repeat, and `--repeats` at 1–10
+(default three). Empty gaps and duplicate windows are retained. Read
+`I8-STORAGE-QUERIES.md` for the shared index, preparation costs, rotating reader
+order and sample measurements. This mode does not perform calendar-month or
+multi-symbol sampling, cold-cache measurements or parameter replay reuse.
 The main entry point is `gridctl bench-storage`; `gridctl backtest` runs the same
 replay engine as the module's `replay` command. Neither opens an operator socket
 or takes financial ownership. The CLI refuses an already occupied result path

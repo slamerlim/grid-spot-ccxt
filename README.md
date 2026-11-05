@@ -111,6 +111,13 @@ an interrupted run may retain samples or an already published report. Inspect
 artifacts before another attempt. Parquet decoding is sequential, but these
 commands do not impose OS CPU/RSS/IO quotas or coordinate with a trading owner.
 See [CLI behavior and validation](docs/I8-RESEARCH-CLI.md).
+Optional `--utc-start-ms/--utc-end-ms` and
+`--random-windows N --window-minutes M --query-seed S` add bounded UTC query
+comparisons using the same timestamp index across raw mmap, Arrow and Parquet.
+Every window must reproduce raw bytes, including empty gap results. Timings
+include lookup/open/read/decode/hash/close, with index preparation reported
+separately; caches are warmed and uncontrolled. See
+[query bounds and observed evidence](docs/I8-STORAGE-QUERIES.md).
 Research CLI reports now use a `grid-research-run-v1` envelope: read the existing
 engine output under `result`. `provenance` records observed source hashes, local
 Git comparison, runtime and host details. Its separate report hash changes with
