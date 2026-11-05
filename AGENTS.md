@@ -376,6 +376,17 @@ Discovered IDs remain read-only observations; original unknowns, holds and send
 restrictions stay intact. Absence is never rejection, including when the SDK's
 closed-order method omits canceled orders. See `docs/IMPLEMENTATION-REVIEW.md`.
 
+The mapped mock executor now accepts explicit `account_reads` and optional
+`lookup` on `service`. It invokes the existing reader under its one lock, reserves
+the worst-case unified-call budget, rechecks the plan/epoch and uses its existing
+binding/fill/report loop. Standalone inspections remain read-only. The executor
+can resolve individual order identities and post verified fills, but account
+reads cannot clear the global recovery hold or grant dispatch readiness; `False`
+does not mean that no fills committed. Reject unowned observations and incomplete
+fee/ordering evidence before binding. Recheck returned committed timestamps.
+Preserve crash recovery, cancellation finality and durable fee-overrun stops.
+No real client construction, account access or sender is enabled by this path.
+
 ## Invariants for subsequent approved iterations
 
 `docs/I8-ACCOUNT-HISTORY.md` adds the explicit unified `fetch_my_trades` alternative

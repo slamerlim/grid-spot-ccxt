@@ -30,6 +30,7 @@ from grid.domain.model import (
     Side,
 )
 from grid.domain.numbers import ZERO, exact, identifier
+from grid.exchange.private import AccountReadTransport, OrderLookupTransport
 from grid.execution.client_ids import MappedSyntheticExchange
 from grid.execution.models import (
     Evidence,
@@ -44,7 +45,12 @@ from grid.execution.models import (
     exact_format,
     limit_request,
 )
-from grid.execution.recovery import RecoveryPlan, recovery_plan
+from grid.execution.recovery import (
+    RecoveryPlan,
+    inspect_account_orders,
+    inspection_facts,
+    recovery_plan,
+)
 from grid.execution.synthetic import SyntheticExchange
 from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger, client_identity, trade_identity
@@ -173,13 +179,13 @@ class MockExecutor:
         # Even a heartbeat proves no absence of fills.
         self._ready.pop(notice.scope, None)
 
-    def _budget(self, scope: Scope, now: int) -> None:
+    def _budget(self, scope: Scope, now: int, count: int = 1) -> None:
         calls = self._calls.setdefault((scope.venue, scope.account), deque())
         while calls and now - calls[0] >= self.limits.window_ms:
             calls.popleft()
-        if len(calls) >= self.limits.calls_per_window:
+        if len(calls) + count > self.limits.calls_per_window:
             raise ExecutionError("fake REST rate budget exhausted")
-        calls.append(now)
+        calls.extend([now] * count)
 
     async def _pages(
         self, scope: Scope, now: int, epoch: int, recovery: RecoveryPlan
@@ -426,7 +432,13 @@ class MockExecutor:
             raise ExecutionError("ledger rejected reconciled fact")
         return outcome
 
-    async def _reconcile(self, scope: Scope, context: Context) -> None:
+    async def _reconcile(
+        self,
+        scope: Scope,
+        context: Context,
+        account_reads: AccountReadTransport | None,
+        lookup: OrderLookupTransport | None,
+    ) -> bool:
         epoch = self.epoch
         await self.writer.submit(
             lambda ledger: ledger.hold(request_id(), scope, "executor reconciliation")
@@ -444,16 +456,58 @@ class MockExecutor:
             return recovery_plan(
                 ledger,
                 scope,
-                max_orders=min(1024, self.limits.max_records),
+                max_orders=min(100 if account_reads is not None else 1024, self.limits.max_records),
                 max_committed_trades=self.limits.max_records,
             )
 
         recovery = await self.writer.submit(planned)
-        orders, trades = await self._pages(scope, context.now_ms, epoch, recovery)
+        inspection = None
+        if account_reads is None:
+            if lookup is not None:
+                raise ExecutionError("order lookup requires an account reader")
+            orders, trades = await self._pages(scope, context.now_ms, epoch, recovery)
+        else:
+            if type(self.gateway) is not MappedSyntheticExchange:
+                raise ExecutionError("account observations require the mapped mock executor")
+            known = sum(target.external_id is not None for target in recovery.targets)
+            discoverable = (
+                sum(
+                    target.external_id is None and target.client is not None
+                    for target in recovery.targets
+                )
+                if lookup is not None
+                else 0
+            )
+            maximum = known + discoverable
+            calls = 2 * maximum + int(maximum > 0) + 2 * int(discoverable > 0)
+            # Reserve the complete worst-case unified-call cost before I/O.
+            # Unused reservations expire normally; no optimistic quota refunds.
+            self._budget(scope, context.now_ms, calls)
+            inspection = await inspect_account_orders(
+                self.writer,
+                scope,
+                account_reads,
+                max_orders=min(100, self.limits.max_records),
+                max_trades=min(100, self.limits.max_records),
+                max_calls=max(1, calls),
+                timeout_ms=min(30_000, self.limits.timeout_ms),
+                max_committed_trades=self.limits.max_records,
+                lookup=lookup,
+            )
+            orders, trades = (), ()
 
         def validate(ledger: Ledger) -> SnapshotPlan:
             if planned(ledger) != recovery:
                 raise ExecutionError("recovery plan changed during observation")
+            if inspection is not None:
+                if inspection.plan != recovery or self.epoch != epoch:
+                    raise ExecutionError("account recovery plan or stream epoch changed")
+                observed_orders, observed_trades = inspection_facts(
+                    ledger, inspection, context, max_records=self.limits.max_records
+                )
+                return self._validate_snapshot(
+                    ledger, scope, observed_orders, observed_trades, recovery
+                )
             return self._validate_snapshot(ledger, scope, orders, trades, recovery)
 
         plan = await self.writer.submit(validate)
@@ -554,6 +608,8 @@ class MockExecutor:
             raise ExecutionError("actual fees exceed the reserved forecast")
         if any(intent.status == "uncertain" for intent in intents):
             raise ExecutionError("unresolved cancellation or submission")
+        if account_reads is not None:
+            return False  # Order observations do not prove account-wide readiness.
         event = Reconciled(
             scope,
             context.config_revision,
@@ -573,6 +629,7 @@ class MockExecutor:
             raise ExecutionError("ledger recovery remains blocked")
         if epoch != self.epoch:
             raise ExecutionError("stream epoch changed before admission")
+        return True
 
     async def _intents(self, scope: Scope) -> tuple[Intent, ...]:
         result: list[Intent] = []
@@ -590,8 +647,15 @@ class MockExecutor:
             after = batch[-1].id
         raise ExecutionError("intent page bound exceeded")
 
-    async def service(self, scope: Scope, context: Context) -> bool:
-        """One explicit fake REST pass, with finite budget/backoff and no resend."""
+    async def service(
+        self,
+        scope: Scope,
+        context: Context,
+        *,
+        account_reads: AccountReadTransport | None = None,
+        lookup: OrderLookupTransport | None = None,
+    ) -> bool:
+        """Reconcile bounded facts; account reads can post but cannot grant send permission."""
         if self._lock.locked():
             raise Backpressure("executor busy; no extra task admitted")
         async with self._lock:
@@ -602,7 +666,7 @@ class MockExecutor:
             if context.now_ms < self._next_read.get(account, 0):
                 return False
             try:
-                await self._reconcile(scope, context)
+                ready = await self._reconcile(scope, context, account_reads, lookup)
             except asyncio.CancelledError:
                 self.degrade("reconciliation caller canceled")
                 raise
@@ -623,6 +687,9 @@ class MockExecutor:
                 return False
             self._failures.pop(account, None)
             self._next_read.pop(account, None)
+            if not ready:
+                self.last_error = "order observations applied; complete account recovery required"
+                return False
             self.last_error = None
             self._ready[scope] = context.now_ms
             return True

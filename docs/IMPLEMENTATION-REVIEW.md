@@ -128,9 +128,9 @@ Hosted CI remains pending under the unchanged account lock; publication uses
 The standalone inspection helpers described in `I8-ORDER-HISTORY.md`,
 `I8-RECOVERY-PLAN.md`, `I8-ACCOUNT-HISTORY.md` and `I8-COMMITTED-RECOVERY.md` remain
 read-only. This integration does not make their observations dispatch authority.
-Real account-wide discovery, executor integration of unknown-order lookup,
-bounded continuation after a history gap, actual settlement ordering/FX evidence
-and authenticated transport remain unfinished.
+Real account-wide discovery and send admission, bounded continuation after a
+history gap, actual settlement ordering/FX evidence and authenticated transport
+remain unfinished.
 A missing new quantity stops recovery; no wider unbounded scan or blind resend
 is attempted. CCXT dictionaries do not establish account completeness or an atomic
 snapshot. Continue integrating the essential runtime; no new exchange access,
@@ -206,8 +206,8 @@ Tests cover lost acknowledgements for open, partial and filled orders, known and
 unknown orders in one pass, unrelated orders, duplicate claims, binding conflicts,
 plan changes, limits, cancellation and the actual pinned SDK read/parse methods
 with signing and transport prohibited. This remains offline evidence. Account-wide
-completeness, lookup-to-executor integration, pagination and authenticated transport
-remain unfinished.
+completeness, pagination and authenticated transport remain unfinished. Executor
+posting integration is described below.
 
 Local validation passed **1,534 tests on Python 3.12.16** (594.51 seconds) and
 **1,534 on Python 3.13.18** (612.23 seconds), with no skips. Application,
@@ -217,6 +217,60 @@ are `3.12-1793887008961338028.json` and `3.13-1793887008957278017.json` under
 and boundary checks passed 150 tests. Lint, formatting, strict typing, Bandit,
 lock verification and the locked dependency audit also passed. Hosted CI remains
 pending; publication uses `[skip ci]` and GitHub Free only.
+
+### Account observations through the existing executor
+
+The mapped mock's existing `service` accepts explicit `account_reads` and optional
+`lookup`. Under the same executor lock it holds the allocation, plans from the sole
+writer, reserves the entire worst-case unified-call cost and invokes the existing
+account reader. It rechecks the saved plan and stream epoch, converts the already
+parsed observations through the shared normalizers, then validates the complete
+batch with `_validate_snapshot`. The existing binding/fill/report loop performs
+all posting. No second executor, database writer, venue parser or migration is added.
+
+All attempted working orders must be covered. Unowned orders/trades, insufficient
+quantities, missing actual fees, missing third-token settlement valuation, ambiguous
+timestamps and changed identities prevent new binding/fill posting. The optional
+lookup's exact client-ID proof can support an omitted client ID on subsequent
+reads without changing the original observation. Previously committed trades are
+compared with their ledger facts before being omitted from new posting; supplied
+timestamps must match a saved timestamp position. Optional omissions cannot erase
+known fees or ordering. Actual fee overruns still post once and retain their durable
+stop. Fill, identity, position and accounting remain one existing transaction.
+
+Individual order identities and reports can now reconcile through account reads,
+but these bounded observations cannot establish account-wide readiness. Successful
+intake leaves the allocation held and `service` returns `False` with an explicit
+message; it never emits the final `Reconciled` event or populates send readiness.
+The existing complete fake recovery remains available afterward. Real account
+discovery, balances, history continuation, private transport and send admission
+are still unfinished. The constructor continues to admit only the two synthetic
+gateway types, and no credentials, exchange calls or live sender are enabled.
+
+The reader uses at most 100 targets and 100 trade rows per query, capped further
+by the executor's record limit; the combined normalized result is checked before
+posting. Lookup retains its separate two-query bounds. Unused reserved call slots
+expire with the rate window, without optimistic refunds. The reader's deadline
+is capped at 30 seconds. Actual HTTP/rate/byte enforcement remains the transport's
+responsibility. Cancellation propagates and revokes readiness; no transaction is
+held across an await.
+
+`tests/execution/test_account_posting.py` covers lost acknowledgements, partial
+fills, replay, terminal completion, mixed BUY/SELL cost basis, missing optional
+client IDs after lookup, changed plans/epochs, unowned observations, limits,
+fee-overrun stops, writer restart and fill-during-cancel. Six real SIGKILL cases
+exercise the same binding/fill transaction boundaries through this account path.
+Timeout and caller-cancellation tests verify no partial batch posting and no
+database transaction held across a stalled read.
+
+Local validation passed **1,560 tests on Python 3.12.16** (594.77 seconds) and
+**1,560 on Python 3.13.18** (614.52 seconds), with no skips. Application,
+test and dependency bytes were unchanged across both complete runs. Receipts
+are `3.12-1793889146104436847.json` and `3.13-1793889146107045426.json` under
+`/tmp/grid-i8-account-posting-checks/`, with corresponding logs. The new focused
+account-posting suite passed all 26 tests. Lint, formatting, strict typing,
+Bandit, lock verification and the locked dependency audit also passed. Hosted
+CI remains pending; publication uses `[skip ci]` and GitHub Free only.
 
 ## Unfinished offline research work
 

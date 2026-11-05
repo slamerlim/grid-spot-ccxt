@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 
-from grid.domain.model import Fill, Order, PlaceLimit, Scope, Side
+from grid.domain.model import Context, Fill, Order, PlaceLimit, Scope, Side
 from grid.domain.numbers import ZERO, bounded_int, exact, identifier
 from grid.exchange.models import Failure, ReadError
 from grid.exchange.private import (
@@ -21,7 +21,8 @@ from grid.exchange.private import (
     read_order_candidates,
     read_order_window,
 )
-from grid.execution.models import ExecutionError
+from grid.execution.client_ids import normalize, normalize_trade
+from grid.execution.models import ExecutionError, OrderFact, TradeFact
 from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger, client_identity, trade_identity
 from grid.persistence.records import ClientIdentity
@@ -546,6 +547,14 @@ def _committed_observation(
         and observed.fees != tuple((fee.currency, fee.amount) for fee in fill.fees or ())
     ):
         raise ExecutionError("recovery observation contradicts a committed fill")
+    position = ledger.execution_position(fill.scope, fill.trade_id)
+    if (
+        position is not None
+        and position.kind == "timestamp"
+        and observed.timestamp_ms is not None
+        and observed.timestamp_ms != position.value
+    ):
+        raise ExecutionError("recovery timestamp contradicts the committed execution position")
     return True
 
 
@@ -596,3 +605,43 @@ def _compare(
         discovered,
         unmatched,
     )
+
+
+def inspection_facts(
+    ledger: Ledger, inspection: RecoveryInspection, context: Context, *, max_records: int
+) -> tuple[tuple[OrderFact, ...], tuple[TradeFact, ...]]:
+    """Convert the revalidated reader result for the executor's existing posting path."""
+    if (
+        len(inspection.histories)
+        + sum(len(history.trades) for history in inspection.histories)
+        + len(inspection.unmatched_orders)
+        + len(inspection.unmatched_trades)
+        > max_records
+    ):
+        raise ExecutionError("reconciliation record bound exceeded")
+    committed = {trade.trade_id for trade in inspection.committed_trades}
+    if any(trade.trade_id not in committed for trade in inspection.unmatched_trades):
+        raise ExecutionError("unowned trade requires account reconciliation")
+    discovered = {target.external_id: target for target in inspection.discovered_orders}
+    scope = inspection.plan.scope
+    orders = []
+    for history in inspection.histories:
+        observed = history.order
+        target = discovered.get(observed.order_id)
+        if observed.client_id is None and target is not None and target.client is not None:
+            # Lookup already proved this exact returned client ID. Preserve the
+            # original observation; only the internal ownership conversion uses it.
+            observed = replace(observed, client_id=target.client.returned_id)
+        orders.append(normalize(ledger, scope, observed))
+    orders.extend(normalize(ledger, scope, observed) for observed in inspection.unmatched_orders)
+    by_external = {fact.external_id: fact for fact in orders}
+    trades = []
+    for observed_trade in inspection.new_trades:
+        if observed_trade.order_id not in by_external:
+            raise ExecutionError("new trade lacks its inspected owned order")
+        trades.append(
+            normalize_trade(
+                observed_trade, by_external[observed_trade.order_id], context.market, None
+            )
+        )
+    return tuple(orders), tuple(trades)

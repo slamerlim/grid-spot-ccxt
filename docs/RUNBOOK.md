@@ -106,6 +106,28 @@ resend. The pinned OKX closed query selects filled orders; canceled/expired or
 out-of-window orders may be absent. Keep them unresolved. Capability, retention,
 HTTP/rate limits and actual account evidence are still required for a real client.
 
+The mapped mock executor can consume the same reader explicitly through
+`service(scope, context, account_reads=reader, lookup=reader)`; omit `lookup`
+when only bound IDs should be read. It first holds the allocation, reserves the
+worst-case unified-call cost and invokes the existing bounded inspection under
+its executor lock. The whole normalized batch must pass the same identity,
+quantity, fee and ordering checks before any new binding or fill is posted.
+No database transaction spans the reads. The caller-owned transport must still
+enforce actual HTTP weights, byte limits and cooldowns; unified calls are not
+HTTP-request counts.
+New fills on this path use unified timestamps; an existing sequence-based history
+cannot be silently converted or continued with invented timestamps.
+
+This service path always leaves send readiness unavailable. `False` can mean
+that valid fills committed while broader recovery remains incomplete. A successful
+held intake reports `order observations applied; complete account recovery required`.
+Inspect the ledger and `last_error`; never treat `False` as permission to resend
+an order. Individual order uncertainty can resolve through verified reports while
+the allocation's recovery hold remains. The existing complete fake recovery can
+subsequently grant mock readiness. That is not an actual-account admission gate.
+Tests use temporary ledgers and synthetic/guarded readers; no real client or
+authenticated entry point is installed. The schema and rollback rules are unchanged.
+
 Execution ordering is now durable. The mapped mock can use a unified trade's
 integer `timestamp` when no proven source sequence is supplied. New trades must
 have distinct positions in one consistent ordering kind and advance the saved

@@ -21,9 +21,15 @@ from grid.persistence.writer import AsyncWriter
 def normalize(ledger: Ledger, scope: Scope, wire: object) -> OrderFact:
     """Read-only ownership proof; the executor validates the whole snapshot next."""
     try:
-        observed = private.orders([wire], scope.symbol, 1)[0]
+        observed = (
+            wire
+            if type(wire) is private.OrderObservation
+            else private.orders([wire], scope.symbol, 1)[0]
+        )
     except ReadError as exc:
         raise ExecutionError("invalid unified order") from exc
+    if observed.symbol != scope.symbol:
+        raise ExecutionError("unified order belongs to another symbol")
     if observed.client_id is not None:
         record = client_ids.resolve(ledger, scope.venue, scope.account, observed.client_id)
     else:
@@ -86,11 +92,16 @@ def normalize_trade(
 ) -> TradeFact:
     """Use source sequence or unified timestamp, never page/arrival order."""
     try:
-        observed = private.trades([wire], owned.request.scope.symbol, 1)[0]
+        observed = (
+            wire
+            if type(wire) is private.TradeObservation
+            else private.trades([wire], owned.request.scope.symbol, 1)[0]
+        )
     except ReadError as exc:
         raise ExecutionError("invalid unified trade") from exc
     if (
         market.symbol != observed.symbol
+        or observed.symbol != owned.request.scope.symbol
         or observed.order_id is None
         or observed.order_id != owned.external_id
         or observed.side is not None

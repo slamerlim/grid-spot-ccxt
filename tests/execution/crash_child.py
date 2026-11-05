@@ -5,6 +5,7 @@ import json
 import os
 import signal
 import sys
+from dataclasses import replace
 from decimal import Decimal as D
 from pathlib import Path
 
@@ -17,6 +18,25 @@ from grid.execution.synthetic import SyntheticExchange
 from grid.persistence import codec
 from grid.persistence.records import Bounds, ClientIdPolicy
 from grid.persistence.writer import AsyncWriter
+
+
+class AccountReads:
+    """Unified-shaped reads from the finite process-kill fixture only."""
+
+    def __init__(self, venue: MappedSyntheticExchange) -> None:
+        self.venue = venue
+
+    async def fetch_order(self, id: str, symbol: str) -> object:
+        return dict(self.venue.wire_orders[id])
+
+    async def fetch_my_trades(self, symbol: str, since: None, limit: int) -> object:
+        return list(self.venue.wire_trades.values())[:limit]
+
+    async def fetch_open_orders(self, symbol: str, since: None, limit: int) -> object:
+        return [row for row in self.venue.wire_orders.values() if row["status"] == "open"][:limit]
+
+    async def fetch_closed_orders(self, symbol: str, since: None, limit: int) -> object:
+        return [row for row in self.venue.wire_orders.values() if row["status"] != "open"][:limit]
 
 
 async def main() -> None:
@@ -82,9 +102,17 @@ async def main() -> None:
         raise RuntimeError(executor.last_error)
     await executor.dispatch(scope, context)
     if posting:
-        venue.fill("order-1", "fill", D(1), D(100), (ActualFee("QUOTE", D(0), None),))
+        fact = venue.fill("order-1", "fill", D(1), D(100), (ActualFee("QUOTE", D(0), None),))
         armed = True
-        await executor.service(scope, context)
+        if data.get("account_reads", False):
+            if not isinstance(venue, MappedSyntheticExchange):
+                raise RuntimeError("mapped account fixture required")
+            venue.trades[-1] = replace(fact, sequence=None)
+            venue.wire_trades["fill"]["timestamp"] = 100
+            reads = AccountReads(venue)
+            await executor.service(scope, context, account_reads=reads, lookup=reads)
+        else:
+            await executor.service(scope, context)
     raise RuntimeError("requested fault boundary was not reached")
 
 

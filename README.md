@@ -39,6 +39,10 @@ Read-only account inspection can also locate an unknown exchange order ID by
 its saved returned client ID in bounded unified open/closed order queries.
 Located orders use the existing history checks; inspection cannot bind them,
 clear submission uncertainty or authorize a resend.
+The mapped mock executor can explicitly consume these account reads through its
+existing binding/fill/report loop. It verifies the full batch before posting and
+keeps the recovery hold afterward; posting an observed fill does not grant send
+permission. Actual account-wide recovery and authenticated transport remain open.
 Recovery also accepts distinct unified trade timestamps when no proven source
 sequence is available. Each accepted ordering position commits with its fill;
 ties, regressions and changed ordering modes keep dispatch blocked. Existing
