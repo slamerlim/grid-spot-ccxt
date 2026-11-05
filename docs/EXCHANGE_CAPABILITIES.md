@@ -208,7 +208,9 @@ public/private probe or an amendment to the historical I3 observations.
 | KuCoin | Default account-mode discovery intercepted; declared non-UTA fixture reaches the spot builder |
 | Bitfinex | Signed SELL amount and rounding of deliberately nonconforming prices observed; compound precision remains blocked |
 
-No financial ID scheme or production numeric conversion workaround was adopted.
+Internal financial IDs remain unchanged. `I8-DURABLE-CLIENT-IDS.md` adds an
+independent durable mapping and returned-ID normalization for an optional fake;
+no real venue policy or production numeric conversion workaround is approved.
 The subsequent `I8-BINGX-TEXT-PREPARATION.md` trial tests a decimal-string
 override only inside disposable, transport-denied diagnostic clients, with exact
 payload and unsigned-query validation. It preserves the unmodified failures and

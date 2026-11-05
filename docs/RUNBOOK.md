@@ -499,6 +499,13 @@ checks candidate unsigned query text. Exit 0 covers candidate fixtures only;
 all venues remain NOT_READY. The override is confined to disposable diagnostic
 clients; do not patch global SDK classes, provide credentials or enable sending.
 
+The optional mapped fake in `I8-DURABLE-CLIENT-IDS.md` exercises durable external
+client IDs without a new CLI mode or exchange access. Schema 6 retains mappings
+after order completion and includes them in backup verification. An older binary
+cannot open v6: preserve the upgraded database and use a reviewed pre-upgrade
+backup in a new path if rollback requires an old schema. Never drop mappings or
+invent replacement IDs for attempted orders after restore.
+
 For repeated mixed BUY/SELL flows, add `--mixed-rounds 3` to `operations contention` and
 choose a new output filename. The optional mode accepts 1–8 rounds and uses
 one funded allocation per synthetic venue, with a separate bounded research

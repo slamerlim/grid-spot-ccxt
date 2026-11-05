@@ -30,6 +30,7 @@ from grid.domain.model import (
     Side,
 )
 from grid.domain.numbers import ZERO, exact, identifier
+from grid.execution.client_ids import MappedSyntheticExchange
 from grid.execution.models import (
     Evidence,
     ExecutionError,
@@ -44,7 +45,7 @@ from grid.execution.models import (
     limit_request,
 )
 from grid.execution.synthetic import SyntheticExchange
-from grid.persistence import codec
+from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger, client_identity, trade_identity
 from grid.persistence.records import Backpressure, Intent, Outcome
 from grid.persistence.storage import Fault, no_fault
@@ -100,8 +101,10 @@ class MockExecutor:
         formatter: Formatter = exact_format,
         fault: Fault = no_fault,
     ) -> None:
-        if type(gateway) is not SyntheticExchange:
+        if type(gateway) not in (SyntheticExchange, MappedSyntheticExchange):
             raise ExecutionError("only the in-memory synthetic gateway is admitted")
+        if isinstance(gateway, MappedSyntheticExchange) and gateway.writer is not writer:
+            raise ExecutionError("mapped mock gateway must share the sole writer")
         if not 1 <= len(scopes) <= 1000 or len(set(scopes)) != len(scopes):
             raise ExecutionError("bounded unique allocation scopes required")
         if len({(scope.venue, scope.account, scope.symbol) for scope in scopes}) != len(scopes):
@@ -657,6 +660,11 @@ class MockExecutor:
                         version: int = version,
                         intent_id: str = intent.id,
                     ) -> Outcome:
+                        if placement and isinstance(self.gateway, MappedSyntheticExchange):
+                            client_ids.register(
+                                ledger, claim_id + "-client", scope, order.id, self.gateway.policy
+                            )
+                            self.fault("executor:after_client_id")
                         operations_revision = (
                             self.operational_admission(ledger, scope)
                             if placement and self.operational_admission is not None

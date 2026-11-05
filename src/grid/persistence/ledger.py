@@ -33,15 +33,12 @@ from grid.domain.numbers import ZERO, decimal, exact, identifier
 from grid.domain.reducer import reduce, reserved
 from grid.operations.model import Operations
 from grid.persistence import codec
+from grid.persistence.client_ids import client_identity as client_identity
+from grid.persistence.client_ids import verify as verify_client_ids
 from grid.persistence.records import Backup, Bounds, Conflict, Intent, LedgerError, Outcome
 from grid.persistence.storage import Fault, Storage, no_fault
 from grid.portfolio.model import Cycle, CyclePhase, PortfolioPermit
 from grid.universe.model import BuyAdmission, UniverseSnapshot
-
-
-def client_identity(scope: Scope, order_id: int) -> str:
-    """Synthetic identity only; real venues need verified length/charset semantics."""
-    return codec.digest(("client", scope, order_id))
 
 
 def trade_identity(scope: Scope, external_id: str) -> str:
@@ -211,6 +208,7 @@ class Ledger:
             after = rows[-1][0]
 
     def _verify_identities(self, allocation: str, scope: Scope) -> None:
+        verify_client_ids(self, scope)
         for order_id, venue, account, symbol, external_id, client_id in self.db.execute(
             "SELECT order_id,venue,account,symbol,external_id,client_id FROM order_bindings "
             "WHERE allocation=? ORDER BY order_id",

@@ -58,7 +58,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q06 ladder | Minimum lots, quantized distinct prices, range/budget/order bounds; domain market/reducer tests | Account/market limits not independently certified |
 | Q07 drain/late BUY | Drain, reconcile and retain late inventory without duplicate seed; domain/execution recovery tests | Exchange truth/restart behavior requires target-venue evidence |
 | Q08 idempotency | Scoped identities, atomic fill posting, replay and revision history; persistence/execution identity and crash tests | Private feed and actual paginated trade semantics untested |
-| Q09 unknown submit | Durable synthetic intents, unknown state, no blind resend; execution crash/recovery tests; SDK ID pass-through/refusal audit | Internal 64-character digest is not a verified venue ID encoding; real uniqueness/lookup/retention and ambiguous responses untested |
+| Q09 unknown submit | Durable intents, no blind resend, schema-6 immutable external-ID mapping and returned-ID normalization through a mapped fake; SIGKILL/restore tests and SDK audit | No approved venue ID policy or real uniqueness/lookup/retention evidence; no authenticated sender |
 | Q10 fees/accounting | Base/quote/token fees, liabilities, rebates and conservation; ledger, portfolio and research tests | Actual account tiers, fee currencies and conversion evidence unavailable |
 | Q11 hot changes | Revisioned universe control, explicit retirement, confirmed local commands; `tests/universe/`, `tests/operations/test_configuration*.py` | Mock owner only; no live configuration changes authorized |
 | Q12 +10% portfolio exit | Net consolidated valuation, cash-flow handling, bounded LIMIT exits, conversion, residual review; `tests/portfolio/`, scoped dust and optional historical portfolio replay tests | Replay uses explicitly synthetic liquidity/FX/account facts; actual venue liquidity/account valuation remains unverified |
@@ -196,7 +196,7 @@ is not authorized by this review.
 
 `exchange/ccxt_transport.py` is a fixed public GET probe profile, scoped to
 BTC/USDT metadata/book endpoints on seven venues. `execution/executor.py` admits
-only the in-memory `SyntheticExchange`. Neither is an authenticated trading
+only the in-memory `SyntheticExchange` and `MappedSyntheticExchange`. Neither is an authenticated trading
 gateway. `universe/discovery.py` provides bounded cache/client coordination but
 does not turn probe evidence into certified account capabilities. The capability
 registry remains NOT_READY for each intended venue. Private fees, balances,
@@ -215,6 +215,11 @@ offline decimal-string candidate against retained unmodified controls. Exact
 payload validation precedes independent unsigned-query comparison with pinned
 SDK helpers. It adds no sender, signing, durable ID translation or readiness
 override; the BingX production conversion blocker remains open.
+
+`I8-DURABLE-CLIENT-IDS.md` adds separate durable external IDs without changing
+internal financial identities. A mapped fake resolves returned wire IDs before
+normal reconciliation; registration precedes claims and survives crash/restore.
+It does not certify venue policies or activate the guarded BingX trial as a sender.
 
 The completed one-hour OKX observation collected 460 validated books. Required
 public rules remained unknown, so it admitted no paper allocations/orders/fills.

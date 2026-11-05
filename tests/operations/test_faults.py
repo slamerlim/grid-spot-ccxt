@@ -231,8 +231,9 @@ def test_v4_to_v5_and_backup_restore_preserve_operational_halt(tmp_path: Path) -
             ledger.close()
             raw = sqlite3.connect(backup.path, autocommit=True)
             try:
+                raw.execute("DROP TABLE client_ids")
                 raw.execute("DROP TABLE operations_revisions")
-                raw.execute("DELETE FROM migrations WHERE version=5")
+                raw.execute("DELETE FROM migrations WHERE version>=5")
                 raw.execute("PRAGMA user_version=4")
                 verify_schema(raw, 4)
                 digest = semantic_hash(raw)

@@ -1,8 +1,10 @@
 """Explicit bounds and immutable results for the ledger API."""
 
+import base64
+import re
 from dataclasses import dataclass
 
-from grid.domain.model import State
+from grid.domain.model import Scope, State
 from grid.domain.numbers import bounded_int
 
 
@@ -73,3 +75,50 @@ class Backup:
     path: str
     semantic_hash: str
     request_count: int
+
+
+@dataclass(frozen=True)
+class ClientIdPolicy:
+    """Declared mock text-ID convention; no venue/account acceptance is implied."""
+
+    name: str
+    returned_prefix: str
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.name) is not str
+            or re.fullmatch(r"[a-z0-9_-]{1,64}", self.name) is None
+            or type(self.returned_prefix) is not str
+            or re.fullmatch(r"[A-Za-z0-9_-]{0,6}", self.returned_prefix) is None
+        ):
+            raise LedgerError("invalid client-ID policy")
+
+
+@dataclass(frozen=True)
+class ClientIdentity:
+    scope: Scope
+    order_id: int
+    internal_id: str
+    submitted_id: str
+    returned_id: str
+    policy: ClientIdPolicy
+
+    def __post_init__(self) -> None:
+        bounded_int(self.order_id, 1, 2**63 - 1)
+        if (
+            type(self.scope) is not Scope
+            or type(self.policy) is not ClientIdPolicy
+            or type(self.internal_id) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", self.internal_id) is None
+            or type(self.submitted_id) is not str
+            or re.fullmatch(r"[a-z2-7]{26}", self.submitted_id) is None
+            or type(self.returned_id) is not str
+            or self.returned_id != self.policy.returned_prefix + self.submitted_id
+        ):
+            raise LedgerError("invalid durable client identity")
+        raw = base64.b32decode(self.submitted_id.upper() + "======")
+        if (
+            len(raw) != 16
+            or base64.b32encode(raw).decode().rstrip("=").lower() != self.submitted_id
+        ):
+            raise LedgerError("noncanonical client identity")

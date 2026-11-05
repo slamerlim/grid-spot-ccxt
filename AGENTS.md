@@ -280,6 +280,16 @@ No timestamp/signature or authenticated request is produced. Passing candidate
 fixtures does not establish venue ID acceptance, rules, account mode or readiness.
 Continue authorized offline work; exchange access and deployment gates remain.
 
+`docs/I8-DURABLE-CLIENT-IDS.md` records schema-6 immutable external-ID mappings
+and the explicitly admitted `MappedSyntheticExchange`. Keep full internal IDs,
+account-scoped uniqueness and original registration receipts. Registration must
+precede an attempt; it is never send permission. Preserve IDs after terminal
+orders and reject retroactive registration or policy changes. Normalize returned
+IDs through the sole writer before binding/posting; never adopt by price/size.
+No venue profile is certified, and default mocks remain unchanged. Old code
+cannot open v6; never drop mappings to downgrade or recreate unknown submissions
+after restoring an older backup. Continue offline work with external gates closed.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

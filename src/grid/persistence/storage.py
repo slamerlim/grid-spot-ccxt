@@ -112,6 +112,8 @@ def verify_schema(connection: sqlite3.Connection, version: int = schema.VERSION)
 def semantic_hash(connection: sqlite3.Connection, check: Callable[[], None] | None = None) -> str:
     hasher = hashlib.sha256()
     for table, query in schema.SEMANTIC_QUERIES:
+        if table == "client_ids" and connection.execute("PRAGMA user_version").fetchone()[0] < 6:
+            continue
         if (
             table == "operations_revisions"
             and connection.execute("PRAGMA user_version").fetchone()[0] < 5

@@ -10,11 +10,12 @@ from pathlib import Path
 
 from grid.domain.market import Money
 from grid.domain.model import ActualFee, Context, Scope
+from grid.execution.client_ids import MappedSyntheticExchange
 from grid.execution.executor import MockExecutor
 from grid.execution.models import Evidence, LimitRequest, Limits, OrderFact
 from grid.execution.synthetic import SyntheticExchange
 from grid.persistence import codec
-from grid.persistence.records import Bounds
+from grid.persistence.records import Bounds, ClientIdPolicy
 from grid.persistence.writer import AsyncWriter
 
 
@@ -38,12 +39,24 @@ async def main() -> None:
     await writer.submit(
         lambda ledger: ledger.start("start", scope, (Money("QUOTE", D(1000)),), context)
     )
-    venue = SyntheticExchange(100)
+    venue = (
+        MappedSyntheticExchange(100, writer, ClientIdPolicy("mock-prefix-v1", "t-"))
+        if data.get("mapped", False)
+        else SyntheticExchange(100)
+    )
     original = venue.submit_limit
 
     async def send(request: LimitRequest) -> OrderFact:
         crash("fake:before_effect")
         result = await original(request)
+        identity = (
+            {
+                "wire_client_id": venue.wire_orders[result.external_id].client_id,
+                "submitted_client_id": venue.submitted_clients[result.external_id],
+            }
+            if isinstance(venue, MappedSyntheticExchange)
+            else {"client_id": request.client_id, "order_id": request.order_id}
+        )
         # This records a synthetic venue receipt, not a financial database.
         with path.with_suffix(".receipt").open("x") as stream:
             stream.write(
@@ -52,8 +65,7 @@ async def main() -> None:
                         "external_id": result.external_id,
                         "price": request.price,
                         "amount": request.amount,
-                        "client_id": request.client_id,
-                        "order_id": request.order_id,
+                        **identity,
                     }
                 )
             )

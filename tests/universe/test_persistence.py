@@ -123,6 +123,7 @@ def test_v2_backup_migrates_additively_and_preserves_financial_identity(
         raw.execute("DROP TABLE universe_revisions")
         raw.execute("DROP TABLE portfolio_revisions")
         raw.execute("DROP TABLE portfolio_flows")
+        raw.execute("DROP TABLE client_ids")
         raw.execute("DROP TABLE operations_revisions")
         raw.execute("DELETE FROM migrations WHERE version>=3")
         raw.execute("PRAGMA user_version=2")

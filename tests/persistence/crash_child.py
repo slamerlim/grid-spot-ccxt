@@ -9,9 +9,9 @@ from pathlib import Path
 
 from grid.domain.market import Money
 from grid.domain.model import ActualFee, Context, Fill, Scope
-from grid.persistence import codec
+from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger
-from grid.persistence.records import Bounds
+from grid.persistence.records import Bounds, ClientIdPolicy
 
 
 def main() -> None:
@@ -60,6 +60,8 @@ def main() -> None:
         ledger.release("subject", scope, 1, Money("QUOTE", D(900)))
     elif action == "compact":
         ledger.compact("subject", scope, 2)
+    elif action == "client-id":
+        client_ids.register(ledger, "subject", scope, 1, ClientIdPolicy("mock-prefix-v1", "t-"))
     elif action == "attempt":
         intent = ledger.intents(scope)[0]
         ledger.attempt("subject", scope, 1, intent.id)
