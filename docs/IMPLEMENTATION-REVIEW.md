@@ -102,6 +102,12 @@ unified parsers, two order observations around one limited order-trade query,
 deduplication and exact cumulative matching. Pinned OKX offline SDK fixtures
 verify the request/parse path. Its result is observational, with no ledger or
 admission effect; the account-wide integration described above remains open.
+`I8-RECOVERY-PLAN.md` now selects outstanding orders through indexed sole-writer
+reads, preserves unbound attempted orders, checks owned terms against unified
+observations and revalidates the plan after the bounded reads. It is read-only:
+no fill posting, uncertainty resolution or readiness is derived from inspection.
+Account-wide discovery, unknown lookup, comparison with committed fills and
+settlement ordering remain required before replacing the executor's history path.
 
 ## Unfinished offline research work
 

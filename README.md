@@ -20,7 +20,10 @@ shared parsers for CCXT observations before ownership validation and mock postin
 [Terminal-order contradictions](docs/I8-TERMINAL-RECOVERY.md) in current recovery
 snapshots block new posting and replacement SELLs, including after compaction.
 A [bounded per-order history reader](docs/I8-ORDER-HISTORY.md) now checks unified
-order/trade observations with offline SDK fixtures; account-wide recovery remains unfinished.
+order/trade observations with offline SDK fixtures. A
+[read-only recovery planner](docs/I8-RECOVERY-PLAN.md) selects outstanding owned
+orders, retains unknown submissions and rechecks durable identity after reads;
+account-wide recovery remains unfinished.
 The public adapter uses [CCXT's documented string-number mode](docs/I8-CCXT-UNIFIED-NUMBERS.md)
 and converts unified financial values to Decimal at the application boundary.
 The owner approved I8 public-paper work with local validation while hosted CI remains pending.

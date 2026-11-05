@@ -57,6 +57,13 @@ retries or replacement. The caller owns the transport's rate/HTTP byte budget
 and lifecycle. Run `pytest -q tests/exchange/test_order_history.py` using the
 offline fixtures. No operator command enables private access through this helper.
 
+`execution.recovery.inspect_orders` connects that reader to a bounded plan from
+the sole writer; see `I8-RECOVERY-PLAN.md`. Unknown external IDs remain explicit
+and inspection never authorizes posting or dispatch. A changed plan or mismatched
+owned order invalidates the result. Run the offline
+`pytest -q tests/execution/test_recovery_plan.py` fixtures. The existing executor
+still uses its complete-history contract; this helper adds no operator command.
+
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
 and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.

@@ -314,6 +314,16 @@ only a known zero fee has zero cost without FX. Preserve full-snapshot validatio
 before binding/posting and all original financial/crash invariants. No private
 transport, real pagination contract, venue certification or new access is implied.
 
+`docs/I8-RECOVERY-PLAN.md` adds read-only planning from the sole writer and
+bounded inspection of known external order IDs through the shared unified reader.
+Keep attempted orders with unknown external IDs explicit; registration alone is
+not an attempt. Validate original placement terms and exact durable bindings,
+preflight the whole call budget and recheck the plan after reads. Missing optional
+descriptive fields remain unknown. Inspection cannot post money, clear uncertainty
+or grant readiness. Retain the executor's complete-history/terminal checks until
+account-wide discovery, unknown lookup, committed-fill comparison and settlement
+ordering are integrated. No new exchange access or acceptance waiver is implied.
+
 ## Invariants for subsequent approved iterations
 
 `docs/I8-ORDER-HISTORY.md` adds a shared per-order read primitive, tested with
