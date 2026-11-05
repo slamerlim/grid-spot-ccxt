@@ -100,7 +100,7 @@ all current open orders for the account/symbol, exact requested client identitie
 and bounded recent orders/trades with matching order reports. Page, record,
 timeout and rate limits still apply. The mapped gateway uses the shared CCXT
 unified parsers; neither gateway accesses an exchange. Stable revision tokens,
-exact client lookup and trade sequences remain explicit mock guarantees.
+exact client lookup and any supplied trade sequences remain explicit mock guarantees.
 
 Working-order committed fills have an independent cap, using the executor's
 record limit. Baseline reads and submission-attempt checks use indexed identities;
@@ -129,11 +129,49 @@ The standalone inspection helpers described in `I8-ORDER-HISTORY.md`,
 `I8-RECOVERY-PLAN.md`, `I8-ACCOUNT-HISTORY.md` and `I8-COMMITTED-RECOVERY.md` remain
 read-only. This integration does not make their observations dispatch authority.
 Real account-wide discovery, unknown-order lookup, bounded continuation after a
-history gap, settlement ordering/FX and authenticated transport remain unfinished.
+history gap, actual settlement ordering/FX evidence and authenticated transport
+remain unfinished.
 A missing new quantity stops recovery; no wider unbounded scan or blind resend
 is attempted. CCXT dictionaries do not establish account completeness or an atomic
 snapshot. Continue integrating the essential runtime; no new exchange access,
 private account evidence, observed-soak acceptance or deployment is implied.
+
+### Execution ordering through unified timestamps
+
+The mapped mock now accepts CCXT's unified integer trade `timestamp` when it has
+no proven source sequence. The executor validates all new positions before
+binding/posting, requires distinct values in one ordering kind, sorts by those
+values and requires advancement beyond the last committed position. Timestamp
+ties, missing new ordering data, regressions and changed ordering kinds keep
+dispatch blocked. Previously committed replays can omit optional ordering fields;
+supplied contradictory metadata is rejected. Page order and trade-ID sorting
+never become economic chronology. See the [official trade contract](https://github.com/ccxt/ccxt/wiki/Manual#personal-trades).
+
+Schema 7 adds an indexed `execution_positions` table. Position, fill, external
+identity, fees and financial state commit together. Each position is checked
+against the original fill receipt; startup verifies posting order and coverage.
+Old financial payloads and migration SQL/checksums 1–6 are unchanged. Migrated
+legacy fills do not acquire invented timestamps: inspection remains possible,
+but the executor requires an ordering baseline before further sends. Existing
+backup/restore and process-kill tests now cover this transaction, including the
+portfolio exit's actual executor path.
+
+The focused ordering tests use guarded pinned OKX parsing, mixed BUY/SELL fills
+whose order changes cost basis, reversed pages/IDs, tied and malformed times,
+replays, writer reopen and missing metadata. Migration tests cover old receipts,
+atomic failure and corrupted positions. This is offline implementation evidence;
+actual venue timestamp semantics, source consistency and finer ordering for ties
+remain unverified. Account-wide discovery, pagination and authenticated transport
+remain unfinished. No financial formula or acceptance gate is changed.
+
+Local validation passed **1,510 tests on Python 3.12.16** (589.14 seconds) and
+**1,510 on Python 3.13.18** (611.71 seconds), with no skips. Application,
+test and dependency bytes were unchanged across both complete runs. Receipts
+are `3.12-1793864948837144663.json` and `3.13-1793864948836621048.json` under
+`/tmp/grid-i8-trade-ordering-checks/`, with corresponding logs. Lint, formatting,
+strict typing, Bandit, lock verification and the locked dependency audit passed.
+Hosted CI remains pending under the unchanged account lock; publication uses
+`[skip ci]` and GitHub Free only.
 
 ## Unfinished offline research work
 

@@ -35,7 +35,15 @@ from grid.operations.model import Operations
 from grid.persistence import codec
 from grid.persistence.client_ids import client_identity as client_identity
 from grid.persistence.client_ids import verify as verify_client_ids
-from grid.persistence.records import Backup, Bounds, Conflict, Intent, LedgerError, Outcome
+from grid.persistence.records import (
+    Backup,
+    Bounds,
+    Conflict,
+    ExecutionPosition,
+    Intent,
+    LedgerError,
+    Outcome,
+)
 from grid.persistence.storage import Fault, Storage, no_fault
 from grid.portfolio.model import Cycle, CyclePhase, PortfolioPermit
 from grid.universe.model import BuyAdmission, UniverseSnapshot
@@ -164,6 +172,7 @@ class Ledger:
                 state, context, version, recovery = self._load(allocation)
                 self._verify_projection(allocation, state, context)
                 self._verify_identities(allocation, state.scope)
+                self._verify_execution_positions(state.scope)
                 if recovery and state.reconcile_reason is None:
                     state = replace(
                         state,
@@ -610,8 +619,15 @@ class Ledger:
         context: Context,
         *,
         external: tuple[str, str] | None = None,
+        position: ExecutionPosition | None = None,
     ) -> Outcome:
         allocation = codec.digest(event.scope)
+        if position is not None and (
+            type(position) is not ExecutionPosition
+            or not isinstance(event, Fill)
+            or external is None
+        ):
+            raise LedgerError("execution position requires an identified actual fill")
 
         def action() -> Outcome:
             _, state, previous_context, version, recovery = self._versioned(event.scope, expected)
@@ -644,6 +660,22 @@ class Ledger:
                 ).fetchone()
                 if identity is not None and identity != (allocation, event.trade_id):
                     raise Conflict("external trade was already assigned to another allocation")
+            if isinstance(event, Fill):
+                exists = (
+                    self.db.execute(
+                        "SELECT 1 FROM fills WHERE allocation=? AND trade_id=?",
+                        (allocation, event.trade_id),
+                    ).fetchone()
+                    is not None
+                )
+                if position is not None:
+                    if exists:
+                        if self.execution_position(event.scope, event.trade_id) != position:
+                            raise Conflict("execution position contradicts the committed fill")
+                    else:
+                        self.check_execution_position(event.scope, position)
+                elif not exists and self.execution_position(event.scope) is not None:
+                    raise Conflict("new fill cannot omit established execution ordering")
             transition = self._transition(allocation, state, event, context)
             after = transition.state
             if (
@@ -686,6 +718,11 @@ class Ledger:
                                 event.trade_id,
                             ),
                         )
+                    if position is not None:
+                        self.db.execute(
+                            "INSERT INTO execution_positions VALUES (?,?,?,?,?)",
+                            (allocation, event.trade_id, position.kind, position.value, request_id),
+                        )
             if (
                 isinstance(event, Reconciled)
                 and transition.accepted
@@ -701,14 +738,102 @@ class Ledger:
             intents = self._commands(allocation, transition.commands, version + 1)
             return Outcome(after, version + 1, transition.accepted, intents, transition.notices)
 
-        payload = ("event", expected, event, context)
+        payload: tuple[object, ...] = ("event", expected, event, context)
+        if external is not None:
+            payload = (*payload, external)
+        if position is not None:
+            payload = (*payload, position)
         return self._request(
             request_id,
-            payload if external is None else (*payload, external),
+            payload,
             "event",
             allocation,
             action,
         )
+
+    def execution_position(
+        self, scope: Scope, trade_id: str | None = None
+    ) -> ExecutionPosition | None:
+        """Indexed ordering fact, bound to the original atomic fill receipt."""
+        allocation = codec.digest(scope)
+        if trade_id is None:
+            row = self.db.execute(
+                "SELECT trade_id,kind,value,request_id FROM execution_positions "
+                "WHERE allocation=? ORDER BY value DESC LIMIT 1",
+                (allocation,),
+            ).fetchone()
+        else:
+            row = self.db.execute(
+                "SELECT trade_id,kind,value,request_id FROM execution_positions "
+                "WHERE allocation=? AND trade_id=?",
+                (allocation, trade_id),
+            ).fetchone()
+        if row is None:
+            return None
+        position = ExecutionPosition(row[1], row[2])
+        audit = self.db.execute(
+            "SELECT e.allocation,e.payload,e.accepted,r.fingerprint "
+            "FROM events e JOIN requests r ON r.id=e.request_id WHERE e.request_id=?",
+            (row[3],),
+        ).fetchone()
+        fill = self.db.execute(
+            "SELECT payload FROM fills WHERE allocation=? AND trade_id=?", (allocation, row[0])
+        ).fetchone()
+        if audit is None or fill is None or audit[0] != allocation or audit[2] != 1:
+            raise LedgerError("execution position lacks its committed fill receipt")
+        payload = codec.loads(audit[1], tuple, limit=self.bounds.snapshot_bytes)
+        if (
+            len(payload) != 6
+            or payload[0] != "event"
+            or type(payload[2]) is not Fill
+            or payload[2].scope != scope
+            or payload[2].trade_id != row[0]
+            or codec.dumps(payload[2], limit=self.bounds.snapshot_bytes) != fill[0]
+            or payload[5] != position
+            or codec.digest(payload) != audit[3]
+        ):
+            raise LedgerError("execution position differs from its atomic fill receipt")
+        return position
+
+    def check_execution_position(self, scope: Scope, position: ExecutionPosition) -> None:
+        previous = self.execution_position(scope)
+        if previous is not None:
+            if previous.kind != position.kind or previous.value >= position.value:
+                raise Conflict("new execution ordering is ambiguous, regressing or changed")
+        elif (
+            self.db.execute(
+                "SELECT 1 FROM fills WHERE allocation=? LIMIT 1", (codec.digest(scope),)
+            ).fetchone()
+            is not None
+        ):
+            raise Conflict("existing fills lack an execution ordering baseline")
+
+    def _verify_execution_positions(self, scope: Scope) -> None:
+        allocation = codec.digest(scope)
+        previous: ExecutionPosition | None = None
+        last_event = 0
+        count = 0
+        for trade_id, seq in self.db.execute(
+            "SELECT p.trade_id,e.seq FROM execution_positions p "
+            "LEFT JOIN events e ON e.request_id=p.request_id "
+            "WHERE p.allocation=? ORDER BY p.value",
+            (allocation,),
+        ):
+            current = self.execution_position(scope, trade_id)
+            if (
+                current is None
+                or seq is None
+                or seq <= last_event
+                or (previous is not None and current.kind != previous.kind)
+            ):
+                raise LedgerError("durable execution ordering differs from posting order")
+            previous, last_event = current, seq
+            count += 1
+        if count and self.db.execute(
+            "SELECT count(*) FROM fills WHERE allocation=?",
+            (allocation,),
+        ).fetchone() != (count,):
+            raise LedgerError("durable execution ordering has missing fills")
 
     def order(self, scope: Scope, order_id: int) -> Order:
         row = self.db.execute(

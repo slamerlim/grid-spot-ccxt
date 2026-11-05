@@ -9,6 +9,7 @@ from grid.domain.model import ActualFee, Context, Order, Scope, Side
 from grid.domain.numbers import DomainError, bounded_int, decimal, identifier
 from grid.persistence import codec
 from grid.persistence.ledger import client_identity
+from grid.persistence.records import ExecutionPosition
 
 
 class ExecutionError(RuntimeError):
@@ -192,16 +193,19 @@ class TradeFact:
     scope: Scope
     external_order: str
     external_id: str
-    sequence: int
+    sequence: int | None
     side: Side
     amount: Decimal
     price: Decimal
     fees: tuple[ActualFee, ...] | None
+    timestamp_ms: int | None = None
 
     def __post_init__(self) -> None:
         for value in (self.external_order, self.external_id):
             identifier(value)
-        bounded_int(self.sequence, 1, 2**63 - 1)
+        for position_value in (self.sequence, self.timestamp_ms):
+            if position_value is not None:
+                bounded_int(position_value, 1, 2**63 - 1)
         if not isinstance(self.side, Side):
             raise ExecutionError("invalid trade side")
         decimal(self.amount, positive=True)
@@ -212,6 +216,14 @@ class TradeFact:
             or any(type(fee) is not ActualFee for fee in self.fees)
         ):
             raise ExecutionError("explicit actual fees, including zero fees, required")
+
+    @property
+    def position(self) -> ExecutionPosition:
+        if self.sequence is not None:
+            return ExecutionPosition("sequence", self.sequence)
+        if self.timestamp_ms is not None:
+            return ExecutionPosition("timestamp", self.timestamp_ms)
+        raise ExecutionError("new trade lacks execution ordering evidence")
 
 
 @dataclass(frozen=True)

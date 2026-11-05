@@ -152,6 +152,7 @@ def test_v3_backup_additive_migration_preserves_funds_and_requests(
     try:
         raw.execute("DROP TABLE portfolio_revisions")
         raw.execute("DROP TABLE portfolio_flows")
+        raw.execute("DROP TABLE execution_positions")
         raw.execute("DROP TABLE client_ids")
         raw.execute("DROP TABLE operations_revisions")
         raw.execute("DELETE FROM migrations WHERE version>=4")

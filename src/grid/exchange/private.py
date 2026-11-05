@@ -48,6 +48,7 @@ class TradeObservation:
     fees: tuple[tuple[str, Decimal], ...] | None
     cost: Decimal | None = None
     order_type: str | None = None
+    timestamp_ms: int | None = None
 
 
 def trades(raw: object, symbol: str, limit: int) -> tuple[TradeObservation, ...]:
@@ -82,6 +83,7 @@ def trades(raw: object, symbol: str, limit: int) -> tuple[TradeObservation, ...]
                 fees,
                 optional_money(row.get("cost")),
                 None if row.get("type") is None else token(row["type"]),
+                None if row.get("timestamp") is None else integer(row["timestamp"], 1, 2**63 - 1),
             )
         )
     # Keep duplicates for I4 scoped reconciliation; do not silently lose conflicts.

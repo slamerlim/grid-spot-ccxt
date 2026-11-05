@@ -328,6 +328,18 @@ only a known zero fee has zero cost without FX. Preserve full-snapshot validatio
 before binding/posting and all original financial/crash invariants. No private
 transport, real pagination contract, venue certification or new access is implied.
 
+The current ordering integration is recorded in `docs/IMPLEMENTATION-REVIEW.md`.
+Use a proven source sequence or distinct unified trade timestamps for new fills,
+never array order or lexicographic trade IDs. A batch must have one ordering kind
+and advance the committed position; ties, missing data or regressions stop it
+before financial posting. Schema 7 records each position with its original fill
+receipt in the same transaction. Do not fabricate positions for pre-existing
+fills or switch ordering kinds to bypass a stop. Legacy ledgers remain readable
+but the executor requires a complete ordering baseline before sending again.
+Keep original migrations/financial payloads unchanged and preserve backup/restore
+and crash checks. Timestamp semantics and finer ordering still require actual
+venue/account evidence before live use; the pinned parser fixtures are offline.
+
 `docs/I8-RECOVERY-PLAN.md` adds read-only planning from the sole writer and
 bounded inspection of known external order IDs through the shared unified reader.
 Keep attempted orders with unknown external IDs explicit; registration alone is

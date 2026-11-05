@@ -95,6 +95,24 @@ intent, so automatic recovery cannot erase the stop after compaction or restart.
 Preserve the evidence for review. Do not clear the intent or manufacture missing
 fills to resume. See `IMPLEMENTATION-REVIEW.md` for current integration and tests.
 
+Execution ordering is now durable. The mapped mock can use a unified trade's
+integer `timestamp` when no proven source sequence is supplied. New trades must
+have distinct positions in one consistent ordering kind and advance the saved
+position. A tied or earlier timestamp is unresolved; neither page order nor a
+trade-ID sort can resolve it. Keep the observations for review and do not replace
+unknown times with local receipt time. The unified timestamp's venue semantics
+must be verified before a real account adapter can use this path.
+
+Schema 7 adds `execution_positions`, committed atomically with each fill and
+bound to its original receipt. Backup/restore includes these records. A duplicate
+can omit optional ordering metadata, but supplied conflicting metadata is refused.
+Existing fills/receipts and migrations 1–6 are unchanged. A legacy ledger without
+ordering evidence can be inspected after migration, but the executor blocks
+dispatch; no automatic backfill, invented sequence or ordering-mode switch is
+implemented. Older code cannot open schema 7. Preserve the database; a code
+rollback must not drop ordering rows or bypass recovery after restoring a backup.
+Offline tests: `pytest -q tests/execution/test_ordering.py tests/execution/test_crashes.py tests/persistence/test_execution_identity.py`.
+
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference
 and approval history. I4–I7 were subsequently approved; `I8-PLAN.md` is the next gate.

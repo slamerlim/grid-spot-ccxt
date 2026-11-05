@@ -1,6 +1,7 @@
 """I4 identity claims share the financial transaction and survive schema upgrades."""
 
 import sqlite3
+from contextlib import closing
 from dataclasses import replace
 from decimal import Decimal as D
 from pathlib import Path
@@ -11,7 +12,7 @@ from grid.domain.market import Money
 from grid.domain.model import ActualFee, Context, Fill, State
 from grid.persistence import schema
 from grid.persistence.ledger import Ledger, client_identity, trade_identity
-from grid.persistence.records import Backup, Bounds, Conflict, LedgerError
+from grid.persistence.records import Backup, Bounds, Conflict, ExecutionPosition, LedgerError
 from grid.persistence.storage import no_fault, restore, semantic_hash, verify_schema
 
 from .conftest import SOURCES
@@ -26,6 +27,7 @@ def old_schema(path: Path) -> str:
         connection.execute("DROP TABLE universe_revisions")
         connection.execute("DROP TABLE portfolio_revisions")
         connection.execute("DROP TABLE portfolio_flows")
+        connection.execute("DROP TABLE execution_positions")
         connection.execute("DROP TABLE client_ids")
         connection.execute("DROP TABLE operations_revisions")
         connection.execute("DELETE FROM migrations WHERE version>=2")
@@ -162,11 +164,21 @@ def test_fill_trade_key_and_cash_commit_together(
         scope, trade_identity(scope, "trade"), 1, D(1), D(100), (ActualFee("QUOTE", D(0), None),)
     )
     with pytest.raises(OSError):
-        funded.apply("fill", 2, fill, context, external=("external", "trade"))
+        funded.apply(
+            "fill",
+            2,
+            fill,
+            context,
+            external=("external", "trade"),
+            position=ExecutionPosition("timestamp", 100),
+        )
     funded.storage.fault = no_fault
     committed = boundary == "event:after_commit"
     assert funded.db.execute("SELECT count(*) FROM trade_keys").fetchone() == (int(committed),)
     assert funded.db.execute("SELECT count(*) FROM fills").fetchone() == (int(committed),)
+    assert funded.db.execute("SELECT count(*) FROM execution_positions").fetchone() == (
+        int(committed),
+    )
     snapshot = funded.snapshot(scope)
     assert snapshot.state is not None and snapshot.state.quote_cash == (900 if committed else 1000)
 
@@ -199,7 +211,14 @@ def test_backup_restores_external_bindings_and_trade_deduplication(
     fill = Fill(
         scope, trade_identity(scope, "trade"), 1, D(1), D(100), (ActualFee("QUOTE", D(0), None),)
     )
-    funded.apply("fill", 2, fill, context, external=("external", "trade"))
+    funded.apply(
+        "fill",
+        2,
+        fill,
+        context,
+        external=("external", "trade"),
+        position=ExecutionPosition("timestamp", 100),
+    )
     backup = funded.backup(tmp_path / "backup.db")
     restored = restore(backup, tmp_path / "restored.db", bounds, SOURCES, mock_storage=True)
     ledger = Ledger(Path(restored.path), bounds, SOURCES, mock_storage=True)
@@ -208,12 +227,134 @@ def test_backup_restores_external_bindings_and_trade_deduplication(
         assert snapshot.version is not None
         assert ledger.binding(scope, 1) == "external"
         duplicate = ledger.apply(
-            "replayed-fill", snapshot.version, fill, context, external=("external", "trade")
+            "replayed-fill",
+            snapshot.version,
+            fill,
+            context,
+            external=("external", "trade"),
+            position=ExecutionPosition("timestamp", 100),
         )
         assert duplicate.state is not None
         assert duplicate.state.quote_cash == 900 and duplicate.state.owned_base == 1
         assert ledger.db.execute("SELECT count(*) FROM fills").fetchone() == (1,)
         assert ledger.db.execute("SELECT count(*) FROM trade_keys").fetchone() == (1,)
         assert duplicate.state.reconcile_reason is not None
+        assert ledger.execution_position(scope) == ExecutionPosition("timestamp", 100)
     finally:
         ledger.close()
+
+
+def test_v6_migration_preserves_legacy_fills_without_inventing_ordering(
+    funded: Ledger,
+    state: State,
+    context: Context,
+    bounds: Bounds,
+    tmp_path: Path,
+) -> None:
+    scope = state.scope
+    funded.attempt_once("claim", scope, 1, funded.intents(scope)[0].id)
+    funded.bind("bind", scope, 1, "external", client_identity(scope, 1))
+    fill = Fill(
+        scope, trade_identity(scope, "old"), 1, D(".4"), D(100), (ActualFee("QUOTE", D(0), None),)
+    )
+    receipt = funded.apply("old-fill", 2, fill, context, external=("external", "old"))
+    backup = funded.backup(tmp_path / "v6.db")
+    with closing(sqlite3.connect(backup.path, autocommit=True)) as raw:
+        raw.execute("DROP TABLE execution_positions")
+        raw.execute("DELETE FROM migrations WHERE version=7")
+        raw.execute("PRAGMA user_version=6")
+        verify_schema(raw, 6)
+        digest = semantic_hash(raw)
+        raw.execute("UPDATE metadata SET value=? WHERE key='backup_hash'", (digest,))
+    restored = restore(
+        Backup(backup.path, digest, backup.request_count),
+        tmp_path / "upgraded.db",
+        bounds,
+        SOURCES,
+        mock_storage=True,
+    )
+    with_position = Ledger(Path(restored.path), bounds, SOURCES, mock_storage=True)
+    try:
+        assert with_position.lookup("old-fill") == receipt
+        assert with_position.execution_position(scope) is None
+        with pytest.raises(Conflict, match="baseline"):
+            with_position.check_execution_position(scope, ExecutionPosition("timestamp", 100))
+        assert (
+            with_position.db.execute("SELECT payload FROM fills").fetchone()
+            == funded.db.execute("SELECT payload FROM fills").fetchone()
+        )
+    finally:
+        with_position.close()
+
+
+@pytest.mark.parametrize("boundary", ["migration:before_commit", "migration:after_commit"])
+def test_ordering_migration_is_atomic(
+    funded: Ledger,
+    bounds: Bounds,
+    boundary: str,
+) -> None:
+    path = funded.storage.path
+    funded.close()
+    with closing(sqlite3.connect(path, autocommit=True)) as raw:
+        raw.execute("DROP TABLE execution_positions")
+        raw.execute("DELETE FROM migrations WHERE version=7")
+        raw.execute("PRAGMA user_version=6")
+
+    def fail(stage: str) -> None:
+        if stage == boundary:
+            raise OSError("injected migration failure")
+
+    with pytest.raises(OSError):
+        Ledger(path, bounds, SOURCES, mock_storage=True, fault=fail)
+    with closing(sqlite3.connect(path, autocommit=True)) as raw:
+        verify_schema(raw, 7 if boundary.endswith("after_commit") else 6)
+    recovered = Ledger(path, bounds, SOURCES, mock_storage=True)
+    try:
+        verify_schema(recovered.db, 7)
+    finally:
+        recovered.close()
+
+
+@pytest.mark.parametrize("damage", ["value", "kind", "receipt", "missing_one"])
+def test_corrupt_ordering_receipts_refuse_writer_reopen(
+    funded: Ledger,
+    state: State,
+    context: Context,
+    bounds: Bounds,
+    damage: str,
+) -> None:
+    scope = state.scope
+    funded.attempt_once("claim", scope, 1, funded.intents(scope)[0].id)
+    funded.bind("bind", scope, 1, "external", client_identity(scope, 1))
+    for index in range(2):
+        snapshot = funded.snapshot(scope)
+        assert snapshot.version is not None
+        trade = str(index)
+        fill = Fill(
+            scope,
+            trade_identity(scope, trade),
+            1,
+            D(".2"),
+            D(100),
+            (ActualFee("QUOTE", D(0), None),),
+        )
+        funded.apply(
+            "fill-" + trade,
+            snapshot.version,
+            fill,
+            context,
+            external=("external", trade),
+            position=ExecutionPosition("timestamp", 100 + index),
+        )
+    if damage == "value":
+        funded.db.execute("UPDATE execution_positions SET value=value+100")
+    elif damage == "kind":
+        funded.db.execute("UPDATE execution_positions SET kind='sequence'")
+    elif damage == "receipt":
+        funded.db.execute("UPDATE execution_positions SET request_id='claim' WHERE value=100")
+    else:
+        funded.db.execute("DELETE FROM execution_positions WHERE value=100")
+    path = funded.storage.path
+    funded.close()
+    with pytest.raises(LedgerError, match="execution|receipt"):
+        Ledger(path, bounds, SOURCES, mock_storage=True)

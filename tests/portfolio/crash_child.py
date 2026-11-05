@@ -9,7 +9,7 @@ from dataclasses import replace
 from decimal import Decimal as D
 from pathlib import Path
 
-from grid.domain.model import Context, Fill, State
+from grid.domain.model import Context, State
 from grid.persistence import codec
 from grid.persistence.ledger import Ledger
 from grid.persistence.records import Bounds
@@ -59,20 +59,6 @@ async def main() -> None:
         assert await h.executor.dispatch(state.scope, h.contexts[state.scope])
         h.venue.fill("order-2", "exit", D(1), D(200), ZERO_FEES)
         armed = operation == "fill"
-        if armed:
-
-            def post(ledger: Ledger) -> None:
-                snapshot = ledger.snapshot(state.scope)
-                assert snapshot.state is not None and snapshot.version is not None
-                order = next(o for o in snapshot.state.working if o.role == "portfolio_exit")
-                ledger.apply(
-                    "exit-fill",
-                    snapshot.version,
-                    Fill(state.scope, "exit", order.id, D(1), D(200), ZERO_FEES),
-                    h.contexts[state.scope],
-                )
-
-            await h.writer.submit(post)
         assert await h.service()
         armed = operation == "complete"
         await h.advance("complete")

@@ -3,6 +3,7 @@
 import base64
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from grid.domain.model import Scope, State
 from grid.domain.numbers import bounded_int
@@ -61,6 +62,19 @@ class Intent:
     id: str
     payload: str
     status: str
+
+
+@dataclass(frozen=True)
+class ExecutionPosition:
+    """An evidenced source sequence or a distinct unified trade timestamp."""
+
+    kind: Literal["sequence", "timestamp"]
+    value: int
+
+    def __post_init__(self) -> None:
+        if self.kind not in ("sequence", "timestamp"):
+            raise LedgerError("invalid execution ordering kind")
+        bounded_int(self.value, 1, 2**63 - 1)
 
 
 @dataclass(frozen=True)

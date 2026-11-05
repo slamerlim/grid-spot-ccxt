@@ -81,10 +81,10 @@ def normalize_trade(
     wire: object,
     owned: OrderFact,
     market: Market,
-    sequence: int,
+    sequence: int | None,
     valued_fees: tuple[ActualFee, ...] | None = None,
 ) -> TradeFact:
-    """Sequence/settlement FX are explicit source evidence, not CCXT arrival order."""
+    """Use source sequence or unified timestamp, never page/arrival order."""
     try:
         observed = private.trades([wire], owned.request.scope.symbol, 1)[0]
     except ReadError as exc:
@@ -145,6 +145,7 @@ def normalize_trade(
         observed.amount,
         observed.price,
         fees,
+        observed.timestamp_ms,
     )
 
 

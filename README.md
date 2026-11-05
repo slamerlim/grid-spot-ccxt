@@ -35,6 +35,10 @@ to post new fills from bounded recent windows. It checks every outstanding
 attempt, preserves terminal/conflict checks and retains fee stops across restart.
 Actual account discovery, history continuation and settlement evidence remain
 unfinished; no authenticated transport is enabled.
+Recovery also accepts distinct unified trade timestamps when no proven source
+sequence is available. Each accepted ordering position commits with its fill;
+ties, regressions and changed ordering modes keep dispatch blocked. Existing
+ledgers without ordering evidence remain readable but cannot resume mock sends.
 The public adapter uses [CCXT's documented string-number mode](docs/I8-CCXT-UNIFIED-NUMBERS.md)
 and converts unified financial values to Decimal at the application boundary.
 The owner approved I8 public-paper work with local validation while hosted CI remains pending.

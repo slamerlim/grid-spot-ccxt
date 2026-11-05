@@ -16,7 +16,7 @@ from grid.domain import market, model
 from grid.domain.numbers import DomainError, decimal
 from grid.exchange.models import BookObservation
 from grid.operations import model as operations
-from grid.persistence.records import ClientIdentity, ClientIdPolicy, Outcome
+from grid.persistence.records import ClientIdentity, ClientIdPolicy, ExecutionPosition, Outcome
 from grid.portfolio import model as portfolio
 from grid.universe.controls import EditAction, Retirement, UniverseEdit
 from grid.universe.model import (
@@ -30,6 +30,7 @@ from grid.universe.model import (
 )
 
 _CLASSES = (
+    ExecutionPosition,
     ClientIdPolicy,
     ClientIdentity,
     operations.Command,

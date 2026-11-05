@@ -161,8 +161,9 @@ def test_v5_backup_migrates_without_rewriting_existing_receipts(
     backup = funded.backup(tmp_path / "v5.db")
     raw = sqlite3.connect(backup.path, autocommit=True)
     try:
+        raw.execute("DROP TABLE execution_positions")
         raw.execute("DROP TABLE client_ids")
-        raw.execute("DELETE FROM migrations WHERE version=6")
+        raw.execute("DELETE FROM migrations WHERE version>=6")
         raw.execute("PRAGMA user_version=5")
         verify_schema(raw, 5)
         digest = semantic_hash(raw)

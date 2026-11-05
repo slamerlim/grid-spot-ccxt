@@ -166,6 +166,11 @@ def test_sigkill_during_identity_or_fill_posting_recovers_exactly_once(
                 lambda ledger: ledger.db.execute("SELECT count(*) FROM trade_keys").fetchone()
             )
             assert keys == (int(committed),)
+            assert await writer.submit(
+                lambda ledger: ledger.db.execute(
+                    "SELECT count(*) FROM execution_positions"
+                ).fetchone()
+            ) == (int(committed),)
             assert await executor.service(state.scope, context), executor.last_error
             assert await executor.service(state.scope, context)
             after = await writer.submit(lambda ledger: ledger.snapshot(state.scope))
@@ -178,6 +183,11 @@ def test_sigkill_during_identity_or_fill_posting_recovers_exactly_once(
             assert await writer.submit(
                 lambda ledger: ledger.db.execute("SELECT count(*) FROM trade_keys").fetchone()
             ) == (1,)
+            assert await writer.submit(
+                lambda ledger: ledger.db.execute(
+                    "SELECT kind,value FROM execution_positions"
+                ).fetchone()
+            ) == ("sequence", 1)
         finally:
             await executor.close()
             await writer.close()

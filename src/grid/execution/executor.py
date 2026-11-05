@@ -48,7 +48,7 @@ from grid.execution.recovery import RecoveryPlan, recovery_plan
 from grid.execution.synthetic import SyntheticExchange
 from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger, client_identity, trade_identity
-from grid.persistence.records import Backpressure, Intent, Outcome
+from grid.persistence.records import Backpressure, ExecutionPosition, Intent, Outcome
 from grid.persistence.storage import Fault, no_fault
 from grid.persistence.writer import AsyncWriter
 from grid.portfolio.model import PortfolioPermit
@@ -313,7 +313,6 @@ class MockExecutor:
             if ledger.attempted(scope, order.id) and order.id not in internal:
                 raise ExecutionError("attempted order unresolved by complete snapshot")
         unique: dict[str, TradeFact] = {}
-        sequences: dict[int, str] = {}
         totals = {
             external: internal[fact.request.order_id].filled for external, fact in facts.items()
         }
@@ -339,9 +338,8 @@ class MockExecutor:
                 or trade.external_order not in facts
                 or trade.fees is None
                 or trade.side != facts[trade.external_order].request.side
-                or trade.sequence in sequences
             ):
-                raise ExecutionError("trade lacks matching order, fee evidence or unique sequence")
+                raise ExecutionError("trade lacks matching order or fee evidence")
             unique[trade.external_id] = trade
             trade_id = trade_identity(scope, trade.external_id)
             order_id = facts[trade.external_order].request.order_id
@@ -365,7 +363,13 @@ class MockExecutor:
                         "external trade contradicts committed fill identity or payload"
                     )
                 posted.add(trade.external_id)
-            sequences[trade.sequence] = trade.external_id
+                saved = ledger.execution_position(scope, trade_id)
+                if saved is None:
+                    raise ExecutionError("committed trade lacks its execution position")
+                if (
+                    trade.sequence is not None or trade.timestamp_ms is not None
+                ) and saved != trade.position:
+                    raise ExecutionError("trade ordering contradicts its committed position")
             if trade.external_id in posted:
                 continue
             totals[trade.external_order] = totals.get(trade.external_order, ZERO) + trade.amount
@@ -384,9 +388,19 @@ class MockExecutor:
                 amount > (forecast.amount if currency == forecast.currency else ZERO)
                 for currency, amount in fees.get(external, {}).items()
             )
+        new = tuple(trade for trade in unique.values() if trade.external_id not in posted)
+        positions = tuple(trade.position for trade in new)
+        if positions:
+            if len({position.kind for position in positions}) != 1 or len(
+                {position.value for position in positions}
+            ) != len(positions):
+                raise ExecutionError("new trades lack distinct consistent execution positions")
+            ledger.check_execution_position(
+                scope, min(positions, key=lambda position: position.value)
+            )
         return SnapshotPlan(
             facts,
-            tuple(sorted(unique.values(), key=lambda trade: trade.sequence)),
+            tuple(sorted(new, key=lambda trade: trade.position.value)),
             fee_breach,
             frozenset(bound),
             frozenset(posted),
@@ -399,12 +413,13 @@ class MockExecutor:
         context: Context,
         event: Fill | OrderReport | Reconciled,
         external: tuple[str, str] | None = None,
+        position: ExecutionPosition | None = None,
     ) -> Outcome:
         key = request_id()
 
         def post(ledger: Ledger) -> Outcome:
             version, _ = state_version(ledger.snapshot(scope))
-            return ledger.apply(key, version, event, context, external=external)
+            return ledger.apply(key, version, event, context, external=external, position=position)
 
         outcome = await self.writer.submit(post)
         if not outcome.accepted:
@@ -418,6 +433,14 @@ class MockExecutor:
         )
 
         def planned(ledger: Ledger) -> RecoveryPlan:
+            if (
+                ledger.execution_position(scope) is None
+                and ledger.db.execute(
+                    "SELECT 1 FROM fills WHERE allocation=? LIMIT 1", (codec.digest(scope),)
+                ).fetchone()
+                is not None
+            ):
+                raise ExecutionError("existing fills lack an execution ordering baseline")
             return recovery_plan(
                 ledger,
                 scope,
@@ -463,7 +486,11 @@ class MockExecutor:
                 trade.fees,
             )
             await self._apply(
-                scope, intake_context, fill, (trade.external_order, trade.external_id)
+                scope,
+                intake_context,
+                fill,
+                (trade.external_order, trade.external_id),
+                trade.position,
             )
         for fact in plan.facts.values():
             if fact.external_id in plan.terminal:
