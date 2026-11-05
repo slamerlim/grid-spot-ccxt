@@ -44,6 +44,7 @@ from grid.execution.models import (
     exact_format,
     limit_request,
 )
+from grid.execution.recovery import RecoveryPlan, recovery_plan
 from grid.execution.synthetic import SyntheticExchange
 from grid.persistence import client_ids, codec
 from grid.persistence.ledger import Ledger, client_identity, trade_identity
@@ -181,17 +182,24 @@ class MockExecutor:
         calls.append(now)
 
     async def _pages(
-        self, scope: Scope, now: int, epoch: int
+        self, scope: Scope, now: int, epoch: int, recovery: RecoveryPlan
     ) -> tuple[tuple[OrderFact, ...], tuple[TradeFact, ...]]:
         orders: list[OrderFact] = []
         trades: list[TradeFact] = []
         cursor = None
         cursors: set[str] = set()
         token = None
+        clients = tuple(client_identity(scope, target.order.id) for target in recovery.targets)
+        # Reserve space for every outstanding target plus recent orders, trades
+        # and their matching orders. Unexpected open orders still consume the
+        # same hard record limit; they can never be silently truncated.
+        recent = max(1, (self.limits.max_records - len(clients)) // 3)
         async with asyncio.timeout(self.limits.timeout_ms / 1000):
             for _ in range(self.limits.max_pages):
                 self._budget(scope, now)
-                page = await self.gateway.page(scope, epoch, cursor, self.limits.page_size)
+                page = await self.gateway.page(
+                    scope, epoch, cursor, self.limits.page_size, clients, recent
+                )
                 if type(page) is not Page or page.epoch != epoch or self.epoch != epoch:
                     raise ExecutionError("reconciliation epoch changed")
                 identifier(page.token)
@@ -234,6 +242,7 @@ class MockExecutor:
         scope: Scope,
         orders: tuple[OrderFact, ...],
         trades: tuple[TradeFact, ...],
+        recovery: RecoveryPlan,
     ) -> SnapshotPlan:
         facts: dict[str, OrderFact] = {}
         internal: dict[int, Order] = {}
@@ -305,9 +314,21 @@ class MockExecutor:
                 raise ExecutionError("attempted order unresolved by complete snapshot")
         unique: dict[str, TradeFact] = {}
         sequences: dict[int, str] = {}
-        totals: dict[str, Decimal] = {}
+        totals = {
+            external: internal[fact.request.order_id].filled for external, fact in facts.items()
+        }
         fees: dict[str, dict[str, Decimal]] = {}
         counts: dict[str, int] = {}
+        # Old working-order fills come from the validated SQLite baseline, not
+        # from an exchange's retention window. Count each fee/settlement once.
+        by_order = {fact.request.order_id: external for external, fact in facts.items()}
+        for target in recovery.targets:
+            external = by_order[target.order.id]
+            counts[external] = len(target.committed)
+            order_fees = fees.setdefault(external, {})
+            for committed in target.committed:
+                for fee in committed.fill.fees or ():
+                    order_fees[fee.currency] = order_fees.get(fee.currency, ZERO) + fee.amount
         for trade in trades:
             if trade.external_id in unique:
                 if unique[trade.external_id] != trade:
@@ -345,30 +366,18 @@ class MockExecutor:
                     )
                 posted.add(trade.external_id)
             sequences[trade.sequence] = trade.external_id
+            if trade.external_id in posted:
+                continue
             totals[trade.external_order] = totals.get(trade.external_order, ZERO) + trade.amount
             counts[trade.external_order] = counts.get(trade.external_order, 0) + 1
             order_fees = fees.setdefault(trade.external_order, {})
             for fee in trade.fees:
                 order_fees[fee.currency] = order_fees.get(fee.currency, ZERO) + fee.amount
-        # This mock contract is a complete history, not an unproved rolling
-        # window. Previously posted orders/trades cannot disappear on reconnect.
-        for (external_id,) in ledger.db.execute(
-            "SELECT external_id FROM order_bindings WHERE allocation=?",
-            (allocation,),
-        ):
-            if external_id not in facts:
-                raise ExecutionError("complete snapshot omitted a bound order")
-        for (external_id,) in ledger.db.execute(
-            "SELECT external_id FROM trade_keys WHERE allocation=?",
-            (allocation,),
-        ):
-            if external_id not in unique:
-                raise ExecutionError("complete snapshot omitted a posted trade")
         fee_breach = False
         _, context, _, _ = ledger._load(codec.digest(scope))
         for external, fact in facts.items():
             if totals.get(external, ZERO) != fact.cumulative:
-                raise ExecutionError("order cumulative differs from complete actual trades")
+                raise ExecutionError("order cumulative differs from committed plus new trades")
             order = internal[fact.request.order_id]
             forecast = order.fee_rule.estimate(context.market, order.price, order.amount)
             fee_breach |= counts.get(external, 0) > order.fee_rule.max_settlements or any(
@@ -407,12 +416,26 @@ class MockExecutor:
         await self.writer.submit(
             lambda ledger: ledger.hold(request_id(), scope, "executor reconciliation")
         )
-        orders, trades = await self._pages(scope, context.now_ms, epoch)
-        plan = await self.writer.submit(
-            lambda ledger: self._validate_snapshot(ledger, scope, orders, trades)
-        )
+
+        def planned(ledger: Ledger) -> RecoveryPlan:
+            return recovery_plan(
+                ledger,
+                scope,
+                max_orders=min(1024, self.limits.max_records),
+                max_committed_trades=self.limits.max_records,
+            )
+
+        recovery = await self.writer.submit(planned)
+        orders, trades = await self._pages(scope, context.now_ms, epoch, recovery)
+
+        def validate(ledger: Ledger) -> SnapshotPlan:
+            if planned(ledger) != recovery:
+                raise ExecutionError("recovery plan changed during observation")
+            return self._validate_snapshot(ledger, scope, orders, trades, recovery)
+
+        plan = await self.writer.submit(validate)
         # These sets describe immutable SQLite rows checked in the sole writer, not TTL state.
-        # Full pages, identities, quantities, fee bounds and omissions were validated above.
+        # Current targets, recent pages, identities, quantities and fees were validated above.
         for fact in plan.facts.values():
             if fact.external_id in plan.bound:
                 continue
@@ -493,6 +516,15 @@ class MockExecutor:
             raise ExecutionError("allocation snapshot missing")
         # A cancel acknowledgment + OPEN snapshot leaves the cancel uncertain.
         intents = await self._intents(scope)
+        # A fee breach emits a durable reconciliation intent in the same
+        # transaction as its fill. Retain that stop even after the terminal
+        # order leaves the recent window or the RAM history is compacted.
+        if any(
+            isinstance(command := decode_intent(intent), Reconcile)
+            and command.reason in ("actual fee exceeds forecast", "fee settlement bound exceeded")
+            for intent in intents
+        ):
+            raise ExecutionError("actual fees exceed the reserved forecast")
         if any(intent.status == "uncertain" for intent in intents):
             raise ExecutionError("unresolved cancellation or submission")
         event = Reconciled(

@@ -231,8 +231,16 @@ class MappedSyntheticExchange(SyntheticExchange):
         }
         return trade
 
-    async def page(self, scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
-        page = await super().page(scope, epoch, cursor, size)
+    async def page(
+        self,
+        scope: Scope,
+        epoch: int,
+        cursor: str | None,
+        size: int,
+        clients: tuple[str, ...],
+        recent: int,
+    ) -> Page:
+        page = await super().page(scope, epoch, cursor, size, clients, recent)
 
         def observations(ledger: Ledger) -> Page:
             orders = tuple(

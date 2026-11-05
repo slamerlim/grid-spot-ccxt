@@ -218,7 +218,14 @@ def test_unavailable_scope_exhausts_budget_without_starving_other_scopes(
         original = owner.executor.gateway.page
         failures = 0
 
-        async def partition(scope: object, epoch: int, cursor: str | None, size: int) -> Page:
+        async def partition(
+            scope: object,
+            epoch: int,
+            cursor: str | None,
+            size: int,
+            clients: tuple[str, ...],
+            recent: int,
+        ) -> Page:
             from grid.domain.model import Scope
 
             nonlocal failures
@@ -226,7 +233,7 @@ def test_unavailable_scope_exhausts_budget_without_starving_other_scopes(
             if scope == case.scopes[0]:
                 failures += 1
                 raise ExecutionError("synthetic partition")
-            return await original(scope, epoch, cursor, size)
+            return await original(scope, epoch, cursor, size, clients, recent)
 
         monkeypatch.setattr(owner.executor.gateway, "page", partition)
         try:

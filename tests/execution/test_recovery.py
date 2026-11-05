@@ -75,7 +75,14 @@ def test_bad_snapshot_never_posts_partial_pages_or_authorizes_sends(
             fact = h.venue.orders["order-1"]
             calls = 0
 
-            async def page(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+            async def page(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
                 nonlocal calls
                 calls += 1
                 result = Page(epoch, "snapshot", (fact,), (trade,), None, True)
@@ -144,7 +151,14 @@ def test_rest_failures_backoff_and_retained_inventory(
             calls = 0
             original = h.venue.page
 
-            async def broken(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+            async def broken(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
                 nonlocal calls
                 calls += 1
                 if failure == "429":
@@ -213,8 +227,15 @@ def test_reconnect_during_snapshot_and_caller_cancellation_do_not_resume(
         async with harness(tmp_path / "ledger.db", bounds, state, context) as h:
             original = h.venue.page
 
-            async def reconnect(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
-                result = await original(scope, epoch, cursor, size)
+            async def reconnect(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
+                result = await original(scope, epoch, cursor, size, clients, recent)
                 h.executor.degrade("reconnected private stream")
                 return result
 
@@ -223,7 +244,14 @@ def test_reconnect_during_snapshot_and_caller_cancellation_do_not_resume(
             h.advance()
             entered = asyncio.Event()
 
-            async def stall(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+            async def stall(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
                 entered.set()
                 await asyncio.Event().wait()
                 raise AssertionError("unreachable")
@@ -249,6 +277,7 @@ def test_traversal_page_and_record_bounds_are_hard_limits(
     state: State,
     context: Context,
     async_sockets: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def run() -> None:
         async with harness(
@@ -269,6 +298,31 @@ def test_traversal_page_and_record_bounds_are_hard_limits(
             assert await h.service() and await h.send()
             h.venue.fill("order-1", "fill1", D("0.5"), D(100), ZERO_FEES)
             h.venue.fill("order-1", "fill2", D("0.5"), D(100), ZERO_FEES)
+            assert not await h.service()
+            assert (
+                h.executor.last_error == "order cumulative differs from committed plus new trades"
+            )
+            assert (await h.current()).quote_cash == 1000
+
+            async def ignores_window(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
+                return Page(
+                    epoch,
+                    "oversized",
+                    tuple(h.venue.orders.values()),
+                    tuple(h.venue.trades),
+                    None,
+                    True,
+                )
+
+            monkeypatch.setattr(h.venue, "page", ignores_window)
+            h.advance()
             assert not await h.service()
             assert h.executor.last_error == "reconciliation record bound exceeded"
 

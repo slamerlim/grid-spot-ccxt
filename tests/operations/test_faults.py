@@ -106,7 +106,14 @@ def test_bounded_recovery_exhaustion_and_exception_text_never_leaks(
         owner = await boot(tmp_path / "mock.db", now)
         calls = 0
 
-        async def broken(scope: object, epoch: int, cursor: str | None, size: int) -> Page:
+        async def broken(
+            scope: object,
+            epoch: int,
+            cursor: str | None,
+            size: int,
+            clients: tuple[str, ...],
+            recent: int,
+        ) -> Page:
             nonlocal calls
             calls += 1
             raise ExecutionError("injected confidential diagnostic text")

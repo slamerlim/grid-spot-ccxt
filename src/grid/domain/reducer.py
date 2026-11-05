@@ -562,6 +562,10 @@ def _fee_breach(state: State, context: Context, reason: str) -> Transition:
     blocked = _block(state, reason, accepted=True)
     state = blocked.state
     commands = list(blocked.commands)
+    if not commands:
+        # Recovery already holds the allocation. Still persist this distinct
+        # fee stop atomically with the fill; a later window may omit this order.
+        commands.append(Reconcile(state.scope, reason))
     if _funding_shortfall(state, context):
         # Confirmed facts may reveal a shortage. Preserve the obligation in
         # full and cancel known working orders; an ack cannot free reserves.

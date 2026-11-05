@@ -99,7 +99,21 @@ class SyntheticExchange:
         self.revision += 1
         return trade
 
-    async def page(self, scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+    async def page(
+        self,
+        scope: Scope,
+        epoch: int,
+        cursor: str | None,
+        size: int,
+        clients: tuple[str, ...],
+        recent: int,
+    ) -> Page:
+        """Current open roster, exact requested clients and a finite recent window.
+
+        Completeness and revision tokens are properties of this finite fake,
+        not claims about CCXT account pagination or exchange retention.
+        """
+        bounded_int(recent, 1, 10000)
         self.reads += 1
 
         def same_account_market(other: Scope) -> bool:
@@ -109,10 +123,20 @@ class SyntheticExchange:
                 scope.symbol,
             )
 
-        orders = tuple(
+        account_orders = tuple(
             fact for fact in self.orders.values() if same_account_market(fact.request.scope)
         )
-        trades = tuple(fact for fact in self.trades if same_account_market(fact.scope))
+        trades = tuple(fact for fact in self.trades if same_account_market(fact.scope))[-recent:]
+        observed = {fact.external_id for fact in account_orders[-recent:]} | {
+            trade.external_order for trade in trades
+        }
+        orders = tuple(
+            fact
+            for fact in account_orders
+            if fact.status == "open"
+            or fact.request.client_id in clients
+            or fact.external_id in observed
+        )
         start = 0 if cursor is None else int(cursor)
         end = start + size
         total = len(orders) + len(trades)

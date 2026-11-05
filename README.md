@@ -30,6 +30,11 @@ guarded XT/BingX SDK fixtures cover this path offline.
 The [committed-fill comparison](docs/I8-COMMITTED-RECOVERY.md) lets these
 inspections use recent windows that omit already-posted fills, while requiring
 every new quantity and rejecting conflicting identities. It remains read-only.
+The [mock executor now shares that durable baseline](docs/IMPLEMENTATION-REVIEW.md#bounded-execution-recovery-and-remaining-integration)
+to post new fills from bounded recent windows. It checks every outstanding
+attempt, preserves terminal/conflict checks and retains fee stops across restart.
+Actual account discovery, history continuation and settlement evidence remain
+unfinished; no authenticated transport is enabled.
 The public adapter uses [CCXT's documented string-number mode](docs/I8-CCXT-UNIFIED-NUMBERS.md)
 and converts unified financial values to Decimal at the application boundary.
 The owner approved I8 public-paper work with local validation while hosted CI remains pending.

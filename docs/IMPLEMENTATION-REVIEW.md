@@ -85,54 +85,55 @@ operator/manual-exit/allocation-exit/hot-config/storage/scoped-dust documents.
 The main CLI now has research aliases; financial commands intentionally remain
 under `gridctl operator` and use its existing same-user mock owner.
 
-## Unfinished bounded execution recovery
+## Bounded execution recovery and remaining integration
 
-The owner's latest direction is simplicity and robustness. The next priority is
-to connect and consolidate the existing recovery work into the executor's working
-path, rather than add more standalone inspection APIs. An unpublished separate
-account-discovery orchestrator was removed after that review; it is not a runtime
-capability. Keep the original one-process/one-writer architecture and retain all
-financial and unknown-submission checks. This prioritization does not remove any
-PRD requirement or external acceptance gate.
+The existing mock executor now uses the shared sole-writer recovery plan and
+committed-fill baseline. It rechecks both after observation and before new
+bindings or financial posting. Recovery requires every attempted working order,
+but no longer requires terminal orders or posted trades to remain in every
+exchange window. Committed quantity plus newly observed unique fills must equal
+each current cumulative report. Returned old identities must still match their
+immutable ledger facts; current terminal contradictions stop the whole pass.
 
-The mock executor still fetches complete lifetime order/trade history on every
-reconciliation. Page/record bounds stop oversized runs, but cannot support
-indefinite operation. Its stable snapshot revision and explicit trade sequence
-are fake-source contracts, not guarantees from CCXT's unified dictionaries.
-`I8-TERMINAL-RECOVERY.md` records the investigation and prerequisite correction.
-Continue toward bounded outstanding-order/history queries while retaining durable
-terminal facts, duplicate/conflict checks and detection of unexpected account
-activity. Pagination/retention evidence and settlement ordering must be explicit;
-neither deleting omission checks nor sorting CCXT timestamps proves completeness.
-Private transport and actual account validation remain separately gated.
-`I8-ORDER-HISTORY.md` now provides the first bounded read primitive: shared
-unified parsers, two order observations around one limited order-trade query,
-deduplication and exact cumulative matching. Pinned OKX offline SDK fixtures
-verify the request/parse path. Its result is observational, with no ledger or
-admission effect; the account-wide integration described above remains open.
-`I8-RECOVERY-PLAN.md` now selects outstanding orders through indexed sole-writer
-reads, preserves unbound attempted orders, checks owned terms against unified
-observations and revalidates the plan after the bounded reads. It is read-only:
-no fill posting, uncertainty resolution or readiness is derived from inspection.
-Account-wide discovery, unknown lookup, committed-fill integration with posting
-and settlement ordering remain required before replacing the executor's history path.
-`I8-ACCOUNT-HISTORY.md` implements an explicit alternative through unified
-`fetch_my_trades`, with guarded XT/BingX SDK fixtures. It queries one bounded
-symbol page for the known orders, preserves unmatched/unattributed observations,
-and shares sole-writer plan revalidation. Missing quantities and unknown orders
-remain unresolved; bounded continuation and complete account recovery are still
-required before financial integration.
-`I8-COMMITTED-RECOVERY.md` now compares recent observations with a bounded baseline
-of committed working-order fills. Indexed reads validate retained state, canonical
-payloads, external identities, fee projections and cumulative quantity/gross cost;
-the entire plan is checked again after observation. New identities must cover the
-remaining reported quantity exactly. Returned terminal/foreign-allocation replays
-are checked by scoped identity without being adopted or scanning lifetime history.
-Standalone history helpers retain their full-quantity requirement. Inspection
-remains read-only and does not establish settlement order, account completeness,
-fee evidence for new fills or dispatch readiness. Missing new quantities, unknown
-submissions, unexpected activity, bounded continuation and atomic integration with
-the executor remain open; its original completeness checks are unchanged.
+Both synthetic gateways use the same execution path. Their finite source returns
+all current open orders for the account/symbol, exact requested client identities,
+and bounded recent orders/trades with matching order reports. Page, record,
+timeout and rate limits still apply. The mapped gateway uses the shared CCXT
+unified parsers; neither gateway accesses an exchange. Stable revision tokens,
+exact client lookup and trade sequences remain explicit mock guarantees.
+
+Working-order committed fills have an independent cap, using the executor's
+record limit. Baseline reads and submission-attempt checks use indexed identities;
+normal recovery no longer scans all durable bindings or trade keys. Startup
+integrity verification still checks the durable history. Fee/settlement overruns
+persist a reconciliation intent atomically with the fill, including when already
+held; automatic recovery cannot clear it after window omission or compaction.
+A concurrent allocation/control change invalidates the saved plan and requires
+another bounded pass. Unknown submissions are never inferred rejected or retried.
+
+`tests/execution/test_reconcile_history.py` compares ten complete BUY/SELL rounds
+under a 12-record recovery cap with the same run using a wide window, with matching
+final state and all 20 fills retained. It also covers omitted partial fills and
+fees across writer restart, persistent fee stops, corrupted baselines and current
+contradictions for compacted orders. The existing crash and cancellation suites
+exercise this same executor. Local validation passed **1,488 tests on Python
+3.12.16** (565.42 seconds) and **1,488 on Python 3.13.18** (581.38 seconds),
+with no skips. Application/test/dependency bytes were unchanged across both runs.
+Receipts and logs are in `/tmp/grid-i8-executor-window-checks/`. The focused
+recovery-history suite passed 24 tests; lint, formatting, strict typing, Bandit,
+lock verification, the locked dependency audit and secret scanning also passed.
+Hosted CI remains pending under the unchanged account lock; publication uses
+`[skip ci]` and GitHub Free only.
+
+The standalone inspection helpers described in `I8-ORDER-HISTORY.md`,
+`I8-RECOVERY-PLAN.md`, `I8-ACCOUNT-HISTORY.md` and `I8-COMMITTED-RECOVERY.md` remain
+read-only. This integration does not make their observations dispatch authority.
+Real account-wide discovery, unknown-order lookup, bounded continuation after a
+history gap, settlement ordering/FX and authenticated transport remain unfinished.
+A missing new quantity stops recovery; no wider unbounded scan or blind resend
+is attempted. CCXT dictionaries do not establish account completeness or an atomic
+snapshot. Continue integrating the essential runtime; no new exchange access,
+private account evidence, observed-soak acceptance or deployment is implied.
 
 ## Unfinished offline research work
 

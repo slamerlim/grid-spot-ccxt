@@ -135,7 +135,7 @@ def recovery_plan(
     max_committed_trades: int = 1000,
 ) -> RecoveryPlan:
     """Validate working-order identities and a bounded durable fill baseline."""
-    bounded_int(max_orders, 1, 100)
+    bounded_int(max_orders, 1, 1024)
     bounded_int(max_committed_trades, 1, 10000)
     snapshot = ledger.snapshot(scope)
     if snapshot.state is None or snapshot.version is None:

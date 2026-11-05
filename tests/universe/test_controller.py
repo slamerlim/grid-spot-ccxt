@@ -80,8 +80,15 @@ def test_fill_arriving_during_exclusion_and_exit_is_posted_without_resuming(
             entered, release = asyncio.Event(), asyncio.Event()
             original = h.venue.page
 
-            async def delayed(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
-                page = await original(scope, epoch, cursor, size)
+            async def delayed(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
+                page = await original(scope, epoch, cursor, size, clients, recent)
                 entered.set()
                 await release.wait()
                 return page
@@ -110,7 +117,11 @@ def test_fill_arriving_during_exclusion_and_exit_is_posted_without_resuming(
 
             await h.writer.submit(exit_control)
             release.set()
-            await recovery
+            assert not await recovery  # The saved plan predates the exclusion/exit.
+            assert (await h.current()).owned_base == 0
+            assert not await h.send()
+            h.advance()
+            assert await h.service(), h.executor.last_error
             after = await h.current()
             assert after.owned_base == D("0.5") and after.quote_cash == 950
             assert after.mode in (Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED)

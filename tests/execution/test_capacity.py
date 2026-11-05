@@ -39,10 +39,17 @@ def test_busy_executor_rejects_waiters_and_burst_rest_recovers_actual_fill(
             entered, release = asyncio.Event(), asyncio.Event()
             original = h.venue.page
 
-            async def stalled(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+            async def stalled(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
                 entered.set()
                 await release.wait()
-                return await original(scope, epoch, cursor, size)
+                return await original(scope, epoch, cursor, size, clients, recent)
 
             monkeypatch.setattr(h.venue, "page", stalled)
             task = asyncio.create_task(h.service())
@@ -100,10 +107,17 @@ def test_venue_backoff_does_not_starve_other_accounts(
             executor = MockExecutor(h.writer, h.venue, scopes, LIMITS, EVIDENCE)
             original = h.venue.page
 
-            async def page(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+            async def page(
+                scope: Scope,
+                epoch: int,
+                cursor: str | None,
+                size: int,
+                clients: tuple[str, ...],
+                recent: int,
+            ) -> Page:
                 if scope == scopes[0]:
                     raise RateLimited(60000)
-                return await original(scope, epoch, cursor, size)
+                return await original(scope, epoch, cursor, size, clients, recent)
 
             monkeypatch.setattr(h.venue, "page", page)
             try:

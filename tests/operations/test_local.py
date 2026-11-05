@@ -410,10 +410,17 @@ def test_manual_confirmation_racing_reconciliation_is_retryable_with_same_reques
         task: asyncio.Task[object] | None = None
         original = owner.executor.gateway.page
 
-        async def delayed(scope: Scope, epoch: int, cursor: str | None, size: int) -> Page:
+        async def delayed(
+            scope: Scope,
+            epoch: int,
+            cursor: str | None,
+            size: int,
+            clients: tuple[str, ...],
+            recent: int,
+        ) -> Page:
             entered.set()
             await release.wait()
-            return await original(scope, epoch, cursor, size)
+            return await original(scope, epoch, cursor, size, clients, recent)
 
         try:
             status = await call(path, {"version": 1, "op": "status"})

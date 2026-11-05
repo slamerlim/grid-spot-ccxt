@@ -334,9 +334,9 @@ Keep attempted orders with unknown external IDs explicit; registration alone is
 not an attempt. Validate original placement terms and exact durable bindings,
 preflight the whole call budget and recheck the plan after reads. Missing optional
 descriptive fields remain unknown. Inspection cannot post money, clear uncertainty
-or grant readiness. Retain the executor's complete-history/terminal checks until
-account-wide discovery, unknown lookup, committed-fill posting and settlement
-ordering are integrated. No new exchange access or acceptance waiver is implied.
+or grant readiness. The executor now shares this plan for bounded mock recovery;
+current terminal checks remain mandatory. Real account-wide discovery, unknown
+lookup and settlement ordering still need integration. No new access is implied.
 
 `docs/I8-COMMITTED-RECOVERY.md` adds bounded durable fill baselines to both
 read-only inspection paths. Recent unified windows may omit old fills only when
@@ -346,9 +346,14 @@ covered by new observed identities. Compare returned terminal and other-allocati
 trades by scoped identity without adopting them or rewriting settlement facts.
 Optional unknowns stay unknown. Keep standalone history readers strict, inspection
 classifications separate from financial posting, and all call/deadline/record
-bounds. The executor's full-history contract remains until account-wide discovery,
-unknown submissions, bounded continuation and settlement integration are complete.
-No new exchange access, schema change or readiness authority is implied.
+bounds. The executor integration is recorded in `docs/IMPLEMENTATION-REVIEW.md`:
+all attempted working orders remain required, while committed old quantities
+come from SQLite. Both mocks return current open orders, exact requested clients
+and bounded recent history. Revalidate the plan before posting, preserve fee-stop
+intents across compaction/restart and never clear an unknown from absence alone.
+The finite fake's source completeness and ordering are not CCXT guarantees.
+Real account discovery, history continuation and settlement evidence remain open.
+No new exchange access or schema change is implied.
 
 ## Invariants for subsequent approved iterations
 
@@ -367,16 +372,16 @@ offline fakes and guarded pinned OKX unified methods. At most three unified call
 bracket one limited trade query; unique quantities must match stable cumulative
 reports. Preserve optional unknowns and cancellation. Quantity matching grants
 no ownership, fee, chronology or send authority. SDK internal HTTP requests and
-bytes still need transport enforcement. Keep the executor's existing omission
-and terminal checks until complete account-wide recovery replaces its fake
-history contract. No authenticated transport or new exchange access is implied.
+bytes still need transport enforcement. Keep the executor's working-order
+coverage, quantity and terminal checks. No authenticated transport or new
+exchange access is implied.
 
 `docs/I8-TERMINAL-RECOVERY.md` distinguishes delayed private events from a current
 recovery snapshot. An observed OPEN or changed cumulative quantity for a durable
 terminal order invalidates the entire snapshot before new binding/fill posting.
 Keep that check for compacted orders as well as retained ones. Do not erase old
-facts or loosen omission checks to implement bounded history; the existing fake's
-complete-history/revision/sequence contract is not a proven CCXT capability.
+facts or drop working-order coverage to force recovery. The fake's current-roster,
+revision and sequence contracts are not proven CCXT capabilities.
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one
   possibly active aggregate sell per allocation; no increasing lot sizing.

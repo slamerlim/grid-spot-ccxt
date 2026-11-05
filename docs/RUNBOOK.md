@@ -61,8 +61,8 @@ offline fixtures. No operator command enables private access through this helper
 the sole writer; see `I8-RECOVERY-PLAN.md`. Unknown external IDs remain explicit
 and inspection never authorizes posting or dispatch. A changed plan or mismatched
 owned order invalidates the result. Run the offline
-`pytest -q tests/execution/test_recovery_plan.py` fixtures. The existing executor
-still uses its complete-history contract; this helper adds no operator command.
+`pytest -q tests/execution/test_recovery_plan.py` fixtures. The executor now
+shares the plan and baseline, but this inspection helper adds no operator command.
 
 For callers using unified `fetch_my_trades`, `inspect_account_orders` shares the
 same plan/ownership checks and reads one bounded symbol page for all known IDs.
@@ -82,8 +82,18 @@ their returned trades to cover the whole reported quantity. Inspection classifie
 observations as new, committed and unmatched without posting or granting readiness.
 Unknown fees stay unknown and cannot replace saved settlement values. Run
 `pytest -q tests/execution/test_recovery_fills.py` offline. Preserve conflicts for
-review; do not erase old facts, adopt unmatched fills or relax the executor's
-complete-history contract to force a result.
+review; do not erase old facts, adopt unmatched fills or drop outstanding orders
+to force a result.
+
+The mock executor uses this baseline with its existing bounded page reader and
+posting path. Its source must cover all current open orders and every attempted
+working order; recent trades plus committed quantities must explain each report.
+The finite fake also looks up requested client identities. A missing new quantity
+or changed plan keeps dispatch blocked; history continuation through a real CCXT
+account remains unfinished. Fee/settlement breaches leave a durable reconciliation
+intent, so automatic recovery cannot erase the stop after compaction or restart.
+Preserve the evidence for review. Do not clear the intent or manufacture missing
+fills to resume. See `IMPLEMENTATION-REVIEW.md` for current integration and tests.
 
 I3 rollback is a scoped code/docs/lock revert with `uv sync --locked`; no deployed
 database or external order requires rollback. Preserve the GitHub Free preference

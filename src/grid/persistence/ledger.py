@@ -720,11 +720,12 @@ class Ledger:
         return codec.loads(row[0], Order, limit=self.bounds.snapshot_bytes)
 
     def attempted(self, scope: Scope, order_id: int) -> bool:
+        allocation = codec.digest(scope)
         return (
             self.db.execute(
-                "SELECT 1 FROM intents WHERE allocation=? AND order_id=? "
+                "SELECT 1 FROM intents WHERE id=? AND allocation=? AND order_id=? "
                 "AND kind='place' AND attempt_run IS NOT NULL",
-                (codec.digest(scope), order_id),
+                (codec.digest((allocation, "place", order_id, None)), allocation, order_id),
             ).fetchone()
             is not None
         )
