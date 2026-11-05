@@ -261,6 +261,16 @@ mock experiment does not cover 1,000 funded allocations, sustained fixed-rate
 traffic, the portfolio supervisor, deployment quotas or the observed I8 gate.
 Continue authorized offline work; no further public access is implied.
 
+`docs/I8-SDK-ORDER-AUDIT.md` records the fixed offline `exchange.order_audit`
+command. Pinned asynchronous SDK builders use invented inputs and stop at the
+first intercepted request; lower signing/transport paths are prohibited. Preserve
+the BaseException stop sentinel: ordinary SDK exception fallback must not assume
+account mode after interception. No arbitrary credentials, order parameters or
+exchange access belongs in this command. Keep numeric/ID findings visible; it is
+not a trading gateway or venue acceptance. Do not truncate durable IDs or bypass
+BingX float conversion, XT/Bitfinex rules, account-mode verification or live gates
+based on this diagnostic alone.
+
 ## Invariants for subsequent approved iterations
 
 - Spot only, limit only; geometric grid; minimum executable buy lots; one

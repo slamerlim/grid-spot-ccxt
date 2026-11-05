@@ -179,6 +179,17 @@ own training NAV and retaining every test result. Work limits count both policie
 
 ## Offline operational experiments
 
+The pinned SDK request audit uses invented markets/accounts and intercepts
+requests before signing or networking:
+
+```sh
+uv run --locked python -m grid.exchange.order_audit --code-revision "$(git rev-parse HEAD)" --output /tmp/grid-sdk-audit-new/report.json
+```
+
+Exit 1 retains failed fixture checks, including numeric conversion and client-ID
+findings; it does not submit an order. See [SDK audit evidence and limits](docs/I8-SDK-ORDER-AUDIT.md).
+All venues remain NOT_READY.
+
 The finite synthetic runner uses temporary mock databases and makes no exchange
 calls. Select the reviewed patched runtime described below; the system Python
 and an old `.venv` may correctly refuse ledger creation. With that environment:

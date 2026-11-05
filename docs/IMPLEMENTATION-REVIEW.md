@@ -33,6 +33,8 @@ Bounded chronological storage merges based on `ffd02ed` are recorded in
 `I8-STORAGE-MERGES.md` and incorporated below.
 Repeated mixed BUY/SELL contention and committed-history reconciliation reuse
 based on `24bae1d` are recorded in `I8-MIXED-CONTENTION.md` and incorporated below.
+The pinned asynchronous SDK request audit based on `1268e30` is recorded in
+`I8-SDK-ORDER-AUDIT.md`; its numeric/account/ID findings are incorporated below.
 
 **The system has substantial offline implementation and mock evidence, but
 full I8 acceptance and I9 are incomplete.** No venue is certified for live
@@ -48,7 +50,7 @@ synthetic tests must be retained while the remaining integration is developed.
 
 | Gate | Current local implementation/evidence | Remaining boundary |
 |---|---|---|
-| Q01 LIMIT-only | Domain commands, mock executor payload boundary, manual/scoped/global exits; `tests/execution/test_boundary.py`, `tests/operations/test_liquidation.py`, `test_allocation_exit.py` | Actual authenticated CCXT order serialization and venue acceptance untested; no real sender exists |
+| Q01 LIMIT-only | Domain commands, mock executor boundary, manual/scoped/global exits and intercepted pinned-SDK request fixtures; `tests/execution/test_boundary.py`, `tests/exchange/test_order_audit.py`, operations exit tests | Authenticated HTTP encoding and venue acceptance untested; BingX fractional conversion is a known blocker; no real sender exists |
 | Q02 minimum lot | Decimal quantizers, independent buy/sell minima and fee-aware eligibility; `tests/domain/test_market.py`, `test_boundaries.py` | Verified account-specific fees/rules at actual venue placement unavailable |
 | Q03 finite funds | One ledger writer, atomic reservations and scope/pool ownership; `tests/persistence/test_ledger.py`, `tests/research/test_replay.py` | Dedicated real balances and external activity must be verified separately |
 | Q04 seed | Actual weighted fills, partial residual handling and approved terminal-seed anchor rule; `tests/domain/test_reducer.py` | Actual fee/fill normalization and venue event evidence remain untested |
@@ -56,7 +58,7 @@ synthetic tests must be retained while the remaining integration is developed.
 | Q06 ladder | Minimum lots, quantized distinct prices, range/budget/order bounds; domain market/reducer tests | Account/market limits not independently certified |
 | Q07 drain/late BUY | Drain, reconcile and retain late inventory without duplicate seed; domain/execution recovery tests | Exchange truth/restart behavior requires target-venue evidence |
 | Q08 idempotency | Scoped identities, atomic fill posting, replay and revision history; persistence/execution identity and crash tests | Private feed and actual paginated trade semantics untested |
-| Q09 unknown submit | Durable intents, unknown state, no blind resend; `tests/execution/test_crashes.py`, `test_recovery.py` | Real client-ID lookup, retention and ambiguous venue responses untested |
+| Q09 unknown submit | Durable synthetic intents, unknown state, no blind resend; execution crash/recovery tests; SDK ID pass-through/refusal audit | Internal 64-character digest is not a verified venue ID encoding; real uniqueness/lookup/retention and ambiguous responses untested |
 | Q10 fees/accounting | Base/quote/token fees, liabilities, rebates and conservation; ledger, portfolio and research tests | Actual account tiers, fee currencies and conversion evidence unavailable |
 | Q11 hot changes | Revisioned universe control, explicit retirement, confirmed local commands; `tests/universe/`, `tests/operations/test_configuration*.py` | Mock owner only; no live configuration changes authorized |
 | Q12 +10% portfolio exit | Net consolidated valuation, cash-flow handling, bounded LIMIT exits, conversion, residual review; `tests/portfolio/`, scoped dust and optional historical portfolio replay tests | Replay uses explicitly synthetic liquidity/FX/account facts; actual venue liquidity/account valuation remains unverified |
@@ -168,7 +170,16 @@ missing venue evidence or to enable live access.
    with zero observed physical input blocks. These are explicit small-block warm
    merge measurements, not end-to-end replay or deployment certification.
    Cold-ish scans, representative archive/month sampling, repeated parameter
-   replay reuse and deployment contention remain unmeasured. Existing SQLite mock
+   replay reuse and deployment contention remain incomplete. A bounded 2026-11-05
+   prototype compared four spacing values on 1,280 synthetic bars, with three
+   rotating warm repeats and exact complete-result equality. Including cache
+   preparation and final raw checksum, median raw/reuse wall times were
+   2.9957/2.9339 seconds on active-grid data and 0.7807/0.7190 on quiet data.
+   This modest local result did not justify adding a shared decoded-history cache.
+   No production cache or derived archive was adopted. Prototype/receipts remain
+   in `/tmp/grid-reuse-prototype.py` and `/tmp/grid-i8-reuse-prototype/`; profiling
+   is in `/tmp/grid-i8-reuse-profile/`. They do not establish representative
+   archive/deployment benefit. Existing SQLite mock
    stress/crash/backup tests are useful evidence,
    but are not the complete on-deployment-hardware performance report. Keep raw
    archives immutable and defer any full derived copies until justified.
@@ -190,6 +201,14 @@ gateway. `universe/discovery.py` provides bounded cache/client coordination but
 does not turn probe evidence into certified account capabilities. The capability
 registry remains NOT_READY for each intended venue. Private fees, balances,
 permissions, client-ID behavior and order-event semantics require actual evidence.
+
+`exchange/order_audit.py` adds fixed offline SDK fixtures, with the first request
+intercepted before signing/transport and lower paths prohibited. It observes
+Gate/KuCoin account-discovery branches, Gate's long-ID refusal/prefix, BingX's
+fractional float conversion and Bitfinex rounding of deliberately nonconforming
+prices. It neither sends an order nor removes any venue blocker. Full financial
+IDs remain unchanged; any future external encoding needs durable collision and
+recovery semantics, not a silent truncation or an SDK pass-through assumption.
 
 The completed one-hour OKX observation collected 460 validated books. Required
 public rules remained unknown, so it admitted no paper allocations/orders/fills.

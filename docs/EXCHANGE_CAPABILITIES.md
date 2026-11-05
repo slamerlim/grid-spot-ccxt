@@ -193,6 +193,24 @@ account identifiers in public artifacts.
 
 ## What I3 cannot certify
 
+The later 2026-11-05 offline audit in `I8-SDK-ORDER-AUDIT.md` captures CCXT 4.5.91
+asynchronous builders before signing/networking on invented metadata/accounts.
+All seven venues remain NOT_READY; this is additional mock evidence, not a new
+public/private probe or an amendment to the historical I3 observations.
+
+| Venue | Added pre-signing SDK observation |
+|---|---|
+| OKX | Default one-item batch versus explicit single-order builder; tested decimal strings retained; ID acceptance unknown |
+| HTX | Fake preloaded spot account used; actual account lookup and ownership untested |
+| Gate | Default account-mode discovery intercepted; full internal digest refused; short candidate gains a prefix |
+| XT | Tested spot LIMIT fields preserved; offset/protection and complete precision evidence still unknown |
+| BingX | Fractional price/quantity become floats; large fixture price changes a decimal quantum |
+| KuCoin | Default account-mode discovery intercepted; declared non-UTA fixture reaches the spot builder |
+| Bitfinex | Signed SELL amount and rounding of deliberately nonconforming prices observed; compound precision remains blocked |
+
+No financial ID scheme or numeric conversion workaround was adopted. Future
+submission integration must resolve these constraints before any venue test.
+
 Client-order-ID acceptance/uniqueness/lookup consistency, new-order wire
 precision, post-only behavior, cancellation races, late fills, actual maker/taker
 fees and unknown-submission recovery require I4 fake tests plus explicitly

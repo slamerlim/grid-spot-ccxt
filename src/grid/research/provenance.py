@@ -214,7 +214,13 @@ class Observation:
         )
 
     def finish(self, operation: str, result: object) -> dict[str, object]:
-        if operation not in {"replay", "benchmark", "validate", "resource-contention"}:
+        if operation not in {
+            "replay",
+            "benchmark",
+            "validate",
+            "resource-contention",
+            "sdk-order-audit",
+        }:
             raise DomainError("unknown research report operation")
         source = source_identity(self.package)
         current_git = git_identity(self.package, self.supplied, source)

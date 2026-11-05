@@ -483,6 +483,16 @@ measurement report whose timing checks failed; exit 2 is a refused/failed run,
 and caught interruption returns 130. Inspect reports before retrying. Kernel
 RSS/device quotas and on-deployment-hardware acceptance remain unverified.
 
+`python -m grid.exchange.order_audit --code-revision REV --output NEW_PATH`
+audits 91 fixed pinned-SDK cases offline, intercepting the first request before
+signing/transport. It accepts no credentials or arbitrary order parameters.
+Exit 1 publishes failed fixture checks; current findings include float conversion,
+client-ID changes/refusal and account-mode discovery. Exit 2 refuses an incomplete
+audit and never publishes a partial success. Do not respond to these findings by
+supplying keys, shortening real IDs or enabling a venue. Review
+`I8-SDK-ORDER-AUDIT.md`; actual authenticated serialization and recovery remain
+unverified. Existing public-run authorization is not reused by this command.
+
 For repeated mixed BUY/SELL flows, add `--mixed-rounds 3` to that command and
 choose a new output filename. The optional mode accepts 1–8 rounds and uses
 one funded allocation per synthetic venue, with a separate bounded research
