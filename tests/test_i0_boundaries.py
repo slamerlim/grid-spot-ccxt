@@ -70,6 +70,12 @@ def test_application_limits_network_imports_and_has_no_exchange_writes() -> None
             for name in imports:
                 if source == ROOT / "src/grid/research/git_identity.py" and name == "subprocess":
                     continue  # Bounded local plumbing; isolated environment and denied transports.
+                if name == "subprocess" and source in {
+                    ROOT / "src/grid/research/module1_reference.py",
+                    ROOT / "src/grid/research/module1_lifecycle.py",
+                    ROOT / "src/grid/research/module1_bars.py",
+                }:
+                    continue  # Authorized offline C++ parity: explicit argv, no exchange transport.
                 if source == ROOT / "src/grid/operations/local.py" and name == "socket":
                     continue  # Same-user AF_UNIX only; runtime IPC tests reject IP sockets.
                 if source == ROOT / "src/grid/exchange/ccxt_transport.py" and name in {

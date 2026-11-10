@@ -7,6 +7,19 @@ record clarifications separately with evidence and approval requirements.
 
 ## Simplicity and development focus
 
+The owner's attached Module 1 C++ backtest master prompt now authorizes offline
+research implementation and actual full-history replay from `/opt/datasets/`.
+Read `docs/MODULE1_RESEARCH_SPEC_v1.md` and the attached prompt before that work.
+Never modify or remove any dataset. Preserve the Python live core, executor,
+ledger/schema, CCXT gateway and operations behavior. New seed/ladder and tier-TP
+policies are research-only. Explicit assumption-based replay is authorized even
+when source provenance is unverified; never relabel it certified historical
+performance or weaken the older strict replay's admission. C++ research, local
+tool restoration, tests and historical runs are authorized; no exchange access,
+credentials, live/sandbox orders, deployment or Module 2 work is included.
+Use existing ordinary commit/push authorization and GitHub Free only. Large
+outputs belong outside Git, compact manifests and reports may be committed.
+
 The owner reinforced: "don't overengineer, the system shall be easy and robust
 as ak-47, remember the initial prompt!" Keep the original single-process design:
 official CCXT, one executor, one SQLite writer and a pure strategy core.

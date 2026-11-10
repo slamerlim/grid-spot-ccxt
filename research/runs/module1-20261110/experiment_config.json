@@ -1,0 +1,246 @@
+{
+  "schema": "grid-module1-experiment-v1",
+  "experiment_id": "module1-20261110",
+  "declared_utc": "2026-11-10T13:55:42Z",
+  "declaration_status": "FROZEN_BEFORE_COMPARATIVE_RETURNS",
+  "starting_code_revision": "cd48dd01734d2b84ad13651e907e72fc437a0cbc",
+  "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+  "strict_historical_performance": "NOT_COMPUTABLE",
+  "reporting_currency": "USDT",
+  "selection_manifest": "selection_manifest.json",
+  "selection_rule_sha256": "5d45b569a12c88f53a759df5fbe6547e8bd0fc9be1c72d46701dafea6d804ba6",
+  "original_sources_root": "/opt/datasets/crypto_1m",
+  "external_outputs": "/opt/grid-runs/module1-20261110",
+  "market_rules": {
+    "evidence_kind": "SYNTHETIC_SCENARIO_NOT_VENUE_FACTS",
+    "price_tick": "0.00000001",
+    "amount_tick": "0.0001",
+    "minimum_buy_amount": "0.0001",
+    "minimum_sell_amount": "0.0001",
+    "minimum_buy_notional": "5",
+    "minimum_sell_notional": "5",
+    "minimum_price": "0.00000001",
+    "maximum_price": "100000000",
+    "maximum_amount": "100000000",
+    "quote_ledger_quantum": "0.000000000001",
+    "cost_quantum": "0.000000000001",
+    "base_ledger_quantum": "0.0001",
+    "fee_token_ledger_quantum": "0.000000000001"
+  },
+  "fees": {
+    "evidence_kind": "SYNTHETIC_SCENARIO_NOT_HISTORICAL_FEE_SCHEDULE",
+    "buy_rate": "0.001",
+    "sell_rate": "0.001",
+    "currency": "USDT",
+    "settlement_quantum": "0.00000001",
+    "forecast_max_settlements": 64,
+    "actual_quantization": "ceil_per_simulated_fill",
+    "separate_one_variable_sensitivity_rates": [
+      "0.0005",
+      "0.002"
+    ]
+  },
+  "funding": {
+    "initial_quote_per_allocation": "1000",
+    "initial_total_quote": "10000",
+    "account_policy": "one_separately_funded_account_per_venue",
+    "allocation_policy": "equal_nonoverlapping_allocations_no_transfers",
+    "external_cashflows": "none",
+    "quote_reserve_per_allocation": "100",
+    "maximum_committed_cost_per_allocation": "900"
+  },
+  "grid": {
+    "spacing": "0.01",
+    "minimum_net_target_quote": "0.01",
+    "maximum_accumulated_lots": 100,
+    "multi_pending_buy_levels": 3,
+    "one_pending_buy_levels": 1,
+    "maximum_open_orders": 8,
+    "maximum_sell_replacements_per_round": 1000,
+    "sell_policy": "one_basket_sell",
+    "reentry_policy": "reentry_near_fresh_book",
+    "range_policy": "fixed_declared_market_price_bounds",
+    "first_entry_policy_scope": "first_funded_entry_only; subsequent_rounds_and_portfolio_cycles_use_shared_reentry_policy"
+  },
+  "execution": {
+    "evidence_kind": "HYPOTHETICAL_OHLC_EXECUTIONS",
+    "synthetic_bid": "last_completed_close",
+    "synthetic_ask": "last_completed_close_times_1_plus_spread",
+    "synthetic_spread": "0.001",
+    "order_eligibility_delay_bars": 1,
+    "cancel_finality_delay_bars": 1,
+    "primary_fill_amount": "full_remaining_for_preexisting_selected_orders",
+    "partial_fills": "deterministic_tests_and_separate_capacity_sensitivity_only",
+    "strict_crossing": "float32_half_ULP_adjusted_price_through",
+    "creation_bar_fill": false,
+    "missing_bar_fill": false,
+    "gap_policy": "preserve_ownership_no_interpolation_no_invented_fills",
+    "portfolio_mark_max_age_ms": 0,
+    "unavailable_owned_asset_mark": "unknown_NAV_and_no_TP_trigger",
+    "timestamp_tie_order": "venue_then_symbol_lexicographic",
+    "portfolio_decision_time": "after_complete_timestamp_group",
+    "seed_limit_price": "floor_tick(last_completed_close); spread changes ask only",
+    "require_source_tick_compatibility": false,
+    "source_tick_compatibility_scope": "exploratory_replay_only; count_incompatible_OHLC_fields_and_bars; strict_Python_and_baseline_parity_unchanged",
+    "gap_resume_policy": "advance_clock_before_boundary_cancels; after_first_completed_postgap_bar_replan_known_modeled_state_once; never_clear_unknown_orders_or_fee_halts; new_orders_wait_future_bar"
+  },
+  "take_profit": {
+    "global_enabled": true,
+    "global_return_threshold": "0.10",
+    "exchange_enabled": false,
+    "exchange_return_threshold": "0.10",
+    "symbol_enabled": false,
+    "symbol_return_threshold": "0.10",
+    "precedence": [
+      "global",
+      "exchange",
+      "symbol"
+    ],
+    "exit_order_type": "limit",
+    "exit_price_policy": "current_completed_bid_proxy_with_fixed_trigger_floor",
+    "maximum_price_deviation_from_trigger_bid": "0.05",
+    "exit_order_ttl_minutes": 60,
+    "maximum_exit_reprices": 3,
+    "unapproved_dust_policy": "block_completion",
+    "dust_auto_approval": false,
+    "restart_policy": "later_bar_only_after_complete_reconciliation",
+    "maximum_cycles": 10000,
+    "exit_limit_formula": "ceil_tick(max(minimum_price,trigger_bid*(1-maximum_price_deviation_from_trigger_bid),current_completed_close))",
+    "exit_upper_guard": "trigger_bid*(1+maximum_price_deviation_from_trigger_bid)",
+    "minimum_after_fee_quote": "0",
+    "maximum_exit_duration_minutes": 240,
+    "exit_deadline_origin": "trigger_timestamp; includes_cancellation_and_all_reprices; after_deadline_cancel_and_reconcile_then_report_remaining_exposure_blocked",
+    "restart_identity": "preserve_cumulative_cash_fees_PnL_order_ids_and_round_history; never_restore_initial_funds_or_initial_entry_policy"
+  },
+  "primary_cases": [
+    {
+      "id": "seed_multi_strict",
+      "entry": "seed_min_limit",
+      "ladder": "ladder_multi",
+      "ohlc": "strict_skip_ambiguous"
+    },
+    {
+      "id": "seed_multi_buy",
+      "entry": "seed_min_limit",
+      "ladder": "ladder_multi",
+      "ohlc": "touch_buy_priority"
+    },
+    {
+      "id": "seed_multi_sell",
+      "entry": "seed_min_limit",
+      "ladder": "ladder_multi",
+      "ohlc": "touch_sell_priority"
+    },
+    {
+      "id": "seed_one_strict",
+      "entry": "seed_min_limit",
+      "ladder": "ladder_one",
+      "ohlc": "strict_skip_ambiguous"
+    },
+    {
+      "id": "seed_one_buy",
+      "entry": "seed_min_limit",
+      "ladder": "ladder_one",
+      "ohlc": "touch_buy_priority"
+    },
+    {
+      "id": "seed_one_sell",
+      "entry": "seed_min_limit",
+      "ladder": "ladder_one",
+      "ohlc": "touch_sell_priority"
+    },
+    {
+      "id": "lower_multi_strict",
+      "entry": "no_seed_lower",
+      "ladder": "ladder_multi",
+      "ohlc": "strict_skip_ambiguous"
+    },
+    {
+      "id": "lower_multi_buy",
+      "entry": "no_seed_lower",
+      "ladder": "ladder_multi",
+      "ohlc": "touch_buy_priority"
+    },
+    {
+      "id": "lower_multi_sell",
+      "entry": "no_seed_lower",
+      "ladder": "ladder_multi",
+      "ohlc": "touch_sell_priority"
+    },
+    {
+      "id": "lower_one_strict",
+      "entry": "no_seed_lower",
+      "ladder": "ladder_one",
+      "ohlc": "strict_skip_ambiguous"
+    },
+    {
+      "id": "lower_one_buy",
+      "entry": "no_seed_lower",
+      "ladder": "ladder_one",
+      "ohlc": "touch_buy_priority"
+    },
+    {
+      "id": "lower_one_sell",
+      "entry": "no_seed_lower",
+      "ladder": "ladder_one",
+      "ohlc": "touch_sell_priority"
+    }
+  ],
+  "full_individual_histories": "control_seed_multi_strict_on_every_selected_record",
+  "portfolio_period": "longest_common_endpoint_interval_with_every_gap_retained",
+  "benchmarks": [
+    "cash_USDT_hold",
+    "equal_weight_funded_buy_and_hold_same_fees"
+  ],
+  "optimization": "none",
+  "ex_post_regime_labels_are_signals": false,
+  "optional_followups_after_primary_matrix": [
+    "one_step_reentry_controlled_comparison",
+    "fixed_fee_sensitivities"
+  ],
+  "excluded": [
+    "Module2",
+    "live_changes",
+    "exchange_access",
+    "martingale",
+    "market_orders",
+    "parameter_search_on_final_period",
+    "automatic_split_sell"
+  ],
+  "contract_revision": 4,
+  "clarified_utc": "2026-11-10T14:38:29.642214+00:00",
+  "previous_config": {
+    "path": "experiment_config_v3.json",
+    "sha256": "ab06502684459fbd553af76b84755a2ea5a114ef55f750e91b2ea0f3c3f70601"
+  },
+  "clarification_reason": "Before comparative returns: define stale-book behavior and known simulated-state recovery after actual source gaps; no numeric parameter/cohort change.",
+  "valuation": {
+    "raw_mark": "exact_decoded_float32_completed_close",
+    "raw_nav": "cash_plus_all_owned_base_times_raw_mark; includes_residual_ownership",
+    "estimated_exit_bid": "floor_tick(current_completed_close)",
+    "liquidation_quantity": "largest_amount_tick_valid_owned_quantity_under_sell_limits_and_fee_reserve",
+    "liquidation_fee": "existing_FeeRule_estimate_with_forecast_max_settlements",
+    "net_nav": "cash_plus_valid_sellable_quantity_times_exit_bid_minus_estimated_exit_fees",
+    "untradeable_residual": "reported_owned_base_and_raw_mark_value; zero_estimated_liquidation_value; never_deleted",
+    "valuation_rounding": "floor_each_nonnegative_quote_asset_value_to_quote_ledger_quantum; cash_and_fee_postings_exact",
+    "missing_mark": "unknown_for_owned_asset; no_forward_fill; cash_only_scope_needs_no_asset_mark",
+    "unknown_order_or_reconciliation": "unknown_NAV_no_TP_trigger",
+    "drawdown": "separate_raw_and_exit_adjusted_sampled_close_curves_with_unknown_samples_counted",
+    "model_evidence": "unlimited_synthetic_depth_primary_scenario; no_actual_executable_liquidity_claim"
+  },
+  "benchmark_rules": {
+    "reference": "grid.research.replay.buy_hold; counterfactual_reference_not_simulated_order_execution",
+    "cash": "all_initial_quote_held_at_par_no_yield_no_external_cashflows",
+    "initial_funding": "same_common_start_and_equal_per_allocation_funding_as_strategy",
+    "buy_hold_entry_time": "first_completed_valid_bar_each_market_in_study_window",
+    "buy_hold_entry_price": "ceil_tick(first_completed_close_times_1_plus_synthetic_spread)",
+    "buy_hold_spending": "initial_allocation_quote_minus_same_quote_reserve; maximum_funded_amount_tick_quantity_after_actual_one_fill_fee_and_market_maxima",
+    "buy_hold_quantity": "counterfactual_allocation_purchase_not_Module1_minimum_lot_order",
+    "buy_hold_entry_cost": "same_buy_fee_rate_currency_and_ceil_settlement_quantum_as_strategy",
+    "buy_hold_constraints_fail": "retain_cash_and_report_reason_no_reselection",
+    "buy_hold_unfilled_orders": "not_applicable_counterfactual_no_queue_latency_or_fill_guarantee",
+    "buy_hold_later_behavior": "hold_quantity_and_remaining_cash_no_rebalance_no_TP",
+    "ending": "same_final_timestamp_as_strategy; raw_and_same_liquidation_adjusted_marks; no_forced_sale",
+    "comparison_limitation": "instant_counterfactual_entry_is_not_achievable_LIMIT_execution_evidence"
+  }
+}

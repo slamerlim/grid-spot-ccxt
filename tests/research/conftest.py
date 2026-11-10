@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal as D
@@ -9,6 +10,10 @@ from exchange.conftest import async_sockets as async_sockets
 from grid.domain.model import Context, Scope
 from grid.research.history import MINUTE, RECORD, Source
 from grid.research.replay import Allocation, Capital, Replay
+
+# Research command scripts stay outside the installed live package. Make their
+# repository namespace available with both pytest and python -m pytest.
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 START = 1704067200000
 type Prices = tuple[float, float, float, float]

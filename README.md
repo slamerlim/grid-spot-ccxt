@@ -214,6 +214,31 @@ own training NAV and retaining every test result. Work limits count both policie
 [portfolio study rules](docs/I8-PORTFOLIO-STUDIES.md) and
 [paired lot-study evidence](docs/I8-LOT-STUDIES.md).
 
+The separately authorized Module 1 full-history study uses one standalone C++20
+research executable and the existing Python implementation as its comparison
+reference. It preserves the Python trading core and the strict replay command's
+admission rules. Unknown historical provenance is permitted only in this
+explicitly **UNVERIFIED SOURCE / ASSUMPTION-BASED** experiment; its synthetic
+fees, limits and candle executions are not verified venue facts. See the
+[C++ build, tests and input/output contract](cpp/backtest/README.md),
+[frozen research specification](docs/MODULE1_RESEARCH_SPEC_v1.md) and
+[executed verification evidence](docs/CPP_BACKTEST_VERIFICATION.md).
+
+From the repository root, with the reviewed local Python environment and built
+executable, the bounded study and table extraction commands are:
+
+```sh
+python -m scripts.module1_study --config research/runs/module1-20261110/experiment_config.json --binary /opt/grid-builds/module1/release/grid_backtest --output /opt/grid-runs/module1-new --group all --execute --timeout-seconds 21600
+python -m scripts.module1_report --study /opt/grid-runs/module1-new --output /opt/grid-runs/module1-new-tables
+```
+
+Use new output directories. Omitting `--execute` prepares inputs without running
+the strategy. Every selected full source is checked against its frozen hash;
+never repair or overwrite `/opt/datasets/`. Execution PASS means completed input
+and accounting checks, not profitability. Compact declared manifests and final
+summary tables may be committed for this approved study; large outputs remain
+outside Git. The current full study is still in progress.
+
 ## Offline operational experiments
 
 The pinned SDK request audit uses invented markets/accounts and intercepts
@@ -322,9 +347,9 @@ uv build --no-sources
 The vulnerability audit calls advisory services; unavailable advisory results
 are not a pass. The test suite disables sockets and uses temporary paths and
 mock runtime metadata. It does not claim Q01–Q20 financial/exchange acceptance.
-The secret-scanner baseline permits only the four reviewed specification SHA-256
-fingerprints. Two synthetic redaction-test strings and three golden SHA-256
-checksums of invented cycle fixtures have explicit local allowlist comments.
+The secret-scanner baseline permits reviewed specification and research-provenance
+fingerprints. Synthetic redaction strings, golden fixture checksums and reviewed
+literal test inputs have narrow local allowlist comments.
 No real credential is allowlisted; new findings fail CI.
 CI runs the same checks on Python 3.12 and 3.13 with read-only repository
 permissions and no live secrets. Do not equate local checks with an observed

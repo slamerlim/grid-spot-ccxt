@@ -1,0 +1,460 @@
+{
+  "aligned_total_rows": 10005677,
+  "artifacts": [
+    {
+      "bytes": 850,
+      "path": "/opt/grid-runs/module1-20261110/selection/selection_rule_v1.json",
+      "sha256": "8634e1290f07934745933609e4a4af74aa805c854338de5c11d92c379e7daf11"
+    },
+    {
+      "bytes": 25922,
+      "path": "/opt/grid-runs/module1-20261110/selection/selection_manifest_v1_rejected.json",
+      "sha256": "e936e6d4d34d56a24dfb657617c7fd4edbd6d8e3ea90fa5a20ea95d6adcbc76a"
+    },
+    {
+      "bytes": 1105,
+      "path": "/opt/grid-runs/module1-20261110/selection/selection_rule.json",
+      "sha256": "5d45b569a12c88f53a759df5fbe6547e8bd0fc9be1c72d46701dafea6d804ba6"
+    },
+    {
+      "bytes": 32447,
+      "path": "/opt/grid-runs/module1-20261110/selection/selection_manifest.json",
+      "sha256": "fc90d145b49007e81aecaf21b01e81be4ab6157c37b15e069e355d992ff36ef2"
+    },
+    {
+      "bytes": 6395,
+      "path": "/opt/grid-runs/module1-20261110/selection/summary.json",
+      "sha256": "7abb0b8ac81fa1426a7df9d60904848d4784c0115983abb6404f4ea2958180d9"
+    },
+    {
+      "bytes": 18963131,
+      "path": "/opt/grid-runs/module1-20261110/selection/inventory.json",
+      "sha256": "bacbe52b8c406a6bdefeaf41816b29aa5a2d5e8796b59017f794806d30adcd2d"
+    },
+    {
+      "bytes": 5937661,
+      "path": "/opt/grid-runs/module1-20261110/selection/candidate_decisions.csv",
+      "sha256": "f844a00c5e882a229a3de9f09c842e3892bd744e00bbea6a369aa100f6bf1bc8"
+    },
+    {
+      "bytes": 390,
+      "path": "/opt/grid-runs/module1-20261110/selection/validator_checks.json",
+      "sha256": "a29a813e0152235d6be52288d4394575e3d5a125b8bbc09fdb6eb449812264bb"
+    },
+    {
+      "bytes": 1123,
+      "path": "/opt/grid-runs/module1-20261110/selection/reproduction_parity.json",
+      "sha256": "6a82c1deb398703c80d6dd9541ebe078e051c5d662f1296c56fa57566b10f46f"
+    },
+    {
+      "bytes": 246138,
+      "path": "/opt/grid-runs/module1-20261110/selection/reproduction-v2/selection_manifest.json",
+      "sha256": "937b14ee523a94e773435204e67caa22900cd45df21e680f4d417332b808baab"
+    },
+    {
+      "bytes": 728,
+      "path": "/opt/grid-runs/module1-20261110/selection/reproduction-v2/selection_rule.json",
+      "sha256": "c31a6d862569b67554be9617f0de64854d8965b18852a9b1ed1755dbf645c780"
+    },
+    {
+      "bytes": 3516099,
+      "path": "/opt/grid-runs/module1-20261110/selection/reproduction-v2/candidate_decisions.csv",
+      "sha256": "b8bfe943715a44b3bdfefcd958a345e82cdb0b8211f1db807dcbc504fbfbeeb0"
+    },
+    {
+      "bytes": 12315,
+      "path": "/opt/grid-runs/module1-20261110/selection/reproduction-v2/executed_audit.py",
+      "sha256": "7bfd42c1ac341dfa68bbfdbe92dcfae52db3c68d787ba7b2848d3b9677a71522"
+    }
+  ],
+  "calendar_overlap_at_least_365_days": true,
+  "caveats": [
+    "Filename venue/base/quote mapping is unverified identity evidence, not certified historical spot identity.",
+    "Leveraged-name suffix filter rejects suspicious names but does not prove instruments are unleveraged spot.",
+    "No downloader source or collection audit trail is available at the documented /opt/abn/dtdwn path.",
+    "Flat OHLC rows range from 3.81% to 65.67% of these files. Upstream carry-forward, inactivity, repairs or synthetic data cannot be distinguished from candles alone.",
+    "Several sources begin at exactly 2022-08-04 12:05 UTC; this is available archive coverage, not proven listing inception.",
+    "No volume, spread, queue, trade IDs, historical fee tiers or historical venue precision/minimum rules.",
+    "Gap records retained externally and in replay; never concatenate the 478 complete days or forward-fill missing minutes.",
+    "All original source reads used read-only opens. Full content hashes and size/inode/device/mtime/ctime were unchanged during validation and independent reproduction.",
+    "Selection does not remove survivorship/listing bias or certify seven-venue coverage. Four target venues occur; XT/BingX lack a qualifying year, Bitfinex fails the density gate."
+  ],
+  "contiguous_gap_free_year_available": false,
+  "coverage": {
+    "common_calendar_days": 695.38125,
+    "common_complete_utc_days": 478,
+    "common_end_utc_exclusive": "2026-11-03T20:09:00+00:00",
+    "common_minutes_all_sources_present": 993572,
+    "common_missing_minutes_any_source": 7777,
+    "common_start_utc": "2024-12-08T11:00:00+00:00",
+    "longest_continuous_all_source_minutes": 95988,
+    "longest_continuous_end_utc": "2026-04-13T07:44:00+00:00",
+    "longest_continuous_start_utc": "2026-02-05T15:56:00+00:00"
+  },
+  "inventory": {
+    "alias_prefix_counts": {
+      "gate": 2605,
+      "gateio": 0,
+      "houbi": 0,
+      "htx": 625,
+      "huobi": 0,
+      "huobipro": 0
+    },
+    "bytes": 511157925552,
+    "files": 43157,
+    "target_usdt_summary": {
+      "bingx": {
+        "endpoint_365_day_candidates": 0,
+        "endpoint_candidates_at_least_99pct_dense": 0,
+        "usdt_files": 791
+      },
+      "bitfinex": {
+        "endpoint_365_day_candidates": 22,
+        "endpoint_candidates_at_least_99pct_dense": 0,
+        "usdt_files": 66
+      },
+      "gate": {
+        "endpoint_365_day_candidates": 1243,
+        "endpoint_candidates_at_least_99pct_dense": 3,
+        "usdt_files": 2439
+      },
+      "htx": {
+        "endpoint_365_day_candidates": 473,
+        "endpoint_candidates_at_least_99pct_dense": 473,
+        "usdt_files": 610
+      },
+      "kucoin": {
+        "endpoint_365_day_candidates": 589,
+        "endpoint_candidates_at_least_99pct_dense": 455,
+        "usdt_files": 905
+      },
+      "okx": {
+        "endpoint_365_day_candidates": 238,
+        "endpoint_candidates_at_least_99pct_dense": 238,
+        "usdt_files": 476
+      },
+      "xt": {
+        "endpoint_365_day_candidates": 0,
+        "endpoint_candidates_at_least_99pct_dense": 0,
+        "usdt_files": 977
+      }
+    },
+    "venue_prefixes": 60
+  },
+  "longest_consecutive_complete_utc_days": 66,
+  "rejected_preliminary_roster_reason": "Longest-span-first version 1 produced zero common complete days; rejected before strategy returns. Version 2 adds 99% endpoint density and 365 shared complete UTC day gates.",
+  "reproduce_command": "python scripts/module1_selection/audit.py --root /opt/datasets/crypto_1m --output /opt/grid-runs/module1-20261110/selection/NEW_UNEXISTING_DIRECTORY",
+  "rule": {
+    "distinct_base": true,
+    "exclude_suffix_regex": "(?:[235][LS]|BULL|BEAR|UP|DOWN)$",
+    "frozen_before_strategy_returns": true,
+    "minimum_common_complete_utc_days": 365,
+    "minimum_days": 365,
+    "minimum_endpoint_density": 0.99,
+    "quote": "USDT",
+    "revision_reason": "Version 1 longest-span-first produced zero shared complete days due sparse Gate/Bitfinex sources; quality gate revised before strategy returns.",
+    "rule": "Before any returns, exclude endpoint density below 99%, require full structural validity, >=365 complete UTC days in each file, and >=365 complete UTC days shared by all accepted candidates. Round-robin venue order; within venue descending endpoint span, descending rows, filename. Distinct nonleveraged-name USDT bases only. All gaps are preserved and logged. Common calendar interval is longest shared endpoint interval; complete day count and longest consecutive complete run reported separately. Unknown provenance remains exploratory only.",
+    "venue_order": [
+      "okx",
+      "htx",
+      "gate",
+      "xt",
+      "bingx",
+      "kucoin",
+      "bitfinex"
+    ],
+    "version": 2
+  },
+  "run_id": "module1-20261110",
+  "scattered_complete_days_at_least_365": true,
+  "schema": "module1-frozen-selection-v2",
+  "selected": [
+    {
+      "aligned_gap_count": 0,
+      "aligned_missing_minutes": 0,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001349,
+      "bytes": 53657448,
+      "file": "okx_USDT_1INCH.bin",
+      "file_identity_before_and_after": [
+        66306,
+        696677,
+        53657448,
+        1793715041831839189,
+        1793777728917493800
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.5966242747884692,
+      "flat_rows": 1333889,
+      "gap_count": 0,
+      "last_utc": "2026-11-04T02:11:00+00:00",
+      "market": "1INCH/USDT",
+      "missing_minutes": 0,
+      "rows": 2235727,
+      "sha256": "96478e45856d9b4da4f18ab060677c709bf23c50f2f063ecb2289d61a07c43ee",
+      "source_path": "/opt/datasets/crypto_1m/okx_USDT_1INCH.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "okx"
+    },
+    {
+      "aligned_gap_count": 0,
+      "aligned_missing_minutes": 0,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001349,
+      "bytes": 53657400,
+      "file": "htx_USDT_MINA.bin",
+      "file_identity_before_and_after": [
+        66306,
+        687382,
+        53657400,
+        1793714963153444897,
+        1793760737842023409
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.3558474320410605,
+      "flat_rows": 795577,
+      "gap_count": 0,
+      "last_utc": "2026-11-04T02:09:00+00:00",
+      "market": "MINA/USDT",
+      "missing_minutes": 0,
+      "rows": 2235725,
+      "sha256": "06435396eebc3fdeececab191b9058788dd5f8223deca90f915160116b111fca",
+      "source_path": "/opt/datasets/crypto_1m/htx_USDT_MINA.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "htx"
+    },
+    {
+      "aligned_gap_count": 2303,
+      "aligned_missing_minutes": 5852,
+      "aligned_offset": 84219,
+      "aligned_rows": 995497,
+      "bytes": 25921824,
+      "file": "gate_USDT_WPAY.bin",
+      "file_identity_before_and_after": [
+        66306,
+        685364,
+        25921824,
+        1793714950900539098,
+        1793759278942006735
+      ],
+      "first_utc": "2024-10-08T12:00:00+00:00",
+      "flat_row_fraction": 0.038095467356000876,
+      "flat_rows": 41146,
+      "gap_count": 3610,
+      "last_utc": "2026-11-04T02:08:00+00:00",
+      "market": "WPAY/USDT",
+      "missing_minutes": 9413,
+      "rows": 1080076,
+      "sha256": "3a2d7a63ad5c42394430fe902bd207d71dfd59e0605f98545b46483a14d6a3ff",
+      "source_path": "/opt/datasets/crypto_1m/gate_USDT_WPAY.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "gate"
+    },
+    {
+      "aligned_gap_count": 0,
+      "aligned_missing_minutes": 0,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001349,
+      "bytes": 53657424,
+      "file": "kucoin_USDT_AKT.bin",
+      "file_identity_before_and_after": [
+        66306,
+        689647,
+        53657424,
+        1793715009101091335,
+        1793762801242113064
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.6567325334142019,
+      "flat_rows": 1468274,
+      "gap_count": 0,
+      "last_utc": "2026-11-04T02:10:00+00:00",
+      "market": "AKT/USDT",
+      "missing_minutes": 0,
+      "rows": 2235726,
+      "sha256": "d0ec36c1ba2b75f2cf22f48b5d325edbd6495c674391ce23befe06e2f9f0785b",
+      "source_path": "/opt/datasets/crypto_1m/kucoin_USDT_AKT.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "kucoin"
+    },
+    {
+      "aligned_gap_count": 0,
+      "aligned_missing_minutes": 0,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001349,
+      "bytes": 53657448,
+      "file": "okx_USDT_AGLD.bin",
+      "file_identity_before_and_after": [
+        66306,
+        696687,
+        53657448,
+        1793715031441919254,
+        1793777771274693286
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.5811662157320638,
+      "flat_rows": 1299329,
+      "gap_count": 0,
+      "last_utc": "2026-11-04T02:11:00+00:00",
+      "market": "AGLD/USDT",
+      "missing_minutes": 0,
+      "rows": 2235727,
+      "sha256": "5af61ba40163944508cb5bdfc81427541604ba1e7051fbae0d255805461b4d82",
+      "source_path": "/opt/datasets/crypto_1m/okx_USDT_AGLD.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "okx"
+    },
+    {
+      "aligned_gap_count": 0,
+      "aligned_missing_minutes": 0,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001349,
+      "bytes": 53657400,
+      "file": "htx_USDT_XTZ.bin",
+      "file_identity_before_and_after": [
+        66306,
+        687633,
+        53657400,
+        1793714963497442252,
+        1793761494910132381
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.2243733017253911,
+      "flat_rows": 501637,
+      "gap_count": 0,
+      "last_utc": "2026-11-04T02:09:00+00:00",
+      "market": "XTZ/USDT",
+      "missing_minutes": 0,
+      "rows": 2235725,
+      "sha256": "6fa1c4b3949fc47147ee49dd8b21c9057b7aa78da4f4ad785972aee8cdcc79de",
+      "source_path": "/opt/datasets/crypto_1m/htx_USDT_XTZ.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "htx"
+    },
+    {
+      "aligned_gap_count": 1167,
+      "aligned_missing_minutes": 1958,
+      "aligned_offset": 0,
+      "aligned_rows": 999391,
+      "bytes": 23985384,
+      "file": "gate_USDT_BGSC.bin",
+      "file_identity_before_and_after": [
+        66306,
+        683381,
+        23985384,
+        1793714923331750913,
+        1793755576756278927
+      ],
+      "first_utc": "2024-12-08T11:00:00+00:00",
+      "flat_row_fraction": 0.0644312386243222,
+      "flat_rows": 64392,
+      "gap_count": 1167,
+      "last_utc": "2026-11-03T20:08:00+00:00",
+      "market": "BGSC/USDT",
+      "missing_minutes": 1958,
+      "rows": 999391,
+      "sha256": "18397e21dcebbdd6a8904fbfbd50373ce99bac495a86c2dbc827d84ad861e9d3",
+      "source_path": "/opt/datasets/crypto_1m/gate_USDT_BGSC.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "gate"
+    },
+    {
+      "aligned_gap_count": 1,
+      "aligned_missing_minutes": 1,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001348,
+      "bytes": 53657400,
+      "file": "kucoin_USDT_OP.bin",
+      "file_identity_before_and_after": [
+        66306,
+        690165,
+        53657400,
+        1793714933039676348,
+        1793764455395229393
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.6490239184157265,
+      "flat_rows": 1451039,
+      "gap_count": 1,
+      "last_utc": "2026-11-04T02:10:00+00:00",
+      "market": "OP/USDT",
+      "missing_minutes": 1,
+      "rows": 2235725,
+      "sha256": "42775d5379e89c06ec8dceb5a397d712070fab8bea5c1e985d957a1a8879e1f2",
+      "source_path": "/opt/datasets/crypto_1m/kucoin_USDT_OP.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "kucoin"
+    },
+    {
+      "aligned_gap_count": 0,
+      "aligned_missing_minutes": 0,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001349,
+      "bytes": 53657448,
+      "file": "okx_USDT_APE.bin",
+      "file_identity_before_and_after": [
+        66306,
+        696693,
+        53657448,
+        1793715133259133744,
+        1793777793243287620
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.3179730798975009,
+      "flat_rows": 710901,
+      "gap_count": 0,
+      "last_utc": "2026-11-04T02:11:00+00:00",
+      "market": "APE/USDT",
+      "missing_minutes": 0,
+      "rows": 2235727,
+      "sha256": "b0803993397c004642019779eb600bd8cf369841b267ab475aa8ef94906770f1",
+      "source_path": "/opt/datasets/crypto_1m/okx_USDT_APE.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "okx"
+    },
+    {
+      "aligned_gap_count": 2,
+      "aligned_missing_minutes": 2,
+      "aligned_offset": 1234015,
+      "aligned_rows": 1001347,
+      "bytes": 53657352,
+      "file": "htx_USDT_ELA.bin",
+      "file_identity_before_and_after": [
+        66306,
+        687233,
+        53657352,
+        1793715029949930749,
+        1793760279128810273
+      ],
+      "first_utc": "2022-08-04T12:05:00+00:00",
+      "flat_row_fraction": 0.629328856929056,
+      "flat_rows": 1407005,
+      "gap_count": 2,
+      "last_utc": "2026-11-04T02:09:00+00:00",
+      "market": "ELA/USDT",
+      "missing_minutes": 2,
+      "rows": 2235723,
+      "sha256": "4b911ab3df4986332b3d42f07070a57e873d027f8ea695f9ffa329dbdb9ed37e",
+      "source_path": "/opt/datasets/crypto_1m/htx_USDT_ELA.bin",
+      "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED",
+      "structural_errors": 0,
+      "venue": "htx"
+    }
+  ],
+  "selected_total_bytes": 479166528,
+  "selected_total_rows": 19965272,
+  "selection_before_strategy_returns": true,
+  "source_root": "/opt/datasets/crypto_1m",
+  "source_status": "UNVERIFIED SOURCE / ASSUMPTION-BASED, NOT CERTIFIED HISTORICAL PERFORMANCE",
+  "strict_identity_and_historical_rules_result": "NOT COMPUTABLE",
+  "validation": "17 targeted pytest cases; Python/C++ audit parity of all ten full files and coverage sets. No strategy returns computed."
+}
