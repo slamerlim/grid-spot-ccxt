@@ -275,6 +275,45 @@ The next required evidence is all ten full histories and all
 twelve frozen portfolio cases, with accounting, failed/negative trials and
 source/config/result hashes. No full-study completion claim is made here.
 
+### Interim result publication and current-build check
+
+The first actual-results snapshot is recorded in
+`MODULE1_10_MARKET_BACKTEST_REPORT.md` and compact tables under
+`research/runs/module1-20261110/`. Its extraction at 2026-11-10 15:54 UTC
+validated three completed histories, one incomplete attempt and eighteen
+unstarted cases. Later driver progress does not change that immutable snapshot.
+The full ten-history/twelve-portfolio goal remains incomplete.
+
+The report now distinguishes an attempted trial with no final receipt as
+INCOMPLETE from an unstarted NOT_RUN trial. Neither classification proves
+process liveness. It retains FAIL receipts, blank unavailable financial cells
+and an explicit external table-directory pointer. This reporting-only delta
+passed 17 focused tests, Ruff lint/format and mypy; exact commands and file
+hashes are in `verification/report-interim-delta-v1/receipt.json` under the
+external run root. It is separate from the earlier full Python suite.
+
+The first interim publication scan flagged public fingerprints in the new
+compact summary. Each of the 33 distinct flagged values was independently
+matched to the SHA-256 of its config, cohort, executable, input, result or CSV
+artifact before a filename/value-specific baseline entry was added. Detector
+and filter settings were unchanged; the original failed scan and exact review
+remain under `verification/interim-publication-v1/`.
+
+The final diagnostic-output Debug and Release builds were also compared using
+the existing six-row synthetic study input. Their complete JSON outputs are
+byte-identical and all previously expected fields match after excluding only
+the additive planner-notice maps. Commands, source/binary/result hashes and
+comparison receipt are in `verification/current-crossbuild-v1/receipt.json`.
+This closes the latest-build comparison without another historical run.
+
+The adjacent `fd-observation.json` records five descriptors for the live driver
+and four for its single-market child, including one read-only source descriptor.
+The earlier retained single-market child observation also recorded four.
+These are discrete samples, not a continuously measured high-water mark.
+Reader ownership is bounded to one source descriptor and a 98,304-byte buffer
+per admitted source; the frozen portfolio has ten sources. No running child's
+limits or file descriptors were modified for this observation.
+
 Rollback is a normal revert/removal of this isolated research increment through
 reviewed version control. No live database migration or source-data rewrite is
 involved. Keep generated receipts and original archives intact.

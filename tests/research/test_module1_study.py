@@ -345,7 +345,9 @@ def test_report_retains_losses_and_not_run_rows_and_detects_tampering(
         )
     )
     summary = report(folder, tmp_path / "report")
+    assert summary["tables_directory"] == str(tmp_path / "report")
     assert summary["passed_execution_and_accounting"] == 1
+    assert summary["incomplete"] == 0
     assert summary["not_run"] == 3
     assert summary["trials"][0]["portfolio"]["net_net_return"] == "-0.01"
     assert summary["trials"][0]["portfolio"]["net_buy_hold_return_delta"] == "-0.01"
@@ -369,6 +371,23 @@ def test_report_retains_losses_and_not_run_rows_and_detects_tampering(
                 'BUY deferred: "quote reserve", budget': initial // 500,
                 "waiting for terminal seed": initial // 1000,
             }
+    attempted, failed = plan["jobs"][1:3]
+    study.append_registry(folder / "registry.jsonl", {"id": attempted["id"], "status": "RUNNING"})
+    failure_receipt = {"status": "FAIL", "validation_failures": ["nonzero_exit"]}
+    (folder / failed["id"] / "receipt.json").write_text(json.dumps(failure_receipt))
+    study.append_registry(folder / "registry.jsonl", {"id": failed["id"], **failure_receipt})
+    interim = report(folder, tmp_path / "interim-report")
+    assert [row["status"] for row in interim["trials"]] == ["PASS", "INCOMPLETE", "FAIL", "NOT_RUN"]
+    assert interim["failed"] == interim["incomplete"] == interim["not_run"] == 1
+    assert interim["trials"][2]["validation_failures"] == ["nonzero_exit"]
+    with (tmp_path / "interim-report" / "portfolio_results.csv").open(newline="") as stream:
+        interim_rows = list(csv.DictReader(stream))
+    assert interim_rows[1]["status"] == "INCOMPLETE"
+    assert interim_rows[1]["net_ending_nav"] == ""
+    # Older prepared evidence may lack a registry. No attempt is then inferred.
+    (folder / "registry.jsonl").unlink()
+    without_registry = report(folder, tmp_path / "without-registry-report")
+    assert without_registry["not_run"] == 2 and without_registry["incomplete"] == 0
     output.write_text(output.read_text() + " ")
     with pytest.raises(ValueError, match="receipt/hash mismatch"):
         report(folder, tmp_path / "tampered-report")

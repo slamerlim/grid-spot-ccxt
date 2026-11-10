@@ -4,6 +4,8 @@ This command does not run a strategy or choose a winner. Failed and unexecuted
 trials retain rows with empty financial values. It verifies the immutable input
 and result hashes and independently reconciles accounting before publication.
 Planning-notice counts describe emitted diagnostics, not inactive bars or time.
+INCOMPLETE means an attempt is recorded without a final receipt, not proof that
+its process is still running. Counts describe the inspected artifact snapshot.
 """
 
 from __future__ import annotations
@@ -65,6 +67,31 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
+def registry_statuses(path: Path) -> dict[str, str]:
+    """Read a bounded snapshot; a concurrent partial append requires a later retry."""
+    try:
+        with path.open("rb") as stream:
+            data = stream.read(MAX_RESULT_BYTES + 1)
+    except FileNotFoundError:
+        return {}
+    if len(data) > MAX_RESULT_BYTES:
+        raise ValueError("trial registry exceeds byte bound")
+    if data and not data.endswith(b"\n"):
+        raise ValueError("trial registry snapshot ends in a partial record; retry report")
+    statuses = {}
+    for line in data.splitlines():
+        row = json.loads(line)
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("id"), str)
+            or not row["id"]
+            or row.get("status") not in ("PLANNED", "RUNNING", "PASS", "FAIL")
+        ):
+            raise ValueError("malformed trial registry record")
+        statuses[row["id"]] = row["status"]
+    return statuses
+
+
 def report(study: Path, output: Path) -> dict[str, Any]:
     study = study.resolve(strict=True)
     plan = read_json(study / "plan.json", max_bytes=MAX_RESULT_BYTES)
@@ -88,12 +115,17 @@ def report(study: Path, output: Path) -> dict[str, Any]:
     cycles: list[dict[str, Any]] = []
     curve: list[dict[str, Any]] = []
     trials: list[dict[str, Any]] = []
+    recorded_statuses = registry_statuses(study / "registry.jsonl")
     for job in plan["jobs"]:
         folder = study / job["id"]
         if sha256(folder / "input.tsv") != job["input_sha256"]:
             raise ValueError(f"trial input changed: {job['id']}")
         receipt_path = folder / "receipt.json"
-        receipt = read_json(receipt_path) if receipt_path.exists() else {"status": "NOT_RUN"}
+        if receipt_path.exists():
+            receipt = read_json(receipt_path)
+        else:
+            attempted = recorded_statuses.get(job["id"]) in ("RUNNING", "PASS", "FAIL")
+            receipt = {"status": "INCOMPLETE" if attempted else "NOT_RUN"}
         status = receipt["status"]
         base = {
             "trial_id": job["id"],
@@ -189,6 +221,7 @@ def report(study: Path, output: Path) -> dict[str, Any]:
     summary = {
         "schema": "grid-module1-report-v1",
         "study": str(study),
+        "tables_directory": str(output),
         "config_sha256": plan["config_sha256"],
         "manifest_sha256": plan["manifest_sha256"],
         "executable_sha256": plan["executable_sha256"],
@@ -198,12 +231,15 @@ def report(study: Path, output: Path) -> dict[str, Any]:
         "planned": len(trials),
         "passed_execution_and_accounting": sum(t["status"] == "PASS" for t in trials),
         "failed": sum(t["status"] == "FAIL" for t in trials),
+        "incomplete": sum(t["status"] == "INCOMPLETE" for t in trials),
         "not_run": sum(t["status"] == "NOT_RUN" for t in trials),
         "interpretation": (
             "Execution PASS is not profitability or historical market certification. "
             "Empty CSV values mean unavailable, never zero. Returns are on all funded capital; "
             "unknown terminal NAV withholds return. Drawdown is sampled and may omit unknown "
-            "periods. No annualization or regime selection is inferred."
+            "periods. INCOMPLETE means a recorded attempt lacks a final receipt; "
+            "these snapshot counts do not prove process liveness. "
+            "No annualization or regime selection is inferred."
         ),
     }
     output.mkdir(parents=True, exist_ok=False)
@@ -233,7 +269,13 @@ def main() -> None:
         json.dumps(
             {
                 key: result[key]
-                for key in ("planned", "passed_execution_and_accounting", "failed", "not_run")
+                for key in (
+                    "planned",
+                    "passed_execution_and_accounting",
+                    "failed",
+                    "incomplete",
+                    "not_run",
+                )
             }
         )
     )
