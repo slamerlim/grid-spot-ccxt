@@ -97,6 +97,7 @@ def configuration(sources: list[tuple[Path, str]], **changes: str) -> str:
 def main() -> None:
     program = Path(sys.argv[1]).resolve(strict=True)
     checks = 0
+    refusals = 0
     with tempfile.TemporaryDirectory(prefix="grid-cpp-study-") as directory:
         root = Path(directory)
 
@@ -108,7 +109,10 @@ def main() -> None:
             path.write_bytes(data)
             return path, hashlib.sha256(data).hexdigest()
 
-        def run(text: str, success: bool = True) -> dict[str, Any]:
+        def run(
+            text: str, success: bool = True, expected_error: str | None = None
+        ) -> dict[str, Any]:
+            nonlocal refusals
             path = root / "input.tsv"
             path.write_text(text)
             completed = subprocess.run(
@@ -123,8 +127,23 @@ def main() -> None:
                 return cast(dict[str, Any], result)
             assert completed.returncode == 2, completed
             assert not completed.stdout, "invalid study must not publish a partial result"
-            assert json.loads(completed.stderr)["error"]
+            error = json.loads(completed.stderr)["error"]
+            assert isinstance(error, str) and error
+            if expected_error is not None:
+                assert expected_error in error, (expected_error, error)
+            refusals += 1
             return {}
+
+        def refuse(arguments: list[str], expected_error: str, *, usage: bool = False) -> None:
+            nonlocal refusals
+            completed = subprocess.run(
+                [str(program), *arguments], capture_output=True, timeout=30, check=False
+            )
+            assert completed.returncode == 2, completed
+            assert not completed.stdout, "invalid admission must not publish output"
+            error = completed.stderr.decode() if usage else json.loads(completed.stderr)["error"]
+            assert isinstance(error, str) and expected_error in error, error
+            refusals += 1
 
         flat = source("flat.bin", [(60000 * n, 100, 100, 100, 100) for n in range(1, 5)])
         text = configuration([flat])
@@ -237,7 +256,127 @@ def main() -> None:
         run(configuration([flat]).replace("FEE_RULE\tbuy\tQUOTE", "FEE_RULE\tbuy\tBASE"), False)
         run(configuration([flat]) + "REPLAY_CONFIG\tunknown_flag\t1\n", False)
         checks += 1
-    print(f"{checks} integrated study scenarios passed")
+
+        # Admission mutations target specific guards, not merely any nonzero exit.
+        first_source = text.splitlines()[1]
+        buy_fee = "FEE_RULE\tbuy\tQUOTE\t0.001\t0.00000001\t-\t64"
+        invalid_inputs = (
+            (text.replace("GRID_MODULE1_REPLAY\t1", "GRID_MODULE1_REPLAY\t2"), "schema"),
+            (text.replace(first_source + "\n", ""), "sources required"),
+            (text.replace("CONFIG\tspacing\t0.01\n", ""), "missing trace config: spacing"),
+            (text.replace(buy_fee + "\n", ""), "both fee rules required"),
+            (
+                text.replace("REPLAY_CONFIG\tmodel\tstrict_skip_ambiguous\n", ""),
+                "missing replay policy",
+            ),
+            (text + "CONFIG\tspacing\t0.01\n", "duplicate replay config"),
+            (text + "REPLAY_CONFIG\tmodel\tstrict_skip_ambiguous\n", "duplicate replay policy"),
+            (text + buy_fee + "\n", "duplicate fee rule"),
+            (text.replace("FEE_RULE\tbuy\t", "FEE_RULE\tother\t"), "unknown fee rule side"),
+            (text + "UNKNOWN\trow\n", "unknown replay row type"),
+            (text.replace("CONFIG\tspacing\t0.01", "CONFIG\tspacing"), "field count"),
+            (text.replace("SOURCE\tvenue0\t", "SOURCE\t\t"), "identifier"),
+            (text.replace("SOURCE\tvenue0\t", "SOURCE\tven\x01ue\t"), "printable ASCII"),
+            (text.replace("SOURCE\tvenue0\t", "SOURCE\t" + "v" * 129 + "\t"), "identifier"),
+            (text.replace("ASSET0/USDT", "ASSET0/BTC"), "common USDT"),
+            (text + first_source + "\n", "duplicate study market or source"),
+            (text.replace(buy_fee, buy_fee.replace("QUOTE", "TOKEN")), "fee-token conversion"),
+            (text.replace(buy_fee, buy_fee.replace("0.001", "1")), "below one"),
+            (text.replace(buy_fee, buy_fee.replace("\t64", "\t0")), "bounded trace integer"),
+        )
+        for invalid_text, reason in invalid_inputs:
+            run(invalid_text, False, reason)
+        invalid_fields: tuple[tuple[dict[str, str], str], ...] = (
+            ({"initial_quote_cash": "-1"}, "negative initial cash"),
+            ({"initial_quote_cash": "0.0000000000001"}, "not representable"),
+            ({"initial_quote_cash": "10000000"}, "int64 currency overflow"),
+            ({"quote_quantum": "0"}, "positive ledger quanta"),
+            ({"spacing": "0"}, "positive trace policy"),
+            ({"spacing": "1e97"}, "decimal exponent"),
+            ({"spacing": "NaN"}, "decimal digit"),
+            ({"spacing": "1" * 97}, "decimal digit bound"),
+            ({"buy_amount_max": "0"}, "invalid market maximum"),
+            ({"quote_reserve": "-1"}, "invalid trace risk range"),
+            ({"lower_price": "1000000"}, "invalid trace risk range"),
+            ({"allow_new_exposure": "2"}, "bounded trace integer"),
+            ({"ladder_size": "257"}, "bounded trace integer"),
+            ({"max_open_orders": "0"}, "bounded trace integer"),
+            ({"max_order_records": "7"}, "bounded trace integer"),
+            ({"seed_at": "close"}, "invalid seed reference"),
+            ({"book_ask": "100"}, "partial missing book"),
+            (
+                {
+                    "book_bid": "100",
+                    "book_ask": "99",
+                    "book_observed_ms": "0",
+                    "book_generation": "1",
+                },
+                "invalid trace book",
+            ),
+            ({"start_ms": "60000"}, "invalid replay study interval"),
+            ({"start_ms": "60001", "end_ms": "120000"}, "invalid replay study interval"),
+            ({"start_ms": "120000", "end_ms": "60000"}, "invalid replay study interval"),
+            ({"entry": "unknown"}, "unsupported entry"),
+            ({"ladder": "unknown"}, "unsupported ladder"),
+            ({"ladder": "ladder_one"}, "single ladder requires one"),
+            ({"reentry_policy": "unknown"}, "unsupported reentry"),
+            ({"model": "unknown"}, "unsupported OHLC"),
+            ({"synthetic_spread": "0.02"}, "spread exceeds"),
+            ({"latency_bars": "0"}, "bounded trace integer"),
+            ({"max_cycles": "10001"}, "bounded trace integer"),
+        )
+        for changes, reason in invalid_fields:
+            run(configuration([flat], **changes), False, reason)
+        checks += 1
+
+        # Parser bounds need at most 1 MiB of invented text and 1,536 source bytes.
+        header = "GRID_MODULE1_REPLAY\t1\n"
+        run(header + "x" * (1048576 - len(header)), False, "row bound")
+        run(header + "x" * (1048577 - len(header)), False, "byte bound")
+        row_prefix = "CONFIG\tpadding\t"
+        run(header + row_prefix + "x" * (65536 - len(row_prefix)), False, "sources required")
+        run(header + row_prefix + "x" * (65537 - len(row_prefix)), False, "row bound")
+        rows = [f"CONFIG\tpadding{index}\t0\n" for index in range(513)]
+        run(header + "".join(rows[:512]), False, "sources required")
+        run(header + "".join(rows), False, "row bound")
+        tiny_sources = [
+            source(f"cap{index}.bin", [(60000, 100, 100, 100, 100)]) for index in range(64)
+        ]
+        maximum = run(configuration(tiny_sources))
+        assert maximum["processed_rows"] == 64 and len(maximum["sources"]) == 64
+        run(configuration([*tiny_sources, flat]), False, "source count exceeds")
+        checks += 1
+
+        # Whole-source verification also covers invalid records outside the window.
+        run(configuration([invalid], start_ms="60000", end_ms="120000"), False, "source integrity")
+        later = source("later.bin", [(600000, 100, 100, 100, 100)])
+        run(
+            configuration([flat, later], start_ms="60000", end_ms="120000"),
+            False,
+            "no observations",
+        )
+        empty = root / "empty.bin"
+        empty.write_bytes(b"")
+        partial = root / "partial.bin"
+        partial.write_bytes(b"x")
+        linked = root / "link.bin"
+        linked.symlink_to(flat[0])
+        for path in (empty, partial, root):
+            refuse(["scan", str(path)], "nonempty regular file")
+        for path in (root / "missing.bin", linked):
+            refuse(["scan", str(path)], "cannot open read-only source")
+        refuse(["scan", str(flat[0]), "A" * 64], "64 lowercase hexadecimal")
+        refuse(["scan", str(flat[0]), flat[1], flat[1]], "duplicate expected digest")
+        refuse(["replay", str(root / "absent.tsv")], "cannot open replay configuration")
+        for arguments in ([], ["unknown"], ["replay"]):
+            refuse(arguments, "grid_backtest scan", usage=True)
+        refuse(["decode", "00"], "48 hexadecimal")
+        refuse(["decode", "z" * 48], "invalid hexadecimal")
+        refuse(["math-grid", "100", ".01", ".01", "-1"], "unsigned integer")
+        refuse(["math-grid", "100", ".01", ".01", "10001"], "geometric level index")
+        refuse(["math-grid", "100", ".01", ".01", *(["1"] * 257)], "too many grid levels")
+        checks += 1
+    print(f"{checks} integrated study scenarios passed; {refusals} controlled refusals verified")
 
 
 if __name__ == "__main__":

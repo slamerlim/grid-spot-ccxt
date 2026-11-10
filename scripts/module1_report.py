@@ -216,6 +216,35 @@ def report(study: Path, output: Path) -> dict[str, Any]:
             processed_rows=result["processed_rows"],
             portfolio=flatten(result["portfolio"]),
             cycles=result["cycles"],
+            exit_slots=[
+                {
+                    "scope": {key: allocation[key] for key in ("venue", "symbol", "allocation")},
+                    "slot": slot,
+                }
+                for allocation, slot in zip(
+                    result["allocations"], result["exit_slots"], strict=True
+                )
+            ],
+            coverage={
+                key: result[key]
+                for key in (
+                    "start_ms",
+                    "end_ms_exclusive",
+                    "declared_start_ms",
+                    "declared_end_ms_exclusive",
+                    "ending_nav_timestamp_ms",
+                    "source_rows",
+                    "processed_rows",
+                    "calendar_minutes",
+                    "observed_timestamp_groups",
+                    "complete_timestamp_groups",
+                    "unobserved_timestamp_minutes",
+                    "sources",
+                    "terminal_assessment",
+                    "nav_sampling",
+                    "sample_coverage_scope",
+                )
+            },
         )
         trials.append(trial)
     summary = {

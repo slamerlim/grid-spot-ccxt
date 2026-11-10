@@ -74,6 +74,14 @@ UTC days**. All ten sources are present in 993,572 minutes; at least one is
 missing in 7,777. The longest continuous common interval is 95,988 minutes.
 This is not a gap-free one-year study; missing periods are not joined or filled.
 
+Here, calendar alignment means identical funding/start/end boundaries and a
+chronological merge of the actual observations. It does not assert a complete
+observation for every market in every minute. The 695-day shared calendar
+interval supplies the exploratory duration target; uninterrupted complete-year
+coverage is a separate failed data-quality gate. The frozen matrix therefore
+retains this interval and its explicit gaps. A shorter gap-free interval would
+answer a different coverage question and cannot replace the declared study.
+
 Selection used frozen coverage/quality rules before strategy returns. The first
 sparse candidate roster was rejected before returns and remains preserved.
 Coverage selection can still introduce survivorship bias. Flat-price source

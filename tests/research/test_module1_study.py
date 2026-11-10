@@ -303,11 +303,36 @@ def test_report_retains_losses_and_not_run_rows_and_detects_tampering(
         input_sha256=job["input_sha256"],
         start_ms=job["start_ms"],
         end_ms_exclusive=job["end_ms_exclusive"],
+        declared_start_ms=job["start_ms"],
+        declared_end_ms_exclusive=job["end_ms_exclusive"],
+        ending_nav_timestamp_ms=job["end_ms_exclusive"],
         calendar_minutes=1,
         observed_timestamp_groups=1,
         complete_timestamp_groups=1,
+        unobserved_timestamp_minutes=0,
+        nav_sampling="first observed group, first group in each UTC day, final observed group",
+        sample_coverage_scope="observed groups; calendar gaps and declared endpoint are separate",
+        terminal_assessment={
+            "timestamp_ms": job["end_ms_exclusive"],
+            "observed_timestamp_group": True,
+            "raw_nav": "9900",
+            "net_nav": "9900",
+            "buy_hold_raw_nav": "10000",
+            "buy_hold_net_nav": "10000",
+        },
         source_rows=10,
         cycles=[],
+        exit_slots=[
+            dict(
+                anchor_bid=None,
+                orders=0,
+                order_id=None,
+                created_ms=None,
+                started_ms=None,
+                reason="",
+            )
+            for _ in manifest["selected"]
+        ],
         sources=[
             {
                 "path": s["source_path"],
@@ -316,6 +341,10 @@ def test_report_retains_losses_and_not_run_rows_and_detects_tampering(
                 "records": 1,
                 "complete": True,
                 "processed_rows": 1,
+                "missing_minutes": 0,
+                "window_missing_minutes": 0,
+                "leading_missing_minutes": 0,
+                "trailing_missing_minutes": 0,
             }
             for s in manifest["selected"]
         ],
@@ -371,6 +400,70 @@ def test_report_retains_losses_and_not_run_rows_and_detects_tampering(
                 'BUY deferred: "quote reserve", budget': initial // 500,
                 "waiting for terminal seed": initial // 1000,
             }
+    # A missing terminal mark must retain unknown NAV and the scoped exit diagnosis.
+    for row in [result["portfolio"], *result["allocations"], *result["exchanges"]]:
+        cost = int(row["raw"]["beginning_nav"]) // 1000
+        row.update(cash=str(int(row["cash"]) - cost), position_cost=str(cost))
+        for kind in ("raw", "net", "buy_hold_raw", "buy_hold_net"):
+            row[kind].update(ending_nav=None, net_pnl=None, net_return=None, unknown_samples=1)
+            if kind in ("raw", "net"):
+                row[f"{kind}_unrealized_pnl"] = None
+    for allocation in result["allocations"]:
+        allocation.update(
+            owned_base="1",
+            sellable_base=None,
+            residual_base=None,
+            liquidation_valuation_known=False,
+        )
+    result["declared_end_ms_exclusive"] += 60000
+    result["ending_nav_timestamp_ms"] = result["declared_end_ms_exclusive"]
+    result["calendar_minutes"] += 1
+    result["unobserved_timestamp_minutes"] = 1
+    result["terminal_assessment"].update(
+        timestamp_ms=result["declared_end_ms_exclusive"],
+        observed_timestamp_group=False,
+        raw_nav=None,
+        net_nav=None,
+        buy_hold_raw_nav=None,
+        buy_hold_net_nav=None,
+    )
+    for source in result["sources"]:
+        source["trailing_missing_minutes"] = 1
+    result["exit_slots"][0].update(
+        anchor_bid="2.5",
+        orders=4,
+        order_id=17,
+        created_ms=job["start_ms"] + 60000,
+        started_ms=job["start_ms"],
+        reason="exit deadline expired",
+    )
+    result["exit_slots"][1]["reason"] = "minimum lot leaves unsellable residual"
+    output.write_text(json.dumps(result))
+    receipt = study.read_json(trial / "receipt.json")
+    receipt["result_file_sha256"] = sha256(output)
+    (trial / "receipt.json").write_text(json.dumps(receipt))
+    diagnostic = report(folder, tmp_path / "diagnostic-report")
+    retained = study.read_json(tmp_path / "diagnostic-report" / "summary.json")["trials"][0]
+    assert retained == diagnostic["trials"][0]
+    assert retained["portfolio"]["net_ending_nav"] is None
+    assert retained["coverage"] == {key: result[key] for key in retained["coverage"]}
+    assert retained["coverage"]["terminal_assessment"]["observed_timestamp_group"] is False
+    assert retained["coverage"]["terminal_assessment"]["net_nav"] is None
+    assert retained["coverage"]["ending_nav_timestamp_ms"] == job["end_ms_exclusive"] + 60000
+    assert retained["coverage"]["unobserved_timestamp_minutes"] == 1
+    assert retained["coverage"]["sources"][0]["trailing_missing_minutes"] == 1
+    assert retained["coverage"]["nav_sampling"] == result["nav_sampling"]
+    assert retained["coverage"]["sample_coverage_scope"] == result["sample_coverage_scope"]
+    assert retained["exit_slots"] == [
+        {
+            "scope": {
+                key: result["allocations"][index][key] for key in ("venue", "symbol", "allocation")
+            },
+            "slot": slot,
+        }
+        for index, slot in enumerate(result["exit_slots"])
+    ]
+    assert "nav_curve" not in retained and "nav_curve" not in retained["coverage"]
     attempted, failed = plan["jobs"][1:3]
     study.append_registry(folder / "registry.jsonl", {"id": attempted["id"], "status": "RUNNING"})
     failure_receipt = {"status": "FAIL", "validation_failures": ["nonzero_exit"]}

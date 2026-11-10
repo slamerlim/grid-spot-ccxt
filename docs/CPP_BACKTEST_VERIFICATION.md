@@ -292,6 +292,37 @@ passed 17 focused tests, Ruff lint/format and mypy; exact commands and file
 hashes are in `verification/report-interim-delta-v1/receipt.json` under the
 external run root. It is separate from the earlier full Python suite.
 
+A subsequent reporting-only delta retains each allocation's scoped exit slot
+(including blocked reason, anchor, order budget and timing), source/window gap
+counts, terminal assessment and NAV sampling contract in the compact summary.
+Unknown values remain null; daily NAV curves remain in the external CSV.
+The existing integration fixture exercises blocked exits and an unobserved
+terminal endpoint. All 17 focused tests, Ruff lint/format and mypy passed;
+`verification/report-context-delta-v1/receipt.json` binds those checks to the
+two changed Python files. The adjacent `actual-results-review.json` verifies
+that previously retained fields are unchanged and that the new fields equal
+the original outputs for seven completed histories. No financial model,
+execution driver or historical result was changed.
+
+The existing streaming-study integration script subsequently added targeted
+negative admission and boundary tests. Its eight scenario groups and 78
+controlled refusals passed against the same Debug, Release and sanitizer
+executables, with lint/format and strict typing checks. Each refusal checks the
+expected error and absence of partial result output. The tests cover malformed
+configuration, financial precision/funding bounds, unsupported policies,
+whole-source corruption outside the replay window, parser size limits and the
+64-source admission boundary using tiny invented files. Exact commands, source
+and executable hashes, and a guard-to-test mapping are retained under
+`verification/guard-delta-v1/`. Neither the engine nor its binaries changed.
+
+This is targeted guard coverage, not exhaustive defensive-branch coverage.
+The mapping explicitly retains unforced large NAV/output caps, trace-protocol
+bounds, internal-state corruption and allocation/crypto/system I/O failures.
+Do not infer that every defensive error branch was triggered. Existing seeded
+conservation/interleaving checks and all per-run financial validations remain.
+Historical C++ replay is deterministic from the beginning; it has no checkpoint
+resume capability. Strategy cycle/round restarts are a separate tested behavior.
+
 The first interim publication scan flagged public fingerprints in the new
 compact summary. Each of the 33 distinct flagged values was independently
 matched to the SHA-256 of its config, cohort, executable, input, result or CSV
