@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import resource
 import struct
 import subprocess
 import sys
@@ -98,6 +99,7 @@ def main() -> None:
     program = Path(sys.argv[1]).resolve(strict=True)
     checks = 0
     refusals = 0
+    max_stream_bytes = 0
     with tempfile.TemporaryDirectory(prefix="grid-cpp-study-") as directory:
         root = Path(directory)
 
@@ -144,6 +146,42 @@ def main() -> None:
             error = completed.stderr.decode() if usage else json.loads(completed.stderr)["error"]
             assert isinstance(error, str) and expected_error in error, error
             refusals += 1
+
+        def stream_file(
+            mode: str, payload: str, expected_error: str | None, expected_rows: int = 0
+        ) -> None:
+            nonlocal refusals, max_stream_bytes
+            path, output_path = root / "trace.tsv", root / "trace-output.jsonl"
+            path.write_text(payload)
+
+            def output_limit() -> None:
+                resource.setrlimit(resource.RLIMIT_FSIZE, (16 * 1024 * 1024,) * 2)
+
+            with output_path.open("wb") as output:
+                completed = subprocess.run(
+                    [str(program), mode, str(path)],
+                    stdout=output,
+                    stderr=subprocess.PIPE,
+                    timeout=30,
+                    check=False,
+                    preexec_fn=output_limit,
+                )
+            max_stream_bytes = max(max_stream_bytes, output_path.stat().st_size)
+            assert completed.returncode == (0 if expected_error is None else 2), completed
+            if expected_error is None:
+                assert not completed.stderr, completed.stderr
+            else:
+                error = json.loads(completed.stderr)["error"]
+                assert isinstance(error, str) and expected_error in error, error
+                refusals += 1
+            # Trace/bar commands stream each completed observation before a later refusal.
+            # Unlike replay, they do not promise all-or-nothing stdout publication.
+            with output_path.open("rb") as rendered:
+                row_count = 0
+                for line in rendered:
+                    assert isinstance(json.loads(line), dict)
+                    row_count += 1
+            assert row_count == expected_rows, (mode, expected_rows, row_count)
 
         flat = source("flat.bin", [(60000 * n, 100, 100, 100, 100) for n in range(1, 5)])
         text = configuration([flat])
@@ -376,7 +414,153 @@ def main() -> None:
         refuse(["math-grid", "100", ".01", ".01", "10001"], "geometric level index")
         refuse(["math-grid", "100", ".01", ".01", *(["1"] * 257)], "too many grid levels")
         checks += 1
-    print(f"{checks} integrated study scenarios passed; {refusals} controlled refusals verified")
+
+        # Portfolio constructors impose stricter bounds than the generic TSV integers.
+        for changes, reason in (
+            ({"initial_quote_cash": "0"}, "positive unique allocation funding"),
+            ({"exchange_tp_threshold": "0"}, "invalid bounded portfolio policy"),
+            ({"symbol_tp_threshold": "-0.1"}, "invalid bounded portfolio policy"),
+            ({"max_deviation": "-0.1"}, "invalid bounded portfolio policy"),
+            ({"max_deviation": "1"}, "invalid bounded portfolio policy"),
+            ({"max_reprices": "1001"}, "invalid bounded portfolio policy"),
+            ({"nav_order_budget": "1001"}, "invalid bounded portfolio policy"),
+            ({"max_reprices": "-1"}, "bounded trace integer"),
+            ({"nav_order_budget": "0"}, "bounded trace integer"),
+            ({"mark_max_age_ms": "-1"}, "bounded trace integer"),
+            ({"exit_ttl_ms": "0"}, "bounded trace integer"),
+            ({"exit_duration_ms": "0"}, "bounded trace integer"),
+            ({"exchange_tp_enabled": "2"}, "bounded trace integer"),
+            ({"symbol_tp_enabled": "2"}, "bounded trace integer"),
+        ):
+            run(configuration([flat], **changes), False, reason)
+        run(
+            configuration(
+                [flat],
+                max_reprices="1000",
+                nav_order_budget="1000",
+                max_deviation="0",
+                exit_ttl_ms="1",
+                exit_duration_ms="1",
+                max_cycles="1",
+            )
+        )
+        checks += 1
+
+        trace_header = "GRID_MODULE1_TRACE\t1\n"
+        scope_row = "SCOPE\tv\ta\tASSET/USDT\tx\tg\tc\n"
+        trace = (
+            trace_header
+            + scope_row
+            + "".join(
+                line + "\n"
+                for line in text.splitlines()
+                if line.startswith(("CONFIG\t", "FEE_RULE\t"))
+            )
+        )
+        start = "EVENT\tStart\n"
+        stream_file("trace", trace + start, None, 1)
+        trace_invalid = (
+            ("GRID_MODULE1_TRACE\t2\n", "unsupported trace schema"),
+            (trace_header + "\n", "empty trace row"),
+            (trace_header + "UNKNOWN\t1\n", "unknown trace row type"),
+            (trace, "at least one event"),
+            (trace + scope_row, "duplicate trace scope"),
+            (trace + "CONFIG\tspacing\t0.01\n", "duplicate trace config"),
+            (trace + "CONFIG\textra\t1\n" + start, "unknown trace config"),
+            (trace + buy_fee + "\n", "duplicate fee rule"),
+            (trace + "TOKEN\tX\t1\nTOKEN\tX\t1\n", "duplicate token funds"),
+            (trace + "TOKEN\tX\t-1\n" + start, "negative fee token funds"),
+            (trace + "TOKEN\tX\t0.0000000000001\n" + start, "not representable"),
+            (trace.replace(scope_row, "") + start, "scope and both fee rules"),
+            (trace.replace(scope_row, "SCOPE\tv\n"), "field count"),
+            (trace + "TOKEN\tX\n", "field count"),
+            (trace.replace("FEE_RULE\tbuy\t", "FEE_RULE\tother\t"), "fee rule side"),
+            (trace.replace("FEE_RULE\tbuy\tQUOTE", "FEE_RULE\tbuy\t"), "identifier"),
+        )
+        for payload, reason in trace_invalid:
+            stream_file("trace", payload, reason)
+        for event_row, reason in (
+            ("EVENT", "missing trace event type"),
+            ("EVENT\tOther", "unsupported trace event"),
+            ("EVENT\tStart\textra", "field count"),
+            ("EVENT\tFill\tt", "short fill trace"),
+            ("EVENT\tFill\tt\t0\t1\t100\t0", "bounded trace integer"),
+            ("EVENT\tFill\tt\t1\t0\t100\t0", "positive fill values"),
+            ("EVENT\tFill\tt\t1\t1\t-1\t0", "positive fill values"),
+            ("EVENT\tFill\tt\t1\t1\t100\t17", "bounded trace integer"),
+            ("EVENT\tFill\tt\t1\t1\t100\t1", "field count"),
+            ("EVENT\tFill\tt\t1\t1\t100\t1\tX\t1\t-1", "fee conversion sign"),
+            ("EVENT\tOrderReport\t1\tunknown\t0\t1", "unsupported order status"),
+            ("EVENT\tOrderReport\t1\topen\t-1\t1", "negative reported cumulative"),
+            ("EVENT\tOrderReport\t1\topen\t0\t2", "bounded trace integer"),
+            ("EVENT\tCancelAcknowledged\t0", "bounded trace integer"),
+            ("EVENT\tSubmissionUnknown\t1\textra", "field count"),
+            ("EVENT\tControl\t1\tunknown", "unsupported control mode"),
+            ("EVENT\tControl\t0\tpaused", "bounded trace integer"),
+            ("EVENT\tReconciled\t1", "field count"),
+        ):
+            stream_file("trace", trace + event_row + "\n", reason)
+        stream_file("trace", trace + start + "CONFIG\tspacing\t0.01\n", "config after events", 1)
+        refuse(["trace", str(root / "missing-trace.tsv")], "cannot open trace file")
+        checks += 1
+
+        bar_models = (
+            "BAR_CONFIG\tmodel\tstrict_skip_ambiguous\n"
+            "BAR_CONFIG\tlatency_bars\t1\nBAR_CONFIG\tsynthetic_spread\t0.001\n"
+        )
+        bars_prefix = trace.replace(
+            "CONFIG\tallow_new_exposure\t1", "CONFIG\tallow_new_exposure\t0"
+        )
+        bars_prefix += bar_models
+        raw_bar = struct.pack("<qffff", 60000, 100, 100, 100, 100).hex()
+        bar_row = f"BAR\t{raw_bar}\n"
+        stream_file("bars", bars_prefix + bar_row, None, 1)
+        for payload, reason in (
+            (trace + bar_row, "all bar model fields required"),
+            (trace + "BAR_CONFIG\tmodel\n", "field count"),
+            (trace + "BAR_CONFIG\tother\t1\n", "unknown bar config"),
+            (bars_prefix + "BAR_CONFIG\tmodel\tstrict_skip_ambiguous\n", "duplicate bar config"),
+            (bars_prefix.replace("strict_skip_ambiguous", "other") + bar_row, "unsupported OHLC"),
+            (
+                bars_prefix.replace("BAR_CONFIG\tlatency_bars\t1", "BAR_CONFIG\tlatency_bars\t0"),
+                "bounded trace integer",
+            ),
+            (bars_prefix + "BAR\n", "field count"),
+            (bars_prefix + "BAR\t00\n", "48 hexadecimal"),
+            (bars_prefix + "BAR\t" + "z" * 48 + "\n", "invalid raw bar hexadecimal"),
+        ):
+            stream_file("bars", payload, reason)
+        incompatible = struct.pack("<qffff", 60000, 100.001, 100.001, 100.001, 100.001).hex()
+        stream_file("bars", bars_prefix + f"BAR\t{incompatible}\n", "incompatible")
+        stream_file("bars", bars_prefix + bar_row * 2, "chronology must strictly advance", 1)
+        stream_file("bars", bars_prefix + bar_row + bar_models, "late or duplicate bar config", 1)
+        checks += 1
+
+        # These protocol caps use small empty-state records, with output limited to 16 MiB.
+        stream_file("trace", trace_header + "x" * (1048576 - len(trace_header)), "input bound")
+        stream_file("trace", trace_header + "x" * (1048577 - len(trace_header)), "byte bound")
+        stream_file(
+            "trace",
+            trace_header + row_prefix + "x" * (65536 - len(row_prefix)),
+            "at least one event",
+        )
+        stream_file(
+            "trace", trace_header + row_prefix + "x" * (65537 - len(row_prefix)), "input bound"
+        )
+        trace_rows = [f"CONFIG\tpadding{index}\t0\n" for index in range(20001)]
+        stream_file("trace", trace_header + "".join(trace_rows[:20000]), "at least one event")
+        stream_file("trace", trace_header + "".join(trace_rows), "input bound")
+        stream_file("trace", trace + start * 10001, "trace event bound exceeded", 10000)
+        raw_rows = "".join(
+            "BAR\t" + struct.pack("<qffff", index * 60000, 100, 100, 100, 100).hex() + "\n"
+            for index in range(1, 10002)
+        )
+        stream_file("bars", bars_prefix + raw_rows, "bar input bound exceeded", 10000)
+        checks += 1
+    print(
+        f"{checks} integrated study scenarios passed; {refusals} controlled refusals verified; "
+        f"maximum streamed output {max_stream_bytes} bytes"
+    )
 
 
 if __name__ == "__main__":

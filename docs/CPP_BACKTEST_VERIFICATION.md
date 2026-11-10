@@ -327,10 +327,29 @@ whole-source corruption outside the replay window, parser size limits and the
 and executable hashes, and a guard-to-test mapping are retained under
 `verification/guard-delta-v1/`. Neither the engine nor its binaries changed.
 
+The next focused delta expands the same script to twelve scenario groups and
+148 controlled refusals. It covers trace/bar schema, field counts, duplicate
+configuration, malformed fills/reports/controls, late configuration, raw-bar
+encoding/chronology/precision, the 1-MiB input and 65,536-byte line limits,
+20,000 configuration rows, 10,000 events/bars and portfolio exit-policy bounds.
+Boundary fixtures check accepted limits as well as rejection. Trace and bar
+commands deliberately retain valid streamed observations before a later error;
+their cap tests independently parse and count exactly 10,000 retained rows.
+Replay refusal still requires no partial result publication. Output is streamed
+to temporary files under a 16-MiB file limit and 30-second child deadline;
+the largest observed output was 7,610,000 bytes.
+
+The existing study-integration CTest passed against the unchanged Debug,
+Release and ASan/UBSan executables in 2.74, 1.30 and 14.45 seconds respectively.
+Scoped lint/format and strict typing passed. Exact commands, logs, executed test
+script, source/binary hashes and the updated guard mapping are under
+`verification/guard-trace-delta-v1/`. No engine source, historical configuration
+or executable changed.
+
 This is targeted guard coverage, not exhaustive defensive-branch coverage.
-The mapping explicitly retains unforced large output caps, trace-protocol
-bounds, internal-state corruption and allocation/crypto/system I/O failures.
-Do not infer that every defensive error branch was triggered. Existing seeded
+The updated mapping retains unforced large internal output buffers,
+internal-state corruption and allocation/crypto/system I/O failures. Do not
+infer that every defensive error branch was triggered. Existing seeded
 conservation/interleaving checks and all per-run financial validations remain.
 Historical C++ replay is deterministic from the beginning; it has no checkpoint
 resume capability. Strategy cycle/round restarts are a separate tested behavior.
@@ -372,6 +391,14 @@ These are discrete samples, not a continuously measured high-water mark.
 Reader ownership is bounded to one source descriptor and a 98,304-byte buffer
 per admitted source; the frozen portfolio has ten sources. No running child's
 limits or file descriptors were modified for this observation.
+
+The first actual ten-market portfolio child was separately observed running
+with 13 descriptors, including exactly ten source descriptors, all opened
+read-only. Observed RSS was 10,448 KiB. Its process identity, descriptor flags
+and inherited resource limits are retained in
+`verification/portfolio-live-observation-v1/receipt.json`. This is a discrete
+live observation, not a completed replay or a continuous resource peak.
+Source read-ahead positions are not proof of completed financial processing.
 
 Rollback is a normal revert/removal of this isolated research increment through
 reviewed version control. No live database migration or source-data rewrite is
