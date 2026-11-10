@@ -1,8 +1,8 @@
 # Module 1 C++ research verification
 
 Status: in progress. Rebuilt Debug/Release/sanitizer gates and a bounded real-bar
-financial comparison pass. All ten individual full histories are complete;
-the twelve matched portfolio comparisons remain incomplete.
+financial comparison pass. All ten individual full histories and the first of
+twelve matched portfolio comparisons are complete; the matrix remains incomplete.
 This document records executed scopes, not a blanket acceptance pass.
 
 Starting HEAD: `cd48dd01734d2b84ad13651e907e72fc437a0cbc`, branch
@@ -263,7 +263,7 @@ three repeats, with result SHA-256
 Every preceding JSON field matches the earlier result after removing only the
 added notice maps; see `verification/cpp-window-profile/release-v3-notices/`.
 
-The full replacement study is running with the same command above and exclusive
+The full replacement study uses the same command above and exclusive
 output directory `/opt/grid-runs/module1-20261110/full-study-v4-notices`.
 
 The exclusive directory retains the copied executable, exact configuration,
@@ -272,9 +272,9 @@ resource/output receipts where returned. Cases run sequentially with a six-hour 
 512 MiB address-space ceiling and 32 MiB per-output-file cap. No archive writes
 or cache eviction are performed. A RUNNING registry entry is not completion.
 
-All ten full histories have now completed. The next required evidence is all
-twelve frozen portfolio cases, with accounting, failed/negative trials and
-source/config/result hashes. No full-study completion claim is made here.
+All ten full histories and `seed_multi_strict` have now completed. Eleven frozen
+portfolio cases remain without completed receipts in the first-portfolio
+publication snapshot below. No full-study completion claim is made here.
 
 ### Interim result publication and current-build check
 
@@ -347,8 +347,9 @@ script, source/binary hashes and the updated guard mapping are under
 or executable changed.
 
 This is targeted guard coverage, not exhaustive defensive-branch coverage.
-The updated mapping retains unforced large internal output buffers,
-internal-state corruption and allocation/crypto/system I/O failures. Do not
+The mapping predates the byte-cap probes below. Remaining unforced paths include
+the cycle-event byte cap, internal-state corruption, allocation/crypto failures
+and other operating-system faults beyond the specific I/O checks recorded here. Do not
 infer that every defensive error branch was triggered. Existing seeded
 conservation/interleaving checks and all per-run financial validations remain.
 Historical C++ replay is deterministic from the beginning; it has no checkpoint
@@ -361,8 +362,31 @@ bytes). It exited 2 with the expected capacity error and zero stdout in
 Source identity/hash and the frozen executable hash remained unchanged. The
 earlier guard mapping predates this additional evidence; its NAV-sample-count
 gap is now closed. `verification/guard-nav-cap-v1/receipt.json` retains the exact
-command, fixture, driver and output hashes. No historical source was read and
+command, fixture, helper/source/executable hashes, status and retained output.
+The probe was executed inline; no standalone driver file is claimed.
+No historical source was read and
 no production limits were lowered to make the test pass.
+
+Two further bounded probes used the unchanged frozen historical executable and
+invented daily flat bars with new exposure disabled. A 32-bar control verified
+exact cash-only NAV before testing large decimal output using `1e96` synthetic
+cash/quanta/reserve values. Both refusals exited 2 with their specific JSON error,
+zero stdout and unchanged source/executable identities:
+
+| Guard | Invented bars / source bytes | Wall time | Peak RSS |
+|---|---:|---:|---:|
+| NAV sample bytes exceeded | 55,392 / 1,329,408 | 3.736960 s | 73,552 KiB |
+| Final study JSON exceeds 32 MiB | 55,391 / 1,329,384 | 3.806646 s | 139,092 KiB |
+
+The second fixture remains below both NAV sample caps and reaches the separate
+final JSON guard. Its refused final JSON size was not emitted or measured.
+Receipts, standalone probe scripts, exact commands, control results and hashes are
+`verification/guard-nav-bytes-v1/receipt.json` and
+`verification/guard-final-json-v1/receipt.json`. Each child had a 60-second timeout,
+512-MiB address-space ceiling and 32-MiB per-output-file limit. No historical
+archive, production limit or running job was changed. These tests close the NAV
+buffer and final result byte-cap evidence gaps; they do not exercise the remaining
+cycle-event buffer, allocation, crypto or arbitrary syscall failures.
 
 The first interim publication scan flagged public fingerprints in the new
 compact summary. Each of the 33 distinct flagged values was independently
@@ -399,6 +423,106 @@ and inherited resource limits are retained in
 `verification/portfolio-live-observation-v1/receipt.json`. This is a discrete
 live observation, not a completed replay or a continuous resource peak.
 Source read-ahead positions are not proof of completed financial processing.
+
+### Same-timestamp source-order permutation evidence
+
+`verification/source-order-permutation-v1/receipt.json` records **60 passing
+comparisons**: all six permutations of three complete SOURCE rows, five successive
+replay-window cutoffs, and the preserved Debug/Release executables. The three
+invented six-bar files total 432 bytes, with tied timestamps and separately funded
+allocations on two venues. Symbol and exchange TP were enabled alongside mandatory
+global TP. Handwritten checks cover distinct seed quantities and cash, global
+precedence, three exit SELLs, completion and a strictly later restart.
+
+Every field and array order in the complete published JSON matches after removing
+only `input_sha256`, which necessarily changes with TSV row order. Five cutoffs
+expose financial/state summaries and complete cycle-event chronology; this does
+not claim a full internal order-event trace. The largest child used 15,072 KiB RSS,
+0.034 seconds and 18,111 output bytes, under 10-second/512-MiB/32-MiB bounds.
+Source and binary identities were unchanged. The initial probe omitted the
+required paired start bound and was correctly refused; that failed setup and its
+corrected inputs remain retained. No repository edit or historical read occurred.
+
+### Final stdout failure correction and fresh builds
+
+A small output redirected to Linux `/dev/full` exposed a CLI defect: the preserved
+executable returned success before buffered stdout was flushed. The sole production
+change is an explicit `std::cout.flush()` before the existing stream check in
+`main.cpp`. The old failure remains reproduced in
+`verification/output-write-probe-v2/receipt.json`; the fixed Release returns 2
+with `{"error":"output write failed"}` for the same tiny mathematical command.
+
+The existing study integration now has **13 scenarios and 159 controlled
+refusals**. Six paired checks verify ordinary output and write-failure reporting
+for math-grid, decode, scan, trace, bars and replay. Five additional negatives
+exercise the SELL price-search bound, rational product bound, Decimal96 exponent
+bound, and directory read failures for replay/trace. Existing C++ tests add
+source truncation after admission, simulator transition/ownership/notice guards,
+and invalid portfolio rosters. These are targeted additions, not proof that every
+defensive branch or operating-system failure has been exercised.
+
+Fresh directories preserve all preceding executables. Each uses the commands
+above with `-j2`, `GRID_PYTHON` unchanged, the appropriate build type and
+`GRID_SANITIZE=ON` only for the sanitizer build. All commands and exit codes are in
+`verification/cpp-writefix-v1/receipt.json`:
+
+| Fresh build directory under `/opt/grid-builds/module1/` | CTests | CTest wall time |
+|---|---:|---:|
+| `debug-writefix` | 8/8 | 5.12 s |
+| `release-writefix` | 8/8 | 3.22 s |
+| `sanitize-writefix` (ASan/UBSan) | 8/8 | 23.00 s |
+
+Each suite includes 10,074 primitive checks, 70 portfolio checks, 27 engine
+integration checks, the 13 study scenarios, and the existing Python mathematical,
+lifecycle, bar and portfolio-NAV comparisons. The 120 captured C++/Python/config
+and lock files matched before/after; all 13 preserved binaries were unchanged.
+Ordinary output on the existing tiny synthetic study is byte-identical between
+the old binary and all three fresh builds, with **no excluded fields**, SHA-256
+`6de55877431d0054d8ca0a29644984a556bc8987e8001bba84c002e1aedd44cb`.
+The external evidence driver initially collided output and receipt filenames
+after all tests passed; its failure is retained, and a separate finalizer completed
+the comparisons without repeating builds or changing production code.
+
+The fresh Release SHA-256 is
+`1ef9b68151d9632b4f9141e52f8797732a0ac76fe5759122b64cdb0fef6516c1`.
+Historical runs continue to use their original copied executable, SHA-256
+`1284b8e183ccb49bf6db0bfa2de80165a0ab09f4fc7dfe80f15ace633281315b`.
+The new executable has not been substituted into the frozen matrix. Accepted
+historical results require complete parseable output, verified result hashes,
+source identity and accounting checks; the old CLI exit status alone is not a
+publication gate. The tiny parity result does not imply historical runs were
+repeated with the fixed binary.
+
+### First portfolio extraction and supplementary statistics checks
+
+`seed_multi_strict` completed at 2026-11-10 17:15:01 UTC: exit 0, 10,005,677
+aligned rows processed, complete hashes checked over all 19,965,272 source rows,
+2,035.244700 child wall seconds and 13,944 KiB peak RSS. Its retained result
+SHA-256 is `35b43b688474ab3a7556109ecebce998b7be7f353ba23b1826607f7d91d0c980`.
+Net ending NAV is 9,856.393284750065 from 10,000 funded USDT, with 2,606 unknown
+valuation samples retained; there was no global TP trigger. This is a completed
+negative assumption-based research result, not certified executable performance.
+
+`verification/portfolio1-extraction-20261110T1715Z/receipt.json` records successful
+immutable CSV/summary extraction and unchanged monthly-analysis/verifier commands.
+The snapshot contains eleven PASS results (ten individual histories plus this
+portfolio), one INCOMPLETE attempt and ten NOT_RUN cases. Exact Fraction checks
+validated 490 monthly spans and 14,593 retained NAV points. Daily sampling cannot
+independently reconstruct the reported minute-level drawdown or underwater path.
+
+The separate `verification/portfolio-statistics-review-v1/` receipts supplement
+money/NAV checks with integer fill/cancel/order and notice aggregates, reservation
+sums, profit-factor arithmetic, global cycle chronology/baselines, within-trial
+rankings and derived exchange totals. Ten individual outputs and the first
+portfolio passed. Checker fixtures rejected twelve altered results and accepted
+three handwritten profit-factor cases; unknown returns stayed unranked.
+`first-portfolio-execution.json` retains the exact first-portfolio command and
+result binding. Its full-fill order partition applies only to the frozen fill
+scenario. Child restart baselines are checked for funding/aggregate consistency,
+not independently reconstructed from absent per-allocation restart marks. No
+portfolio time-average utilization is inferred from unequal observed-bar averages.
+These checks read retained outputs only; they neither replay history nor establish
+profitability, continuous valuation coverage or completion of the remaining matrix.
 
 Rollback is a normal revert/removal of this isolated research increment through
 reviewed version control. No live database migration or source-data rewrite is

@@ -410,6 +410,30 @@ def main() -> None:
             refuse(arguments, "grid_backtest scan", usage=True)
         refuse(["decode", "00"], "48 hexadecimal")
         refuse(["decode", "z" * 48], "invalid hexadecimal")
+        refuse(["replay", str(root)], "replay configuration read failed")
+        refuse(["math-grid", "1", "1e96", ".01", "10000"], "exact rational product bound exceeded")
+        refuse(["math-grid", "1", "9", ".01", "1000"], "Decimal96 planner exponent unsupported")
+        refuse(
+            [
+                "math-tp",
+                "1",
+                "1",
+                ".01",
+                "1",
+                "1",
+                "0",
+                "1",
+                "0",
+                "QUOTE",
+                ".999",
+                "1",
+                "-",
+                "64",
+                ".01",
+                "1",
+            ],
+            "SELL price search bound exceeded",
+        )
         refuse(["math-grid", "100", ".01", ".01", "-1"], "unsigned integer")
         refuse(["math-grid", "100", ".01", ".01", "10001"], "geometric level index")
         refuse(["math-grid", "100", ".01", ".01", *(["1"] * 257)], "too many grid levels")
@@ -502,6 +526,7 @@ def main() -> None:
             stream_file("trace", trace + event_row + "\n", reason)
         stream_file("trace", trace + start + "CONFIG\tspacing\t0.01\n", "config after events", 1)
         refuse(["trace", str(root / "missing-trace.tsv")], "cannot open trace file")
+        refuse(["trace", str(root)], "trace input read failed")
         checks += 1
 
         bar_models = (
@@ -556,6 +581,53 @@ def main() -> None:
             for index in range(1, 10002)
         )
         stream_file("bars", bars_prefix + raw_rows, "bar input bound exceeded", 10000)
+        checks += 1
+
+        # Small buffered responses must report final-flush errors, not exit successfully.
+        full_device = Path("/dev/full")
+        assert full_device.is_char_device(), "Linux /dev/full is required for output-failure checks"
+        trace_path, bars_path, replay_path = (
+            root / "output-trace.tsv",
+            root / "output-bars.tsv",
+            root / "output-replay.tsv",
+        )
+        trace_path.write_text(trace + start)
+        bars_path.write_text(bars_prefix + bar_row)
+        replay_path.write_text(configuration([flat]))
+        for arguments, expected_errors in (
+            (["math-grid", "100", ".01", ".01", "1"], ("output write failed",)),
+            (["decode", raw_bar], ("output write failed",)),
+            (["scan", str(flat[0]), flat[1]], ("output write failed",)),
+            (["trace", str(trace_path)], ("output write failed", "trace output failed")),
+            (["bars", str(bars_path)], ("output write failed", "bar output failed")),
+            (["replay", str(replay_path)], ("output write failed", "study output failed")),
+        ):
+            output_path = root / "output-control.json"
+            with output_path.open("wb") as output:
+                completed = subprocess.run(
+                    [str(program), *arguments],
+                    stdout=output,
+                    stderr=subprocess.PIPE,
+                    timeout=10,
+                    check=False,
+                )
+            assert completed.returncode == 0 and not completed.stderr, completed
+            observed = json.loads(output_path.read_bytes())
+            assert isinstance(observed, dict)
+            if arguments[0] == "math-grid":
+                assert observed == {"prices": ["99"]}
+            with full_device.open("wb", buffering=0) as full_output:
+                completed = subprocess.run(
+                    [str(program), *arguments],
+                    stdout=full_output,
+                    stderr=subprocess.PIPE,
+                    timeout=10,
+                    check=False,
+                )
+            assert completed.returncode == 2, (arguments, completed)
+            error = json.loads(completed.stderr)
+            assert set(error) == {"error"} and error["error"] in expected_errors, error
+            refusals += 1
         checks += 1
     print(
         f"{checks} integrated study scenarios passed; {refusals} controlled refusals verified; "

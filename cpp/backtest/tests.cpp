@@ -187,6 +187,17 @@ void source() {
     grid::RawReader growing(initially_tiny.string());
     append(initially_tiny, record(120000, {1, 1, 1, 1}));
     rejects([&] { (void)growing.next(current); }, "growth before first read cannot underflow size bound");
+    const auto truncated = temporary.path / "truncated.bin";
+    append(truncated, raw);
+    append(truncated, record(120000, {1, 1, 1, 1}));
+    grid::RawReader shrinking(truncated.string());
+    std::filesystem::resize_file(truncated, 25);
+    bool truncation_rejected = false;
+    try { (void)shrinking.next(current); }
+    catch (const grid::Error& error) {
+        truncation_rejected = std::string(error.what()) == "source truncated during read";
+    }
+    check(truncation_rejected, "partial source truncation after admission rejects before first bar");
     const auto linked = temporary.path / "linked.bin";
     std::filesystem::create_symlink(path, linked);
     rejects([&] { grid::RawReader symlink(linked.string()); }, "source symlink refused");

@@ -2,14 +2,16 @@
 #include "history.hpp"
 
 #include <iostream>
+#include <string_view>
 
 namespace {
 using grid::Rational;
 unsigned checks = 0;
 Rational q(const char* value) { return Rational(value); }
 void check(bool condition, const char* detail) { ++checks; if (!condition) throw grid::Error(detail); }
-template <typename Function> void rejects(Function function, const char* detail) {
-    bool rejected = false; try { function(); } catch (const grid::Error&) { rejected = true; }
+template <typename Function> void rejects(Function function, const char* detail, std::string_view expected = {}) {
+    bool rejected = false;
+    try { function(); } catch (const grid::Error& error) { rejected = expected.empty() || expected == error.what(); }
     check(rejected, detail);
 }
 grid::EngineContext context() {
@@ -42,6 +44,26 @@ grid::PortfolioAllocation row(const grid::EngineState& s, const grid::EngineCont
 }
 void accept(grid::EngineState& s, grid::PortfolioStep& result, std::size_t index = 0) {
     for (auto& action : result.actions) if (action.allocation == index) s = std::move(action.transition.state);
+}
+void public_roster_guards() {
+    auto c = context();
+    const auto a = state(c, "100", "0"), b = state(c, "100", "0", "gate", "ETH/USDT");
+    grid::PortfolioCoordinator coordinator({}, {a.scope, b.scope}, {q("100"), q("100")});
+    rejects([&] { (void)coordinator.evaluate({}, 0); }, "incomplete roster rejected",
+            "complete increasing timestamp groups required");
+    auto missing_state = row(a, c); missing_state.state = nullptr;
+    rejects([&] { (void)coordinator.evaluate({missing_state, row(b, c)}, 0); },
+            "null state rejected before dereference", "portfolio roster changed");
+    auto missing_context = row(a, c); missing_context.context = nullptr;
+    rejects([&] { (void)coordinator.evaluate({missing_context, row(b, c)}, 0); },
+            "null context rejected before dereference", "portfolio roster changed");
+    rejects([&] { (void)coordinator.evaluate({row(b, c), row(a, c)}, 0); },
+            "scope at wrong roster index rejected", "portfolio roster changed");
+    rejects([&] { (void)coordinator.evaluate({row(a, c), row(a, c)}, 0); },
+            "duplicate scope cannot replace missing allocation", "portfolio roster changed");
+    const auto valid = coordinator.evaluate({row(a, c), row(b, c)}, 0);
+    check(valid.events.empty() && coordinator.cycles()[0].triggers == 0,
+          "rejected rosters consume neither timestamp nor funded portfolio state");
 }
 void valuation() {
     auto c = context(); auto s = state(c, "100", "1.23456");
@@ -250,7 +272,7 @@ int main(int argc,char** argv) {
     try {
         if(argc>1 && std::string(argv[1])=="--nav-probe") { probe(argc,argv); return 0; }
         if(argc!=1) throw grid::Error("unknown portfolio test command");
-        valuation(); lifecycle(); limits_and_precedence(); cancellation_barrier(); reprice_budget_and_handoff();
+        public_roster_guards(); valuation(); lifecycle(); limits_and_precedence(); cancellation_barrier(); reprice_budget_and_handoff();
         std::cout<<checks<<" portfolio checks passed\n"; return 0;
     } catch(const std::exception& error) { std::cerr<<"portfolio check "<<checks<<": "<<error.what()<<'\n'; return 1; }
 }

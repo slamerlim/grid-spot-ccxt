@@ -108,6 +108,7 @@ int main(int argc, char** argv) {
                                                           grid::Rational(argv[15]), grid::Rational(argv[16]), sell_fee);
             std::cout << grid::tp_json(plan, sell_fee) << '\n';
         } else { usage(); return 2; }
+        std::cout.flush();
         if (!std::cout) throw grid::Error("output write failed");
         return 0;
     } catch (const std::exception& error) {

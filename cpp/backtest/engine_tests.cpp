@@ -3,12 +3,19 @@
 #include <algorithm>
 #include <bit>
 #include <iostream>
+#include <string>
+#include <string_view>
 
 namespace {
 using grid::Rational;
 unsigned checks = 0;
 Rational q(const char* text) { return Rational(text); }
 void check(bool accepted, const char* message) { ++checks; if (!accepted) throw grid::Error(message); }
+template <typename Function> void rejects(Function function, std::string_view expected) {
+    bool rejected = false;
+    try { function(); } catch (const grid::Error& error) { rejected = expected == error.what(); }
+    check(rejected, "public simulator guard must report the expected failure");
+}
 grid::EngineContext context() {
     grid::EngineContext c;
     c.market = {q(".01"), q(".001"), {q(".01"), q("1000000")},
@@ -49,6 +56,33 @@ void direct_admission() {
     check(!result.accepted && result.state.quote_cash == cash, "direct oversized fee list rejects atomically");
     result = grid::reduce(s, grid::ControlEvent {s.scope, 1, "invalid"}, c);
     check(!result.accepted && result.state.mode == "active", "direct invalid control mode rejects");
+}
+void public_transition_guards() {
+    const auto c = context();
+    const auto s = initial(c);
+    const grid::BarModel model {"strict_skip_ambiguous", 1, q(".001"), true};
+    // Deliberately invalid public API inputs, never claimed reducer outputs.
+    const auto refuse = [&](grid::Transition transition, std::string_view expected) {
+        grid::Simulator simulation(s, c, model);
+        rejects([&] { simulation.accept(std::move(transition), 0); }, expected);
+    };
+    grid::Simulator notices(s, c, model);
+    std::vector<std::string> names;
+    for (unsigned index = 0; index < 128; ++index) names.push_back("notice-" + std::to_string(index));
+    notices.accept({s, {}, names, true}, 0);
+    check(notices.metrics.notices.size() == 128, "128 distinct notices remain admissible");
+    rejects([&] { notices.accept({s, {}, {"notice-128"}, true}, 0); }, "research notice capacity exceeded");
+    refuse({s, {{"PlaceLimit", std::nullopt, 0, {}}}, {}, true}, "placement command has no order");
+    refuse({s, {{"Reconcile", std::nullopt, 0, {}}}, {}, true}, "OHLC cannot supply reconciliation evidence");
+    auto negative = s; negative.quote_cash = -1;
+    refuse({negative, {}, {}, true}, "negative synthetic ownership");
+    const auto working = grid::reduce(s, grid::StartEvent{s.scope}, c).state;
+    for (const std::string currency : {"QUOTE", "BASE", "TOKEN"}) {
+        auto overreserved = working;
+        overreserved.fee_balances["TOKEN"] = 0;
+        overreserved.orders.front().reserves[currency] = currency == "QUOTE" ? overreserved.quote_cash + 1 : 1;
+        refuse({overreserved, {}, {}, true}, "replay reservation exceeds finite ownership");
+    }
 }
 void gap_and_policies() {
     auto c = context(); c.policy.ladder_size = 1; c.ladder_policy = "ladder_one";
@@ -102,6 +136,6 @@ void gap_and_policies() {
 }
 } // namespace
 int main() {
-    try { direct_admission(); gap_and_policies(); std::cout << checks << " engine integration checks passed\n"; return 0; }
+    try { direct_admission(); public_transition_guards(); gap_and_policies(); std::cout << checks << " engine integration checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << "engine check " << checks << ": " << error.what() << '\n'; return 1; }
 }
