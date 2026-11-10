@@ -1,13 +1,15 @@
 # Module 1 ten-market historical backtest report
 
-**INCOMPLETE — first matched portfolio snapshot, 2026-11-10 17:15 UTC.**
+**INCOMPLETE — second matched portfolio snapshot, 2026-11-10 17:48 UTC.**
 All ten individual full histories completed execution and independent accounting
 checks, covering every one of their 19,965,272 source records. Seven ended
 positive and three negative under the declared model. The first common-period
 portfolio case, `seed_multi_strict`, also completed: its 10,000 USDT ended at
 9,856.393285 USDT estimated net liquidation NAV, a **1.436067% loss**, with
-11.371658% maximum observed net drawdown. One of twelve portfolio cases is
-complete; the second has an attempt without a final receipt and ten are unstarted.
+11.371658% maximum observed net drawdown. The second case, `seed_multi_buy`,
+ended at 9,861.972690 USDT, a **1.380273% loss**, with 11.382277% observed
+net drawdown. Two of twelve portfolio cases are complete; the third has an
+attempt without a final receipt and nine are unstarted.
 This snapshot is not the completed comparative study or evidence of profitability.
 
 All numerical results are **UNVERIFIED SOURCE / ASSUMPTION-BASED**. Strict
@@ -40,13 +42,16 @@ they do not change the executed model.
 Full execution artifacts are outside Git:
 `/opt/grid-runs/module1-20261110/full-study-v4-notices/`.
 The immutable table directory for this snapshot is
-`/opt/grid-runs/module1-20261110/tables-portfolio1-20261110T1715Z/`.
+`/opt/grid-runs/module1-20261110/tables-portfolio2-20261110T1748Z/`.
 Its summary records CSV hashes and the external directory containing the
 retained daily NAV curve. Committed compact tables are exact copies of that
 snapshot. They are not a continuously updating view of the running study.
 The previous full-individual snapshot remains preserved at
 `/opt/grid-runs/module1-20261110/tables-full10-20261110T1641Z/`.
-Its ten individual results are unchanged in the newer extraction.
+Its ten individual results are unchanged in the newer extraction. The first
+portfolio snapshot also remains preserved at
+`/opt/grid-runs/module1-20261110/tables-portfolio1-20261110T1715Z/`; all eleven
+previously completed results are unchanged in this second-portfolio extraction.
 
 The Python live domain, executor, exchange gateway, ledger/schema, portfolio
 and operations packages and dependency manifests remain unchanged from starting
@@ -139,8 +144,8 @@ and `strict_skip_ambiguous`, with 1,000 USDT funded separately in each run.
 Returns are cumulative on original funding, not annualized. These different
 source horizons must not be summed into a matched portfolio return. In each
 individual run the global trigger covers its one funded allocation; the
-jointly funded ten-market comparisons are separate; their first completed case
-is described below and the remaining eleven are unfinished in this snapshot.
+jointly funded ten-market comparisons are separate; their first two completed
+cases are described below and the remaining ten are unfinished in this snapshot.
 
 Seven histories ended positive and three negative. XTZ had the largest positive
 whole-funded return; BGSC had the largest loss. This is a description of the
@@ -290,8 +295,8 @@ assumptions, not rigorous optimistic/pessimistic profit bounds.
 | Trial | First entry | Pending lower buys | OHLC convention | Status | Net return / drawdown |
 |---|---|---|---|---|---|
 | seed_multi_strict | Seed | Up to 3 | Strict skip ambiguous | PASS | -1.436067% / 11.371658% |
-| seed_multi_buy | Seed | Up to 3 | Touch BUY priority | INCOMPLETE | — |
-| seed_multi_sell | Seed | Up to 3 | Touch SELL priority | NOT_RUN | — |
+| seed_multi_buy | Seed | Up to 3 | Touch BUY priority | PASS | -1.380273% / 11.382277% |
+| seed_multi_sell | Seed | Up to 3 | Touch SELL priority | INCOMPLETE | — |
 | seed_one_strict | Seed | 1 | Strict skip ambiguous | NOT_RUN | — |
 | seed_one_buy | Seed | 1 | Touch BUY priority | NOT_RUN | — |
 | seed_one_sell | Seed | 1 | Touch SELL priority | NOT_RUN | — |
@@ -307,30 +312,32 @@ prove liveness. Unavailable financial cells remain blank, never zero.
 No winning variant can be selected from this incomplete matrix. Individual
 histories cannot substitute for these jointly funded chronological runs.
 
-## First completed matched portfolio: seed_multi_strict
+## Completed matched portfolios
 
-This first case uses the declared seed plus up-to-three lower BUYs and strict
-ambiguous-bar handling over the common interval. Its execution and independent
-accounting checks passed, but its funded return is negative. No other portfolio
-case is complete in this snapshot; this result cannot select a winning policy.
+The first case, `seed_multi_strict`, uses the declared seed plus up-to-three
+lower BUYs and strict ambiguous-bar handling over the common interval. The
+second, `seed_multi_buy`, changes only the OHLC convention to touch BUY priority.
+Both passed execution and independent accounting checks; both funded returns
+are negative. Two completed cases cannot select a winning policy.
 
-| Measure | USDT |
-| --- | --- |
-| Initial funded capital | 10,000.000000 |
-| Raw ending NAV | 9,856.985581 |
-| Estimated net liquidation NAV | 9,856.393285 |
-| Net PnL | -143.606715 |
-| Realized PnL | 981.437989 |
-| Raw unrealized PnL | -1,124.452408 |
-| Net unrealized PnL | -1,125.044704 |
-| Cash, including reservations | 9,264.719119 |
-| Reserved quote, already included in cash | 55.055094 |
-| Remaining acquisition cost | 1,716.718869 |
-| Estimated net open-inventory proceeds | 591.674165 |
-| Posted modeled fees | 221.037364 |
-| Turnover | 221,037.222359 |
+| Measure (USDT) | Strict | BUY priority |
+| --- | ---: | ---: |
+| Initial funded capital | 10,000.000000 | 10,000.000000 |
+| Raw ending NAV | 9,856.985581 | 9,862.564987 |
+| Estimated net liquidation NAV | 9,856.393285 | 9,861.972690 |
+| Net PnL | -143.606715 | -138.027310 |
+| Realized PnL | 981.437989 | 987.017394 |
+| Raw unrealized PnL | -1,124.452408 | -1,124.452408 |
+| Net unrealized PnL | -1,125.044704 | -1,125.044704 |
+| Cash, including reservations | 9,264.719119 | 9,270.298525 |
+| Reserved quote, already included in cash | 55.055094 | 55.055094 |
+| Remaining acquisition cost | 1,716.718869 | 1,716.718869 |
+| Estimated net open-inventory proceeds | 591.674165 | 591.674165 |
+| Posted modeled fees | 221.037364 | 222.284196 |
+| Turnover | 221,037.222359 | 222,284.053626 |
 
-Net return is **-1.436067%**, with **11.371658%** maximum observed net drawdown.
+For the strict case, net return is **-1.436067%**, with **11.371658%** maximum
+observed net drawdown.
 The exact funded loss is 143.606715249935 USDT. Cash plus remaining acquisition
 cost equals initial funding plus realized PnL; cash plus estimated net inventory
 proceeds equals ending net NAV. Fees are already reflected in those figures,
@@ -350,8 +357,8 @@ restart occurred. Symbol/exchange TP switches were off. Consequently this case
 provides no historical test of blocked global liquidation or exit execution;
 those behaviors have separate deterministic fixtures.
 
-The following allocation results share the same funding and dates. They are
-not the different-horizon full-history results above.
+The following strict-case allocation results share the same funding and dates.
+They are not the different-horizon full-history results above.
 
 | Venue / market | Net ending NAV | Net return | Max observed net DD | Realized PnL | Net unrealized PnL |
 | --- | --- | --- | --- | --- | --- |
@@ -427,6 +434,87 @@ Its input, result, executable and all ten source identities are validated in
 The independent supplementary check is
 `/opt/grid-runs/module1-20261110/verification/portfolio-statistics-review-v1/seed_multi_strict.json`.
 
+### Second case: BUY-priority comparison
+
+`seed_multi_buy` completed at 2026-11-10 17:48:37 UTC. Its exact ending net NAV
+is 9,861.972690405051 USDT, or -1.380273% on the original 10,000 USDT.
+Compared with strict handling, net NAV and realized PnL are each higher by
+5.579405654986 USDT: **0.055794 percentage points** of original funding.
+Maximum observed net drawdown is slightly greater, 11.382277% versus 11.371658%.
+These are outcomes of two execution assumptions, not proof of a superior policy
+or bounds on real execution performance.
+
+Ending position cost, raw/net open-inventory values, raw/net unrealized PnL,
+reserved quote and owned quantities are identical between these two cases.
+The NAV difference is additional realized PnL and cash. Posted fees increased
+by 1.24683207 USDT and turnover by 1,246.831267169098 USDT; fees are already
+included in reported PnL. The same accounting identities stated above hold.
+
+| Venue / market | BUY-priority net NAV | Net return | Max observed net DD | Realized PnL | Net unrealized PnL | NAV change vs strict |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| gate BGSC/USDT | 508.006156 | -49.199384% | 49.208848% | 0.000000 | -491.993844 | +0.000000 |
+| gate WPAY/USDT | 1,020.247863 | +2.024786% | 10.928559% | 20.247863 | 0.000000 | +0.000000 |
+| htx ELA/USDT | 1,152.489195 | +15.248920% | 6.603352% | 152.489195 | 0.000000 | +0.404955 |
+| htx MINA/USDT | 562.227738 | -43.777226% | 46.125772% | 8.054160 | -445.826422 | +0.000000 |
+| htx XTZ/USDT | 1,223.356353 | +22.335635% | 5.195640% | 223.356353 | 0.000000 | +4.634506 |
+| kucoin AKT/USDT | 1,098.135479 | +9.813548% | 8.254373% | 98.135479 | 0.000000 | +0.269971 |
+| kucoin OP/USDT | 1,111.453541 | +11.145354% | 20.065398% | 111.453541 | 0.000000 | +0.000000 |
+| okx 1INCH/USDT | 911.016248 | -8.898375% | 21.720478% | 76.131844 | -165.115596 | +0.000000 |
+| okx AGLD/USDT | 1,157.995383 | +15.799538% | 20.313924% | 159.688425 | -1.693042 | +0.134988 |
+| okx APE/USDT | 1,117.044734 | +11.704473% | 30.332516% | 137.460534 | -20.415800 | +0.134986 |
+
+Seven allocations gained 880.722548042147 USDT and three lost
+1,018.749857637096 USDT. BGSC remains the largest allocation loss and drawdown;
+XTZ has the highest whole-funded allocation return. The unchanged BGSC and MINA
+losses still total 929.766105366037 USDT. Five allocations have unchanged ending
+NAV; the other five gains account for the portfolio difference. These rankings
+describe this frozen cohort and do not justify selecting or removing markets
+using the observed returns.
+
+| Venue | Initial USDT | BUY-priority net NAV | Net return | Max observed net DD | Realized PnL | Net unrealized PnL | Posted fees | NAV change vs strict |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| gate | 2,000.000000 | 1,528.254019 | -23.587299% | 26.397212% | 20.247863 | -491.993844 | 5.024781 | +0.000000 |
+| htx | 3,000.000000 | 2,938.073287 | -2.064224% | 12.276019% | 383.899709 | -445.826422 | 86.290241 | +5.039461 |
+| kucoin | 2,000.000000 | 2,209.589019 | +10.479451% | 9.631714% | 209.589019 | 0.000000 | 46.836979 | +0.269971 |
+| okx | 3,000.000000 | 3,186.056365 | +6.201879% | 17.149060% | 373.280803 | -187.224438 | 84.132195 | +0.269974 |
+
+Gate remains the lowest-return and largest-drawdown venue. Venue funding,
+reserve/open/unknown-order totals and net unrealized PnL are unchanged from the
+strict case. Exact per-market cash, basis, owned/sellable/residual quantities,
+fees, turnover, counts, benchmarks and utilization remain in `results.csv`;
+venue accounting and benchmarks are in `exchange_results.csv`. Reported venue
+net unrealized PnL is net inventory proceeds minus remaining acquisition cost.
+
+The second case has 22,279 BUY fills and 5,458 SELL fills, all ordinary completed
+basket sales. Its full-fill count identity is 58,484 placed = 22,279 BUY fills
++ 5,458 SELL fills + 30,731 cancellations + 16 open orders. Gross realized
+profit is 987.017394399272 USDT, gross realized loss is zero and profit factor
+is undefined/null. There are zero unknown orders, zero unsellable residuals,
+five allocations with sellable inventory and five cash-only allocations with
+a waiting seed. Global TP still never triggers; there are no cycle completions,
+restarts, portfolio-exit SELLs or occupied exit slots. Symbol/exchange TP remains
+disabled. Neither case exercises an actual historical portfolio liquidation.
+
+The cash and buy/hold benchmarks are unchanged. This case is 35.508868
+percentage points ahead of buy/hold and 1.380273 points behind cash. Coverage
+is also unchanged: 10,005,677 processed rows, 993,572 complete timestamp groups,
+998,743 known and 2,606 unknown grid-NAV observations, with known terminal marks.
+Longest observed net underwater duration remains 100.627778 days. Per-allocation
+utilization can change with modeled fills, but differing observed-bar coverage
+still prevents a valid common-clock average from those allocation means.
+
+There are 81 ambiguous bars, 3,473 post-gap refreshes, 16,366 emitted
+`draining_unresolved_BUYs` notices and 1,199 lot-cap notices. Ambiguity counts
+are path-dependent because eligibility depends on prior modeled fills; they are
+not a count of immutable ambiguous source candles or elapsed inactivity.
+
+The result SHA-256 is
+`9a146cd763e406aab6160f10d5661b1b12d1fc9a199d1e2d3188b8c84e7b70b7`;
+its receipt is
+`/opt/grid-runs/module1-20261110/full-study-v4-notices/seed_multi_buy/receipt.json`.
+Complete source identities and hashes were revalidated. The compact snapshot
+retains both completed portfolio results without replacing the first.
+
 ## Retrospective monthly descriptions
 
 The unchanged predeclared monthly convention was applied to all ten retained
@@ -486,28 +574,36 @@ months; intervening intervals are omitted, so returns are not compounded or
 annualized. Capital was not reset monthly. Missing intraday observations
 remain missing even when retained daily endpoints are present. The twelve
 portfolio cases are described separately over matched endpoints below as they
-complete; only one is available in this snapshot.
+complete; two are available in this snapshot.
 
-### First matched portfolio monthly descriptions
+### Matched portfolio monthly descriptions
 
-The same unchanged convention adds 24 spans for `seed_multi_strict`:
+The same unchanged convention gives 24 spans for each completed portfolio:
 
-| Direction | Spans | Median net endpoint return | Minimum | Maximum |
-| --- | --- | --- | --- | --- |
-| rising | 6 | +1.497246% | -1.662272% | +4.308538% |
-| falling | 9 | -0.959332% | -3.756156% | +2.775243% |
-| flat | 8 | -0.289813% | -1.314598% | +1.952047% |
+| Case | Direction | Spans | Median net endpoint return | Minimum | Maximum |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Strict | rising | 6 | +1.497246% | -1.662272% | +4.308538% |
+| Strict | falling | 9 | -0.959332% | -3.756156% | +2.775243% |
+| Strict | flat | 8 | -0.289813% | -1.314598% | +1.952047% |
+| BUY priority | rising | 6 | +1.496521% | -1.661347% | +4.308423% |
+| BUY priority | falling | 9 | -0.959323% | -3.756156% | +2.784262% |
+| BUY priority | flat | 8 | -0.289813% | -1.306813% | +1.952047% |
 
-One final partial November 2026 span is unclassified, with -0.017595% net
-endpoint return. The combined extraction now contains 490 spans and 14,593
-retained NAV points across ten individual studies plus this portfolio.
-`/opt/grid-runs/module1-20261110/monthly-portfolio1-20261110T1715Z/`
-retains the exact rows, direction rules and an independent Fraction-based check
-of every endpoint, label and return against the original outputs. The original
-466 individual spans are unchanged. These retrospective samples do not establish
-positive performance in every market condition and are not compounded into a
-new return series. Daily retained points cannot independently reconstruct the
-engine's minute-observation drawdown.
+Each case has one unclassified final partial November 2026 span: strict
+-0.017595%, BUY priority -0.017585%. The combined extraction now contains
+**514 spans and 15,290 retained NAV points** across ten individual studies and
+two portfolios: 147 rising, 229 falling, 126 flat and 12 unclassified spans.
+`/opt/grid-runs/module1-20261110/monthly-portfolio2-20261110T1748Z/`
+retains exact rows and an independent Fraction-based check of every endpoint,
+label and return against original outputs. The first portfolio's earlier
+490-span/14,593-point extraction remains preserved in
+`/opt/grid-runs/module1-20261110/monthly-portfolio1-20261110T1715Z/`.
+All earlier individual and first-portfolio observations are unchanged.
+
+These retrospective samples do not establish positive performance in every
+market condition and are not compounded into a new return series. Daily
+retained points cannot independently reconstruct the engine's minute-observation
+drawdown.
 
 ## Measured execution and reproducibility
 
@@ -529,6 +625,7 @@ Input uses bounded 98,304-byte source buffers; runs are sequential.
 | full_okx_APE | 2,235,727 | 550.585314 | 4,060.6 | 13,940 | 302,399 |
 | full_htx_ELA | 2,235,723 | 483.611522 | 4,623.0 | 13,944 | 308,872 |
 | seed_multi_strict | 10,005,677 | 2,035.244700 | 4,916.2 | 13,944 | 181,876 |
+| seed_multi_buy | 10,005,677 | 2,015.504502 | 4,964.4 | 13,952 | 181,860 |
 
 The ten sequential child replays totaled 4,210.577237 wall seconds
 (70.176287 minutes). This is completed financial replay of
@@ -536,7 +633,10 @@ The ten sequential child replays totaled 4,210.577237 wall seconds
 The first matched portfolio took another 2,035.244700 seconds (33.920745
 minutes), including complete validation of all ten sources and replay of the
 10,005,677 rows inside the common interval. Its user/system CPU times were
-2,034.115960/0.877905 seconds, giving a CPU/wall ratio of 0.999877.
+2,034.115960/0.877905 seconds, giving a CPU/wall ratio of 0.999877. The second
+matched portfolio took 2,015.504502 seconds (33.591742 minutes), with
+2,014.691530/0.586941 user/system CPU seconds and a CPU/wall ratio of 0.999888;
+it performs the same full-source validation and processes the same aligned rows.
 
 These end-to-end receipts include startup, source validation and reporting.
 They are warm-cache observations with zero reported kernel input blocks, not
@@ -567,8 +667,8 @@ Current snapshot table and monthly analysis commands (working directory
 `/opt/grid`):
 
 ```sh
-/opt/grid-tools/module1-py312/bin/python -m scripts.module1_report --study /opt/grid-runs/module1-20261110/full-study-v4-notices --output /opt/grid-runs/module1-20261110/tables-portfolio1-20261110T1715Z
-/opt/grid-tools/module1-py312/bin/python /opt/grid-runs/module1-20261110/analysis-monthly.py --input /opt/grid-runs/module1-20261110/tables-portfolio1-20261110T1715Z/nav_curve.csv --output /opt/grid-runs/module1-20261110/monthly-portfolio1-20261110T1715Z
+/opt/grid-tools/module1-py312/bin/python -m scripts.module1_report --study /opt/grid-runs/module1-20261110/full-study-v4-notices --output /opt/grid-runs/module1-20261110/tables-portfolio2-20261110T1748Z
+/opt/grid-tools/module1-py312/bin/python /opt/grid-runs/module1-20261110/analysis-monthly.py --input /opt/grid-runs/module1-20261110/tables-portfolio2-20261110T1748Z/nav_curve.csv --output /opt/grid-runs/module1-20261110/monthly-portfolio2-20261110T1748Z
 ```
 
 Outputs are exclusive. Reproduction must use a new output directory. The report
@@ -597,9 +697,9 @@ failure is not hidden or counted as a completed history.
 | C++ implementation and Python financial/lifecycle parity | Implemented; finite differential and synthetic integration gates pass |
 | Debug, Release, sanitizer and full Python regression checks | Recorded in verification document; later report deltas separately checked |
 | Full replay of every selected source | 10/10 PASS; all 19,965,272 actual source records replayed |
-| Twelve matched funded portfolio cases | 1/12 PASS; one INCOMPLETE, ten NOT_RUN in this snapshot |
-| Actual accounting, metrics, benchmarks and reports | All ten individual histories and first matched portfolio, including four venues and ten allocations |
-| Retrospective rising/falling/flat descriptions | All ten individual histories plus first portfolio; 490 spans independently checked |
+| Twelve matched funded portfolio cases | 2/12 PASS; one INCOMPLETE, nine NOT_RUN in this snapshot |
+| Actual accounting, metrics, benchmarks and reports | All ten individual histories and two matched portfolios, each including four venues and ten allocations |
+| Retrospective rising/falling/flat descriptions | All ten individual histories plus two portfolios; 514 spans independently checked |
 | One-year ten-market exploratory objective | NOT MET yet; aligned portfolio runs incomplete; 695-day calendar duration available with explicit gaps |
 | Gap-free shared one-year data | NOT MET by this cohort; 66 consecutive complete UTC days |
 | One-year dozens-of-symbols objective | NOT YET TESTED; ten markets cannot satisfy it |

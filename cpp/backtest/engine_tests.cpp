@@ -83,6 +83,31 @@ void public_transition_guards() {
         overreserved.orders.front().reserves[currency] = currency == "QUOTE" ? overreserved.quote_cash + 1 : 1;
         refuse({overreserved, {}, {}, true}, "replay reservation exceeds finite ownership");
     }
+    grid::Simulator uncertain(s, c, model);
+    uncertain.event(grid::StartEvent{s.scope}, 0);
+    check(uncertain.state.orders.size() == 1 && uncertain.state.orders.front().acknowledged,
+          "unknown-order fixture starts with an acknowledged real simulated seed");
+    rejects([&] { uncertain.event(grid::UnknownEvent{s.scope, uncertain.state.orders.front().id}, 0); },
+            "replay needs unsupported reconciliation");
+    grid::Simulator mismatched(s, c, model);
+    auto other_scope = s.scope; other_scope.allocation = "another";
+    rejects([&] { mismatched.event(grid::StartEvent{other_scope}, 0); },
+            "replay needs unsupported reconciliation");
+    check(mismatched.state.quote_cash == s.quote_cash && mismatched.state.orders.empty(),
+          "rejected scope changes no simulated ownership or orders");
+
+    auto cascade = grid::reduce(s, grid::StartEvent{s.scope}, c);
+    check(c.policy.max_open_orders == 8 && cascade.commands.size() == 1,
+          "cascade fixture has the default 48-event limit and one seed command");
+    const auto seed_command = cascade.commands.front();
+    cascade.commands.assign(48, seed_command);
+    grid::Simulator bounded(s, c, model);
+    bounded.accept(cascade, 0);
+    check(bounded.metrics.placed_orders == 48 && bounded.state.orders.size() == 1 &&
+          bounded.state.quote_cash == s.quote_cash && bounded.state.fills.empty(),
+          "48 duplicate synthetic acknowledgments reach the boundary without posting fills");
+    cascade.commands.push_back(seed_command);
+    refuse(std::move(cascade), "synthetic command cascade bound exceeded");
 }
 void gap_and_policies() {
     auto c = context(); c.policy.ladder_size = 1; c.ladder_policy = "ladder_one";

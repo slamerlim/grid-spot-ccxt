@@ -1,8 +1,8 @@
 # Module 1 C++ research verification
 
 Status: in progress. Rebuilt Debug/Release/sanitizer gates and a bounded real-bar
-financial comparison pass. All ten individual full histories and the first of
-twelve matched portfolio comparisons are complete; the matrix remains incomplete.
+financial comparison pass. All ten individual full histories and two of twelve
+matched portfolio comparisons are complete; the matrix remains incomplete.
 This document records executed scopes, not a blanket acceptance pass.
 
 Starting HEAD: `cd48dd01734d2b84ad13651e907e72fc437a0cbc`, branch
@@ -272,9 +272,10 @@ resource/output receipts where returned. Cases run sequentially with a six-hour 
 512 MiB address-space ceiling and 32 MiB per-output-file cap. No archive writes
 or cache eviction are performed. A RUNNING registry entry is not completion.
 
-All ten full histories and `seed_multi_strict` have now completed. Eleven frozen
-portfolio cases remain without completed receipts in the first-portfolio
-publication snapshot below. No full-study completion claim is made here.
+All ten full histories and two portfolio cases have completed in the latest
+2026-11-10 17:48 UTC snapshot below. Ten portfolio cases remain without completed
+receipts: one attempted case and nine unstarted. No full-study completion claim
+is made here.
 
 ### Interim result publication and current-build check
 
@@ -348,8 +349,8 @@ or executable changed.
 
 This is targeted guard coverage, not exhaustive defensive-branch coverage.
 The mapping predates the byte-cap probes below. Remaining unforced paths include
-the cycle-event byte cap, internal-state corruption, allocation/crypto failures
-and other operating-system faults beyond the specific I/O checks recorded here. Do not
+internal-state corruption, allocation/crypto failures and other operating-system
+faults beyond the specific I/O checks recorded here. Do not
 infer that every defensive error branch was triggered. Existing seeded
 conservation/interleaving checks and all per-run financial validations remain.
 Historical C++ replay is deterministic from the beginning; it has no checkpoint
@@ -385,8 +386,24 @@ Receipts, standalone probe scripts, exact commands, control results and hashes a
 `verification/guard-final-json-v1/receipt.json`. Each child had a 60-second timeout,
 512-MiB address-space ceiling and 32-MiB per-output-file limit. No historical
 archive, production limit or running job was changed. These tests close the NAV
-buffer and final result byte-cap evidence gaps; they do not exercise the remaining
-cycle-event buffer, allocation, crypto or arbitrary syscall failures.
+buffer and final result byte-cap evidence gaps.
+
+A subsequent Release-only cycle-event probe used the frozen historical executable
+and four invented sources totaling 72,004
+records / 1,728,096 bytes, long valid scope identifiers and tiny optional symbol
+TP thresholds while retaining mandatory global +10%. Its small control completed
+four symbol cycles on each market: 48 events, 16 BUYs, 16 SELLs, 0.727112 USDT
+realized gain and 0.160888 USDT fees, with no global trigger. The large fixture
+planned at most 4,500 cycles per symbol, below the 10,000-cycle limit. It reached
+the distinct `cycle evidence bytes exceeded; discard study result` guard:
+exit 2, zero stdout, 12.777686 seconds and 73,932 KiB peak RSS under the same
+60-second/512-MiB/32-MiB caps. The aborted event count and buffer size are not
+emitted and are not claimed. Source/executable identities remained unchanged.
+The exact script, inputs, commands and control/refusal receipts are under
+`verification/guard-cycle-events-v1/`. All three internal 32-MiB output limits
+now have direct refusal evidence. This is still finite guard coverage; malformed
+public transitions, internal invariant failures, allocation, crypto and arbitrary
+syscall faults have not all been forced. No archive or live study was changed.
 
 The first interim publication scan flagged public fingerprints in the new
 compact summary. Each of the 33 distinct flagged values was independently
@@ -493,6 +510,20 @@ source identity and accounting checks; the old CLI exit status alone is not a
 publication gate. The tiny parity result does not imply historical runs were
 repeated with the fixed binary.
 
+A later test-only delta adds exact refusal checks for an unresolved simulated
+order and a rejected scope, the accepted 48-event versus refused 49-event
+synthetic command cascade, and accepted 10,000-place versus refused 10,001-place
+decimal rendering. The malformed command cascade is an invented public API
+input, not a claimed reducer output. Existing engine and primitive test files
+now contain 34 and 10,076 assertions respectively. No implementation changed.
+Fresh separate builds under `{debug,release,sanitize}-public-guards-v1` passed
+all eight CTests each; command wall times were 5.171458, 3.369020 and 23.147177
+seconds. `verification/cpp-public-guards-v1/receipt.json` retains configure/build/
+test commands, logs and hashes. All 120 snapshotted source/configuration files
+and 25 pre-existing executable identities remained unchanged during these gates.
+This closes those specific guard gaps; exhaustive internal-state, allocation,
+crypto and operating-system fault coverage remains unproven.
+
 ### First portfolio extraction and supplementary statistics checks
 
 `seed_multi_strict` completed at 2026-11-10 17:15:01 UTC: exit 0, 10,005,677
@@ -523,6 +554,30 @@ not independently reconstructed from absent per-allocation restart marks. No
 portfolio time-average utilization is inferred from unequal observed-bar averages.
 These checks read retained outputs only; they neither replay history nor establish
 profitability, continuous valuation coverage or completion of the remaining matrix.
+
+### Second portfolio snapshot
+
+`seed_multi_buy` completed at 2026-11-10 17:48:37 UTC: exit 0,
+2,015.504502 child wall seconds, 13,952 KiB peak RSS and 181,860 output bytes.
+Its source/processed counts and coverage match the strict case. The original
+financial validations and unchanged supplementary statistics checker passed;
+`verification/portfolio-statistics-review-v1/second-portfolio-execution.json`
+retains exact commands, result binding and comparison. Estimated ending net NAV
+is 9,861.972690405051 USDT, a 138.027309594949-USDT funded loss. No global TP
+trigger occurred. The BUY-priority convention improves ending NAV by
+5.579405654986 USDT but increases observed drawdown slightly; neither convention
+establishes executable profitability or a winning strategy policy.
+
+The immutable `tables-portfolio2-20261110T1748Z/` snapshot contains twelve PASS
+results, one INCOMPLETE attempt and nine NOT_RUN cases. Its five compact report
+files are copied byte-for-byte into the existing repository run directory.
+`verification/portfolio2-extraction-20261110T1748Z/receipt.json` records the
+unchanged reporter, monthly analysis and independent Fraction verifier commands.
+The new monthly extraction checked 15,290 retained NAV points and 514 spans
+across twelve completed trials. Earlier results and monthly rows remain retained;
+the daily observations still cannot reconstruct minute-level risk independently.
+The full matrix remains running on the same frozen executable; extraction did
+not replay history, change the model or read the historical archive.
 
 Rollback is a normal revert/removal of this isolated research increment through
 reviewed version control. No live database migration or source-data rewrite is

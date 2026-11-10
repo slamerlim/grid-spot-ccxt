@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <random>
+#include <string_view>
 #include <unistd.h>
 
 namespace {
@@ -91,6 +92,15 @@ void numeric() {
     rejects([] { (void)q("NaN"); }, "nonfinite decimal");
     rejects([] { (void)q("1e97"); }, "decimal exponent bound");
     rejects([] { (void)q("1").power(10001); }, "geometric index bound");
+    const auto render_boundary = q(".1").power(10000);
+    check(render_boundary.str() == "0." + std::string(9999, '0') + "1",
+          "10,000 decimal places remain renderable exactly");
+    bool render_rejected = false;
+    try { (void)(render_boundary * q(".1")).str(); }
+    catch (const grid::Error& error) {
+        render_rejected = std::string_view(error.what()) == "decimal rendering bound exceeded";
+    }
+    check(render_rejected, "10,001 decimal places reach the rendering guard");
     std::mt19937 random(581);
     std::int64_t cash = 1000000000000000LL;
     for (unsigned index = 0; index < 10000; ++index) {
