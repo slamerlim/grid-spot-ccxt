@@ -1,7 +1,8 @@
 # Module 1 C++ research verification
 
 Status: in progress. Rebuilt Debug/Release/sanitizer gates and a bounded real-bar
-financial comparison pass. Full historical return runs are not yet complete.
+financial comparison pass. All ten individual full histories are complete;
+the twelve matched portfolio comparisons remain incomplete.
 This document records executed scopes, not a blanket acceptance pass.
 
 Starting HEAD: `cd48dd01734d2b84ad13651e907e72fc437a0cbc`, branch
@@ -271,7 +272,7 @@ resource/output receipts where returned. Cases run sequentially with a six-hour 
 512 MiB address-space ceiling and 32 MiB per-output-file cap. No archive writes
 or cache eviction are performed. A RUNNING registry entry is not completion.
 
-The next required evidence is all ten full histories and all
+All ten full histories have now completed. The next required evidence is all
 twelve frozen portfolio cases, with accounting, failed/negative trials and
 source/config/result hashes. No full-study completion claim is made here.
 
@@ -283,6 +284,17 @@ The first actual-results snapshot is recorded in
 validated three completed histories, one incomplete attempt and eighteen
 unstarted cases. Later driver progress does not change that immutable snapshot.
 The full ten-history/twelve-portfolio goal remains incomplete.
+
+The 2026-11-10 16:41 UTC snapshot now contains all ten completed histories,
+one incomplete portfolio attempt and eleven unstarted comparisons. All
+19,965,272 selected source records were replayed, totaling 4,210.577237 child
+wall seconds. Exact table hashes and command receipts are under
+`verification/full10-extraction-20261110T1641Z/`; the immutable tables are in
+`tables-full10-20261110T1641Z/`. The unchanged monthly analysis produced 466
+spans; independent Fraction arithmetic checked every endpoint, label, change,
+return and sampling count against all 13,896 retained NAV points. Its receipt
+is `monthly-full10-20261110T1641Z/independent-verification.json`. This completes
+the individual-history reporting scope, not the funded portfolio experiment.
 
 The report now distinguishes an attempted trial with no final receipt as
 INCOMPLETE from an unstarted NOT_RUN trial. Neither classification proves
@@ -316,12 +328,22 @@ and executable hashes, and a guard-to-test mapping are retained under
 `verification/guard-delta-v1/`. Neither the engine nor its binaries changed.
 
 This is targeted guard coverage, not exhaustive defensive-branch coverage.
-The mapping explicitly retains unforced large NAV/output caps, trace-protocol
+The mapping explicitly retains unforced large output caps, trace-protocol
 bounds, internal-state corruption and allocation/crypto/system I/O failures.
 Do not infer that every defensive error branch was triggered. Existing seeded
 conservation/interleaving checks and all per-run financial validations remain.
 Historical C++ replay is deterministic from the beginning; it has no checkpoint
 resume capability. Strategy cycle/round restarts are a separate tested behavior.
+
+A later bounded Release-only probe directly exercised the 100,000-NAV-sample
+guard using 100,001 invented flat observations, one per UTC day (2,400,024 source
+bytes). It exited 2 with the expected capacity error and zero stdout in
+11.751503 seconds, with 24,148 KiB peak RSS under 60-second/512-MiB/32-MiB caps.
+Source identity/hash and the frozen executable hash remained unchanged. The
+earlier guard mapping predates this additional evidence; its NAV-sample-count
+gap is now closed. `verification/guard-nav-cap-v1/receipt.json` retains the exact
+command, fixture, driver and output hashes. No historical source was read and
+no production limits were lowered to make the test pass.
 
 The first interim publication scan flagged public fingerprints in the new
 compact summary. Each of the 33 distinct flagged values was independently
@@ -329,6 +351,12 @@ matched to the SHA-256 of its config, cohort, executable, input, result or CSV
 artifact before a filename/value-specific baseline entry was added. Detector
 and filter settings were unchanged; the original failed scan and exact review
 remain under `verification/interim-publication-v1/`.
+
+The full-ten-history summary added 22 flagged public source/result/CSV hashes.
+Each was recomputed from its referenced artifact before adding only that
+filename/value to the non-secret baseline. Source reads were read-only and
+identity checked; detector/filter settings remained unchanged. The exact
+review is `verification/full10-publication-v1/public-fingerprint-review.json`.
 
 The final diagnostic-output Debug and Release builds were also compared using
 the existing six-row synthetic study input. Their complete JSON outputs are
