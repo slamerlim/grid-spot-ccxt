@@ -151,7 +151,7 @@ function post(url, body) {
   });
 }
 async function result(key) {
-  if (!results.has(key)) results.set(key, await api(`/api/runs/${key}/result`));
+  if (!results.has(key)) results.set(key, await api(`api/runs/${key}/result`));
   return results.get(key);
 }
 function status(row) {
@@ -246,7 +246,7 @@ function renderRuns() {
   }
   $("#connection").textContent = active
     ? "Engine running"
-    : "Ready · local engine";
+    : "Ready · research engine";
 }
 function metricRows(rows) {
   const get = (fn) => rows.map(fn);
@@ -476,7 +476,7 @@ async function showDetails(key) {
         : ["receipt.json", "stderr.txt", "input.tsv"];
   for (const name of files) {
     const a = node("a", name);
-    a.href = `/api/runs/${key}/files/${name}`;
+    a.href = `api/runs/${key}/files/${name}`;
     $("#downloads").append(a);
   }
   $("#settings-json").textContent = JSON.stringify(row.settings, null, 2);
@@ -542,7 +542,7 @@ function downloadCSV() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 async function refresh() {
-  const data = await api("/api/runs");
+  const data = await api("api/runs");
   const nextSnapshot = JSON.stringify(data);
   if (snapshot === nextSnapshot) return;
   snapshot = nextSnapshot;
@@ -563,7 +563,7 @@ async function refresh() {
   }
 }
 async function init() {
-  catalog = await api("/api/catalog");
+  catalog = await api("api/catalog");
   $("#output").textContent = catalog.output;
   if (catalog.notices.length) error(catalog.notices.join("\n"));
   for (const s of catalog.sources) {
@@ -618,7 +618,7 @@ async function init() {
       payload.markets = marketKeys();
       for (const key of ["start", "end"])
         payload[key] = new Date(field(key).value + ":00+03:00").toISOString();
-      await post("/api/runs", payload);
+      await post("api/runs", payload);
       await refresh();
     } catch (e) {
       error(e.message);
@@ -631,7 +631,7 @@ async function init() {
     const button = $("#cancel");
     button.disabled = true;
     try {
-      await post("/api/cancel", {});
+      await post("api/cancel", {});
       await refresh();
     } catch (e) {
       error(e.message);
@@ -656,7 +656,7 @@ async function init() {
     } catch (e) {
       $("#connection").textContent = "Disconnected";
       error(
-        "Local server unavailable. Restart it, then reload this page. " +
+        "The server is unavailable. Please reload the page shortly. " +
           e.message,
       );
     }
@@ -664,4 +664,4 @@ async function init() {
   }
   setTimeout(poll, 3000);
 }
-init().catch((e) => error("Could not load the local workspace: " + e.message));
+init().catch((e) => error("Could not load the workspace: " + e.message));

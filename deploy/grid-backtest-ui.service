@@ -1,0 +1,37 @@
+[Unit]
+Description=GRID Module 1 historical backtest interface
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=grid-backtest
+Group=grid-backtest
+WorkingDirectory=/opt/grid
+# Expose only the existing interpreter, not its owner's home, inside this service.
+BindReadOnlyPaths=/root/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu:/opt/grid-tools/backtest-runtime
+Environment=PYTHONPATH=/opt/grid-tools/module1-py312/lib/python3.12/site-packages
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/env /opt/grid-tools/backtest-runtime/bin/python3.12 -m scripts.backtest_web --public-origin http://103.1.225.114
+Restart=on-failure
+RestartSec=3
+KillMode=mixed
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/grid-runs/backtest-ui
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET
+CapabilityBoundingSet=
+MemoryMax=1G
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

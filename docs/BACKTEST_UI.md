@@ -1,4 +1,4 @@
-# Local backtest interface
+# Backtest interface
 
 The interface runs the existing Module 1 C++ research engine on existing files,
 shows results, and compares up to four runs. No new trading engine, database,
@@ -6,20 +6,33 @@ JavaScript framework, account connection or paid service is required.
 
 ## Start
 
-On the current host, open a terminal:
+Open **http://103.1.225.114/module1/backtesting**. Sign in as **`grid`**, using
+the password in `/etc/grid-backtest-ui/access.json` on this host. That file is
+readable only by root and stays outside Git. The requested HTTP connection is
+unencrypted, including the login; authentication does not provide encryption.
+
+The installed service is running and starts after reboot. No terminal process
+or port forwarding is needed for this URL.
+
+For manual localhost operation instead, first stop the installed service to
+release its port and output-directory lock:
 
 ```sh
+sudo systemctl stop grid-backtest-ui
 cd /opt/grid
 /opt/grid-tools/module1-py312/bin/python -m scripts.backtest_web
 ```
 
-Open **http://127.0.0.1:8765** in your browser. Keep the terminal open.
+Then open **http://127.0.0.1:8765** and keep the terminal open. After stopping
+that process, restore the hosted interface with `sudo systemctl start grid-backtest-ui`.
 
-If VS Code connects to this host remotely, open its **Ports** panel, forward
+For manual localhost mode from remote VS Code, open its **Ports** panel, forward
 **8765**, then open `http://127.0.0.1:8765` on your computer. An SSH alternative,
 run on your computer, is `ssh -N -L 8765:127.0.0.1:8765 USER@HOST`; replace the
 user and host with your existing connection. Keep forwarded access local.
-The server accepts localhost/127.0.0.1 hostnames and same-origin requests.
+The Python listener still accepts only localhost/127.0.0.1 hostnames. The
+installed proxy supplies that backend Host and preserves the browser Origin.
+The service explicitly permits the public origin while retaining its request-token check.
 
 For another prepared checkout/environment, run
 `uv run --locked python -m scripts.backtest_web --binary /absolute/path/grid_backtest`.
@@ -113,8 +126,9 @@ for a separate workspace, and `--no-study` to omit the existing study.
 Output under datasets or a Git repository is refused.
 
 **Cancel run** terminates the owned worker and its engine, retaining the attempt.
-Closing the browser tab does not cancel. **Ctrl+C in the server terminal** stops
-the local server and cancels its active run; completed runs return on restart.
+Closing the browser tab does not cancel. `sudo systemctl stop grid-backtest-ui`
+stops the hosted app and cancels its active run. In manual mode, **Ctrl+C** in
+the server terminal does the same. Completed runs return on restart.
 Runs without a final receipt are marked **INTERRUPTED** and never auto-resumed.
 An output-directory lock prevents another UI from owning the same workspace.
 If the server is forcibly killed, its inherited-lock worker may finish under
@@ -122,9 +136,47 @@ its existing timeout before that directory can be opened again; no second run
 is automatically started. A hard host crash cannot be treated as a completed run.
 
 The existing child driver caps each run at six hours, 512 MiB address space,
-and 32 MiB per engine output file. These are process limits, not deployment
-certification or CPU/device quotas. The UI is for a trusted local user; it is
-not an internet-facing or multiuser service. No service is installed.
+and 32 MiB per engine output file. These are process limits, not trading
+deployment certification or CPU/device quotas. The password-protected UI is
+one operator workspace, with no separate user accounts or per-user data.
+
+## Installed HTTP access
+
+The owner's subsequent request for this public URL authorizes hosting the
+research UI only; live trading and bot deployment remain excluded.
+
+- `grid-backtest-ui.service` runs as unprivileged `grid-backtest`, listening on
+  `127.0.0.1:8765`. Its filesystem is read-only except for the UI run directory
+  and private temporary storage. It has a 1 GiB memory limit, 32-task limit and
+  bounded restarts. The existing interpreter is mounted into a private readable
+  path; the owner's home remains inaccessible. Traversal permission was added
+  for this account to `/opt/grid-runs`; dataset permissions were unchanged.
+- Nginx listens on `103.1.225.114:80`. Only `/module1/backtesting/` proxies to the
+  app; page, assets, API and downloads all require login. Other paths return
+  404. Credentials are stripped before proxying to Python.
+- Installed configuration: `/etc/systemd/system/grid-backtest-ui.service` and
+  `/etc/nginx/sites-available/grid-backtest-ui`. Source templates are
+  [the service unit](../deploy/grid-backtest-ui.service) and
+  [the Nginx route](../deploy/grid-backtest-ui.nginx.conf). The password hash is
+  `/etc/nginx/auth/grid-backtesting.htpasswd`; credentials are never committed.
+
+Check or restart:
+
+```sh
+sudo systemctl status grid-backtest-ui nginx
+sudo journalctl -u grid-backtest-ui -n 50 --no-pager
+sudo systemctl restart grid-backtest-ui
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+For rollback, stop/disable `grid-backtest-ui`, remove only the
+`/etc/nginx/sites-enabled/grid-backtest-ui` symlink, then validate and reload
+Nginx. Retain all run directories. The manual localhost workflow remains
+available after stopping the service.
+
+References: official [Nginx proxy](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)
+and [HTTP Basic authentication](https://nginx.org/en/docs/http/ngx_http_auth_basic_module.html)
+documentation.
 
 ## Implementation and validation
 
@@ -149,8 +201,8 @@ restart, cancellation/reaping, localhost request protection and download paths.
 Browser checks and actual archive-run evidence are retained outside Git at
 `/opt/grid-runs/backtest-ui-qa/`. Hosted CI remains pending; GitHub Free only.
 
-Observed on 2026-11-11 (Moscow): the full regression run passed 1,711 tests;
-the final 21 focused UI tests pass on Python 3.12 and 3.13. Lint, formatting,
+Initial local UI validation on 2026-11-11 (Moscow): the full regression run
+passed 1,711 tests; 21 focused UI tests passed on Python 3.12 and 3.13. Lint, formatting,
 type checks, Bandit, the secret hook, locked dependency audit and packaging pass.
 Chromium checks pass at 1440px and 390px, including submission, comparison,
 reuse, CSV download and page reload. Four short validation runs are retained
@@ -167,3 +219,17 @@ validation trials, not a strategy recommendation or independent holdout study.
 All ten original source identities and full-file SHA-256 hashes still match
 the frozen manifest after the checks. See `real-run-summary.json` and
 `browser-receipt.json` in the external QA directory for exact run IDs/hashes.
+
+The subsequent HTTP-hosting regression passed **1,720 tests** in 592.46 seconds;
+all 28 focused tests also passed on both Python versions, including
+public-origin matching, retained CSRF checks and rejection
+of foreign hosts. Browser verification through the requested public-IP URL
+passed login, the subpath redirect, assets/API, all 26 prior saved runs, a real
+10,080-candle replay under the unprivileged service account, and result download.
+The additional **Hosted route check** finished in 2.58 seconds and is retained.
+Unauthenticated access returns 401; unrelated paths return 404. Both services
+are enabled at boot; no host reboot was performed. Namespace inspection confirms
+read-only dataset mounts and a writable UI output mount. All ten original file
+identities and hashes still match. Evidence is in
+`/opt/grid-runs/backtest-ui-hosting-qa/receipt.json`. Browser checks ran on this
+host using its public-IP URL; independent off-host reachability was not verified.

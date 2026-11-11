@@ -255,3 +255,49 @@ def test_http_rejects_foreign_requests_and_unsafe_downloads(
             assert (await response.json())["runs"][0]["status"] == "FAIL"
 
     asyncio.run(exercise())
+
+
+@pytest.mark.usefixtures("local_sockets")
+def test_public_proxy_origin_preserves_host_and_csrf_checks(
+    setup: tuple[ui.Store, dict[str, Any]],
+) -> None:
+    store, value = setup
+    origin = "http://103.1.225.114"
+
+    async def exercise() -> None:
+        async with TestClient(TestServer(ui.application(store, public_origin=origin))) as client:
+            for headers in (
+                {"Origin": origin},  # the public origin is not a CSRF bypass
+                {"Origin": origin + ".example", "X-Run-Token": store.token},
+                {"Origin": origin, "X-Run-Token": store.token, "Host": "evil.example"},
+            ):
+                response = await client.post("/api/runs", json=value, headers=headers)
+                assert response.status == 403
+            response = await client.post(
+                "/api/runs",
+                json=value,
+                headers={"Origin": origin, "X-Run-Token": store.token},
+            )
+            assert response.status == 201
+            assert store.task is not None
+            await store.task
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "*",
+        "file:///tmp/ui",
+        "http://user:password@example.com",  # pragma: allowlist secret - invalid-origin fixture
+        "http://example.com/path",
+        "http://example.com?query=1",
+        "http://example.com#fragment",
+    ],
+)
+def test_public_origin_requires_an_exact_origin(
+    setup: tuple[ui.Store, dict[str, Any]], origin: str
+) -> None:
+    with pytest.raises(ValueError, match="exact http"):
+        ui.application(setup[0], public_origin=origin)

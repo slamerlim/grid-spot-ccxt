@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from aiohttp import web
 
@@ -505,7 +506,20 @@ class Store:
             await self.task
 
 
-def application(store: Store) -> web.Application:
+def application(store: Store, *, public_origin: str | None = None) -> web.Application:
+    if public_origin is not None:
+        address = urlsplit(public_origin)
+        if (
+            address.scheme not in {"http", "https"}
+            or not address.hostname
+            or address.username is not None
+            or address.password is not None
+            or address.path
+            or address.query
+            or address.fragment
+        ):
+            raise ValueError("public origin must be an exact http(s) origin without a path")
+
     @web.middleware
     async def boundary(
         request: web.Request, handler: Callable[[web.Request], Awaitable[web.StreamResponse]]
@@ -518,7 +532,7 @@ def application(store: Store) -> web.Application:
         ):
             raise web.HTTPForbidden(text="Reload this local page before submitting a run")
         origin = request.headers.get("Origin")
-        if origin and origin != f"http://{request.host}":
+        if origin and origin not in {f"http://{request.host}", public_origin}:
             raise web.HTTPForbidden(text="Same-origin requests only")
         try:
             response = await handler(request)
@@ -627,6 +641,9 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=CONFIG)
     parser.add_argument("--study", type=Path, default=STUDY)
     parser.add_argument("--no-study", action="store_true")
+    parser.add_argument(
+        "--public-origin", help="Exact browser origin behind an authenticated proxy"
+    )
     parser.add_argument("--worker", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.worker:
@@ -639,7 +656,12 @@ def main() -> None:
     except (OSError, ValueError) as exc:
         parser.exit(2, f"UI refused: {exc}\n")
     print(f"Backtests: http://127.0.0.1:{args.port} | results: {store.output}", flush=True)
-    web.run_app(application(store), host="127.0.0.1", port=args.port, access_log=None)
+    web.run_app(
+        application(store, public_origin=args.public_origin),
+        host="127.0.0.1",
+        port=args.port,
+        access_log=None,
+    )
 
 
 if __name__ == "__main__":

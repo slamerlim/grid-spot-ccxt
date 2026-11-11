@@ -443,11 +443,15 @@ revision and sequence contracts are not proven CCXT capabilities.
 
 The owner requested a minimal local web interface for existing backtests.
 `python -m scripts.backtest_web` wraps the existing Module 1 executable and
-financial checks; see `docs/BACKTEST_UI.md`. Keep it loopback-only, one owned
-worker per output directory, no hosted service or exchange transport. Preserve
+financial checks; see `docs/BACKTEST_UI.md`. The owner subsequently requested
+`http://103.1.225.114/module1/backtesting`, authorizing deployment of this
+research UI on that host. Keep the Python listener on loopback, with the
+password-protected Nginx path and the dedicated `grid-backtest-ui` service.
+This supersedes the previous local-only restriction for this UI only. Keep one
+owned worker per output directory and no exchange transport. Preserve
 the frozen study and dataset bytes; retain failed/cancelled exploratory runs
 outside Git. Frontend display rounding must never alter exact engine inputs
-or results. This does not authorize live trading, deployment or paid GitHub.
+or results. This does not authorize live trading, bot deployment or paid GitHub.
 
 Use Python 3.12/3.13, `uv` and the single `uv.lock`. Run the commands documented
 in README before committing. Tests must be offline by default and deterministic;

@@ -111,21 +111,18 @@ normal diagnostics exit 0, and malformed configuration exits 2. Financial values
 in configuration are quoted decimal strings or `null`. The example contains no
 invented budget, trading spacing, account allocation or exit policy.
 
-## Local backtest interface
+## Backtest interface
 
 Run existing historical data through the Module 1 C++ engine, inspect saved
 results and compare up to four settings side by side in your browser:
 
-```sh
-cd /opt/grid
-/opt/grid-tools/module1-py312/bin/python -m scripts.backtest_web
-```
-
-Open **http://127.0.0.1:8765**. For a remote workspace, forward port 8765 in
-VS Code first. The interface includes the ten structurally validated source
+Open **http://103.1.225.114/module1/backtesting**. Sign in as `grid` using the
+password in `/etc/grid-backtest-ui/access.json` on this host. The installed
+service starts automatically; the requested HTTP connection is unencrypted.
+The interface includes the ten structurally validated source
 files and the existing 22-run study; new results stay in
 `/opt/grid-runs/backtest-ui/`. It is local offline research with explicit OHLC
-assumptions. See [usage, controls and limits](docs/BACKTEST_UI.md).
+assumptions. See [usage, local mode and service controls](docs/BACKTEST_UI.md).
 
 ## Offline historical research
 
