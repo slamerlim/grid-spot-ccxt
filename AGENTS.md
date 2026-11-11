@@ -441,6 +441,14 @@ revision and sequence contracts are not proven CCXT capabilities.
 
 ## Development
 
+The owner requested a minimal local web interface for existing backtests.
+`python -m scripts.backtest_web` wraps the existing Module 1 executable and
+financial checks; see `docs/BACKTEST_UI.md`. Keep it loopback-only, one owned
+worker per output directory, no hosted service or exchange transport. Preserve
+the frozen study and dataset bytes; retain failed/cancelled exploratory runs
+outside Git. Frontend display rounding must never alter exact engine inputs
+or results. This does not authorize live trading, deployment or paid GitHub.
+
 Use Python 3.12/3.13, `uv` and the single `uv.lock`. Run the commands documented
 in README before committing. Tests must be offline by default and deterministic;
 use temporary paths and mock external data. Typecheck application and tests.

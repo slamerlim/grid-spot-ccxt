@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GRID · Backtests</title>
+    <link rel="stylesheet" href="/assets/style.css" />
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">GRID <span>/ research</span></a
+      ><span class="pill">LOCAL · SPOT ONLY</span>
+    </header>
+    <main>
+      <div class="intro">
+        <div>
+          <p class="eyebrow">TEST. OBSERVE. COMPARE.</p>
+          <h1>Backtest workspace</h1>
+          <p>Explore a strategy on the history you already have.</p>
+        </div>
+        <span id="connection" role="status">Connecting…</span>
+      </div>
+      <aside class="notice">
+        <strong>Research, with assumptions.</strong> OHLC candles cannot prove
+        fills. Fees, spread and market rules are synthetic. Results include open
+        inventory; profitability in live trading is not established.
+      </aside>
+      <p id="error" class="error" role="alert" hidden></p>
+      <div class="workspace">
+        <section class="panel setup" aria-labelledby="setup-title">
+          <div class="section-head">
+            <h2 id="setup-title">New backtest</h2>
+            <button id="reset" type="button" class="text-button">Reset</button>
+          </div>
+          <form id="run-form">
+            <label>Run name<input name="name" maxlength="80" required /></label>
+            <fieldset>
+              <legend>Markets <span id="market-count"></span></legend>
+              <div class="tools">
+                <button id="all-markets" class="text-button" type="button">
+                  Select all</button
+                ><button id="one-market" class="text-button" type="button">
+                  First only
+                </button>
+              </div>
+              <div id="markets" class="market-list"></div>
+            </fieldset>
+            <fieldset>
+              <legend>Period <span>Europe/Moscow · UTC+3</span></legend>
+              <div class="tools">
+                <button type="button" data-range="7">Last 7 days</button
+                ><button type="button" data-range="30">30 days</button
+                ><button type="button" data-range="full">Full overlap</button>
+              </div>
+              <label
+                >From, inclusive<input
+                  name="start"
+                  type="datetime-local"
+                  step="60"
+                  required
+              /></label>
+              <label
+                >Until, exclusive<input
+                  name="end"
+                  type="datetime-local"
+                  step="60"
+                  required
+              /></label>
+              <p id="coverage" class="hint"></p>
+            </fieldset>
+            <div class="two-col">
+              <label
+                >Capital / market · USDT<input
+                  name="capital"
+                  type="number"
+                  min="10"
+                  max="100000"
+                  step="any"
+                  required /></label
+              ><label
+                >Cash reserve / market<input
+                  name="reserve"
+                  type="number"
+                  min="0"
+                  max="100000"
+                  step="any"
+                  required
+              /></label>
+            </div>
+            <div class="two-col">
+              <label
+                >Grid spacing · %<input
+                  name="spacing_pct"
+                  type="number"
+                  min="0.05"
+                  max="20"
+                  step="any"
+                  required /></label
+              ><label
+                >Basket min. profit · USDT<input
+                  name="net_target"
+                  type="number"
+                  min="0.000001"
+                  max="100"
+                  step="any"
+                  required
+              /></label>
+            </div>
+            <label
+              >First entry<select name="entry">
+                <option value="seed_min_limit">Minimum seed LIMIT</option>
+                <option value="no_seed_lower">First BUY one step lower</option>
+              </select></label
+            >
+            <label
+              >Lower BUY orders<select name="ladder">
+                <option value="ladder_multi">Several pending levels</option>
+                <option value="ladder_one">One pending level</option>
+              </select></label
+            >
+            <div class="two-col">
+              <label
+                >Pending levels<input
+                  name="levels"
+                  type="number"
+                  min="1"
+                  max="16"
+                  step="1"
+                  required /></label
+              ><label
+                >Maximum held lots<input
+                  name="max_lots"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  required
+              /></label>
+            </div>
+            <label
+              >OHLC fill convention<select name="ohlc">
+                <option value="strict_skip_ambiguous">
+                  Strict · skip ambiguous bars
+                </option>
+                <option value="touch_buy_priority">Touch · BUY priority</option>
+                <option value="touch_sell_priority">
+                  Touch · SELL priority
+                </option>
+              </select></label
+            >
+            <details>
+              <summary>Costs & reentry</summary>
+              <div class="two-col">
+                <label
+                  >BUY fee · %<input
+                    name="buy_fee_pct"
+                    type="number"
+                    min="0"
+                    max="2"
+                    step="any"
+                    required /></label
+                ><label
+                  >SELL fee · %<input
+                    name="sell_fee_pct"
+                    type="number"
+                    min="0"
+                    max="2"
+                    step="any"
+                    required
+                /></label>
+              </div>
+              <div class="two-col">
+                <label
+                  >Synthetic spread · %<input
+                    name="spread_pct"
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="any"
+                    required /></label
+                ><label
+                  >Place / cancel delay · bars<input
+                    name="latency"
+                    type="number"
+                    min="1"
+                    max="60"
+                    step="1"
+                    required
+                /></label>
+              </div>
+              <label
+                >After a completed basket<select name="reentry">
+                  <option value="reentry_near_fresh_book">
+                    Near fresh price reference
+                  </option>
+                  <option value="reentry_one_step_below_sell">
+                    One step below previous SELL
+                  </option>
+                </select></label
+              >
+            </details>
+            <p class="hint">
+              Minimum lots · one basket SELL · fixed global +10% NAV exit
+              trigger. No martingale. A trigger does not guarantee a completed
+              exit or +10% profit.
+            </p>
+            <button id="submit" class="primary" type="submit">
+              Run backtest <span aria-hidden="true">→</span>
+            </button>
+            <div id="progress" class="progress" hidden>
+              <span id="progress-text" role="status"></span
+              ><button id="cancel" class="text-button" type="button">
+                Cancel run
+              </button>
+            </div>
+            <p class="hint">
+              One run at a time. Start with 7 days; full histories can take tens
+              of minutes. Closing this tab leaves the run working.
+            </p>
+          </form>
+        </section>
+        <div class="results-column">
+          <section class="panel" aria-labelledby="runs-title">
+            <div class="section-head">
+              <div>
+                <h2 id="runs-title">Saved runs <span id="run-count"></span></h2>
+                <p class="hint">Select up to four completed runs to compare.</p>
+              </div>
+              <input
+                id="search"
+                type="search"
+                placeholder="Find a run…"
+                aria-label="Find a run"
+              />
+            </div>
+            <div class="table-scroll run-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th><span class="sr-only">Compare</span></th>
+                    <th>Run / settings</th>
+                    <th>Status</th>
+                    <th>Net return</th>
+                    <th>Observed DD</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="runs"></tbody>
+              </table>
+            </div>
+            <p id="empty-runs" class="empty" hidden>
+              No saved runs yet. Choose your settings and run a backtest.
+            </p>
+          </section>
+          <section class="panel" aria-labelledby="compare-title">
+            <div class="section-head">
+              <div>
+                <h2 id="compare-title">Comparison</h2>
+                <p class="hint">
+                  Estimated liquidation NAV, including remaining inventory.
+                </p>
+              </div>
+              <button id="export" type="button" disabled>Export CSV</button>
+            </div>
+            <p id="compare-empty" class="empty">
+              Select a completed run above to see its results.
+            </p>
+            <div id="comparison" hidden>
+              <div id="comparison-notice" class="comparison-notice"></div>
+              <div id="legend" class="legend"></div>
+              <svg
+                id="chart"
+                viewBox="0 0 900 270"
+                role="img"
+                aria-label="Sampled net portfolio return over time"
+              ></svg>
+              <p class="hint">
+                Daily snapshots, plus first and final observations. Gaps at
+                unknown sampled NAV. Unobserved intervals may contain additional
+                uncertainty; drawdown below uses every observed timestamp group,
+                not just this chart.
+              </p>
+              <div class="table-scroll">
+                <table id="comparison-table"></table>
+              </div>
+              <details>
+                <summary>Strategy settings side by side</summary>
+                <div class="table-scroll">
+                  <table id="comparison-settings"></table>
+                </div>
+              </details>
+            </div>
+          </section>
+          <section class="panel" aria-labelledby="detail-title">
+            <div class="section-head">
+              <h2 id="detail-title">Run details</h2>
+              <select
+                id="detail-choice"
+                aria-label="Choose a run for details"
+              ></select>
+            </div>
+            <p id="detail-empty" class="empty">
+              Open a run to inspect coverage, inventory and evidence.
+            </p>
+            <div id="detail" hidden>
+              <div id="downloads" class="tools"></div>
+              <p id="detail-note" class="hint"></p>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Allocation</th>
+                      <th>Net return</th>
+                      <th>Realized PnL</th>
+                      <th>Unrealized PnL</th>
+                      <th>Position cost</th>
+                      <th>Owned base</th>
+                    </tr>
+                  </thead>
+                  <tbody id="allocations"></tbody>
+                </table>
+              </div>
+              <details>
+                <summary>Effective settings & assumptions</summary>
+                <pre id="settings-json"></pre>
+              </details>
+            </div>
+          </section>
+        </div>
+      </div>
+      <footer>
+        <span>Offline research · no exchange connection</span
+        ><span id="output"></span>
+      </footer>
+    </main>
+  </body>
+</html>
