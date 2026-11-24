@@ -446,7 +446,10 @@ The owner requested a minimal local web interface for existing backtests.
 financial checks; see `docs/BACKTEST_UI.md`. The owner subsequently requested
 `http://103.1.225.114/module1/backtesting`, authorizing deployment of this
 research UI on that host. Keep the Python listener on loopback, with the
-password-protected Nginx path and the dedicated `grid-backtest-ui` service.
+public Nginx path and the dedicated `grid-backtest-ui` service. The owner
+subsequently removed HTTP Basic login for this research UI; keep the listener
+on loopback and preserve bounded requests and one owned worker. Anyone who can
+reach this HTTP URL can start or cancel research runs and view their results.
 This supersedes the previous local-only restriction for this UI only. Keep one
 owned worker per output directory and no exchange transport. Preserve
 the frozen study and dataset bytes; retain failed/cancelled exploratory runs
@@ -457,10 +460,187 @@ Use Python 3.12/3.13, `uv` and the single `uv.lock`. Run the commands documented
 in README before committing. Tests must be offline by default and deterministic;
 use temporary paths and mock external data. Typecheck application and tests.
 Keep commits scoped and describe behavior, validation and remaining limitations.
-Do not modify `/opt/module_1_multi` or `/opt/datasets`.
+Do not modify `/opt/module_1_multi`, `/opt/module1_n` or `/opt/datasets`.
+
+The owner explicitly approved "Exact matching research mode; keep funded
+validation separate" on 2026-11-11. New paired UI runs use a single shared
+configuration for the current C++ `compare-reference` command and the unchanged
+audited executable. Freeze the same source, UTC window and precision for both;
+verify deterministic summaries and full trade/chart bytes. The compatibility
+mode deliberately reproduces the reference's unfunded synthetic O/H/L/C and
+floating-point research conventions. It is isolated from exact funded accounting
+and the Python live core. Do not relabel it funded validation or a profitable
+trading-engine upgrade. Preserve older unequal-model runs with explicit context;
+new paired launches must reject separate divergent engine settings. Use copies
+of the audited binary with all new outputs outside `/opt/module1_n`.
+
+The owner also requires one-click whole-exchange selection, multiple-pair totals
+and a detailed per-pair table. The owner explicitly chose each pair's own full
+available history for whole-exchange runs when no shared window exists. Dates
+must still match exactly between engines for each pair. Keep shared-period mode
+as an alternative. The owner's subsequent instruction requires combined charts
+and ending PnL to include every simulated trade in the selected histories; this
+supersedes the earlier restriction to overlapping timestamps. Process all retained
+trades and chart closes, with OHLC aggregation preserving event extrema. Before
+a pair begins its contribution is zero; between updates and after its history
+ends carry its last recorded mark and disclose that it can be stale. Ending PnL
+is the sum of all included pairs' terminal summaries, even at differing dates,
+not synchronized portfolio NAV. Continue other pairs when one is invalid; label
+partial results and exclusions. Sum only native-quote-compatible amounts; never
+add FX currencies or individual drawdown maxima. Explain the deterministic
+synthetic tie order and the limits of trade/retained-close drawdown coverage.
+Retain missing marks and original precision. Funded accounting stays exact;
+matching research preserves the immutable reference's long-double/binary64
+contract. Float32 archives cannot regain discarded digits. Display rounding
+must not alter settings, accounting or downloadable raw artifacts.
+
+Whole-exchange preparation must run outside the HTTP event loop. Reuse at most
+one parsed saved venue snapshot, keyed by its complete file identity and
+invalidated on change/removal. Freeze just the selected market's unchanged
+precision entry for each new pair; both engines reuse that identical snapshot.
+Large totals run in one background calculation and return HTTP 202 while busy;
+reuse only a disposable result whose complete retained-input and output identities
+remain unchanged. Preserve full hash verification before publishing totals.
+Identical, verified full trade/chart files and summary values may share one
+derived aggregate calculation; verify both artifacts and record that reuse.
+Interrupted/cancelled matching suites may be explicitly resumed with their
+original request: revalidate completed pairs, reuse only exact matches, retain
+failed pairs, and replay unfinished pairs from the beginning. Never resume
+automatically at startup or change settings to bypass an archived refusal.
+
+The owner requires historical USDT valuation across all quote currencies and
+reiterated that the actual strategy must use the smallest executable order for
+each venue, symbol and limit price. A constant 10 native quote units is only
+the immutable simulator's comparison parameter, never an exchange-minimum rule.
+Use verified per-market amount/notional limits and precision for minimum sizing;
+do not treat precision alone, 5 native quote units, or 10 USDT as a universal
+minimum. Missing historical market rules remain explicit research assumptions.
+The funded calculator already computes minimum buys; its synthetic UI rules do
+not certify actual exchange minima. Keep module1_n unchanged, and explain that
+fixed-quote exact parity and a minimum-order strategy are different experiments.
+
+Historical USDT reports are a derived reporting layer, preserving the original
+native runs and their parity. Use same-venue direct/inverse/two-leg archived
+conversion prices, with only USDT/USDT fixed at one. Never assume USD or another
+stablecoin is USDT. Use completed minute closes, no future conversion data,
+interpolation or stale price carry; missing values make totals incomplete.
+Distinguish historical-cost trade PnL from native balances translated at the
+valuation time and from funded portfolio NAV. Unfunded reference output cannot
+establish funded NAV/ROI. Expose arbitrary completed-minute inspection and the
+sampling limits of overview charts. Preserve archives and the audited simulator.
+
+The owner authorized evaluating minimum sizing in the funded research engine,
+while retaining module1_n as a labeled fixed-size benchmark, and requested
+full-period/monthly PnL %, Profit Factor, Win Rate and Sharpe at the UI top.
+The owner selected the current funded engine's actual capital amount as the
+reference denominator; do not invent a separate capital or hindsight peak-funding
+baseline. Native quote capital remains explicit and is valued with historical FX.
+Only same-roster, same-window funded runs may appear as comparison choices.
+Minimum mode uses each market's saved CCXT limits and compatible accounting
+quanta, never a universal notional or precision. Missing rules, unsupported modes
+and the unvalidated deprecated Bybit mapping remain refusals, not guessed minima.
+Keep dated current rules applied to history labeled assumption-based.
+
+Metrics use USDT marked equity after paid fees, including open inventory and quote
+FX; monthly returns start from that month's equity. Use UTC calendar months and
+complete UTC daily simple returns for Sharpe, sample SD, zero risk-free rate and
+sqrt(365) annualization. Missing daily/end marks, zero variance or insufficient
+reference cash make affected values unavailable. Profit Factor and Win Rate use
+net completed positions, combining partial sells; breakevens stay in Win Rate's
+denominator. No losses means undefined Profit Factor, never fabricated infinity.
+Preserve every fill and the original artifacts; snapshot charts are not a source
+for trade counts or exact monthly statistics. Funded fills use exact sidecars,
+receipt hashes and completed-bar timestamps; arbitrary-minute USDT inspection
+must keep native quantities, fees, actual cash, equity and trade PnL distinct.
+
+The owner's 2026-11-12 HTX/Gate audit brief authorizes targeted implementation in
+four review batches: (1) public market rules and funded sizing, (2) accounting and
+metrics, (3) persistence/dashboard, (4) justified historical and browser checks.
+HTX and Gate are the priority venues. Return a review checkpoint after Batch 1
+and Batch 2; do not run broad historical replays in Batch 1. Reuse the retained
+65 GB archive audit and verify file identities instead of rescanning unchanged
+files. Keep module1_n, datasets, funding amounts/allocation and strategy intact.
+Only bounded public spot metadata requests are authorized; no private calls or
+orders. Refresh HTX/Gate through `scripts.backtest_minimum`, outside module1_n,
+using pinned CCXT and the existing bounded transport. Preserve dated snapshot
+versions, raw exceptions, maximum bounds and required price-reference context.
+Historical price-band checks use explicit close-based proxies, never claims of
+observed venue reference prices or historically verified rules. Do not silently
+ignore Gate's two-minute reference window or bridge missing minutes.
 
 Parallel work is allowed with disjoint file ownership. Report actual evidence;
 unavailable repository access or capabilities are BLOCKED/NOT TESTED, not PASS.
+
+On 2026-11-12 the owner redirected the historical-data collection batch:
+"stop struggling on Gate, let's use HTX for now". HTX is the active venue;
+stop Gate requests, downloads and gap investigations unless the owner reopens
+that work. Retain existing Gate artifacts. Use the HTX-only collection manifest
+under `/opt/grid-runs/historical-collection-20261112/htx-focus`; do not resume
+the earlier combined manifest. The collection brief authorizes bounded public
+historical source checks and separate immutable storage, without credentials.
+Reuse the retained integrity audit. Preserve datasets, module1_n, trading rules,
+funding and prior results. Complete the acquisition/validation report and stop
+for review before Batch 2 accounting, metrics or dashboard changes. Candle
+timestamp coverage is not proof of fresh trades, liquidity or exact fills.
+
+The owner then explicitly stopped further data fetching: existing HTX coverage
+is sufficient for the next work. Do not fetch more archives or pursue residual
+gaps unless the owner requests it. Focus on the remaining accounting, historical
+USDT reconciliation and metrics requirements, using existing HTX inputs. The
+current request is to present that implementation plan; preserve the Batch 2
+review checkpoint before dashboard work.
+
+The owner's subsequent HTX-only Batch 2 brief explicitly authorizes implementing
+Steps 1–4 in order: completed cycles/PF, funded accounting and historical USDT
+reconciliation, authoritative portfolio metrics, and independent HTX verification.
+Validate each stage before continuing. Complete Step 4 and then stop for review;
+do not stop after Step 1 merely to request the already-granted scope again.
+No Gate processing, exchange requests, data collection, strategy/funding/sizing/
+fee/execution changes, legacy changes, or Step 5 frontend work. Preserve Batch 1
+HTX snapshots/rules and all historical inputs. New evidence belongs under
+`/opt/grid-runs/htx-batch2-20261112`. Missing required marks make Sharpe/drawdown
+explicitly unavailable; do not quietly use a subset. Portfolio metrics use
+combined equity and completed cycles, never averages of pair-level ratios.
+
+The owner's subsequent instruction restricts all NEW backtests and trading
+selections to spot pairs quoted in USDT. This supersedes earlier requests to
+admit BTC/USDC/other quote currencies and authorizes the narrow selector/API/
+configuration/admission changes needed to enforce it. "Select all" means all
+eligible USDT pairs on that exchange. Reject explicit non-USDT requests before
+execution. The owner explicitly requires that the panel send no non-USDT job to
+module1_n: enforce this in direct/bulk/matched launch, resume and worker admission,
+including the archive filename's quote; do not rely on dropdown filtering alone.
+Preserve all existing datasets, module1_n, saved runs and historical
+accounting evidence; old records may remain readable. Do not run further
+non-USDT historical simulations. This does not authorize unrelated dashboard
+metrics work, live trading, new exchange calls or a change to sizing/funding.
+
+## Funded research floor grid — owner clarification, 2026-11-17 UTC
+
+The owner confirmed logarithmic price spacing as
+`log(Pn) = log(entry) + n * log(1 - step_pct/100)` for new funded C++ runs.
+Use the shared `step_pct` control; no second funded spacing parameter. This is
+an explicit research clarification to the older reciprocal-step contract, not
+a change to the Python live strategy or the unchanged module1_n comparison.
+Infinite BUY mode means every distinct minimum LIMIT level down to the entry
+floor is planned/reserved together, with no seed fill and a fixed completed-close
+anchor. The floor may be at most 60% below entry; its final interval can be
+shorter and its price rounds upward to a valid tick. Inadequate funds, duplicate
+ticks, market constraints or the finite research capacity refuse the whole grid.
+Never truncate it to a convenient funded subset or create unfunded orders.
+
+Exchange and global take-profit default independently to 10% of original scoped
+funding, using complete net liquidation equity including inventory and fees.
+Global takes priority. Reconcile cancellations, use LIMIT exits only, retain
+blocked exposure and keep a completed scope stopped for the remainder of the
+run. New panel runs use the completed-close proxy without synthetic spread.
+Keep archived contracts/results accurately labeled and unchanged.
+
+The owner requires implementation, generated-data tests and C++ profiling first,
+then separate approval before any historical batch. The old 185,376-job matrix
+remains stopped; never resume it or replace its frozen source hashes. Preserve
+datasets, module1_n, the reviewed Batch 2 tree and earlier isolated candidates.
+See `docs/BACKTEST_UI.md` for the effective settings and validation evidence.
 
 ## GitHub Free only
 
@@ -502,3 +682,211 @@ the checks above, review the staged changes, commit with a descriptive message,
 then use `git push --set-upstream origin HEAD`. Check the command's result and
 remote commit before reporting publication. See `docs/RUNBOOK.md` for setup,
 verification and revocation; a configured remote alone is not proof of access.
+
+## Interview research sweep — owner approval, 2026-11-19
+
+The owner explicitly approved implementation of the plan based on
+`docs/RESEARCH_INTERVIEW_2026-11-19.md`: a separate unfunded, exact research
+sweep of 540 configurations, all archived spot USDT pairs on the seven venues,
+and each pair's complete available history. This supersedes the earlier
+historical-batch approval restriction for this new mode only. Full hypothetical
+fills, strict price crossings, O/H/L/C event ordering, minimum buys, gross local
+TP, 0.2% USDT fees per side, a 60% lower grid boundary and no global sale are
+explicit research assumptions. Keep the funded modes and Python live core intact.
+
+The approval includes implementation, local tests, bounded public spot-rule
+catalogues on all seven venues, load testing, technical calibration, existing
+research-UI integration and the full run after its declared gates. Do not fetch
+new price histories, edit source datasets, access accounts or send orders.
+Missing required pair rules block the full roster; never invent minima or
+silently run a smaller full study. The owner selected checkpoint recovery and
+an explicit resume action. Preserve failed/cancelled evidence outside Git.
+See `docs/RESEARCH_SWEEP.md` for the interface and actual validation status.
+
+The owner's subsequent 2026-11-19 filtered full-backtest plan supersedes the
+strict all-pair admission rule for a separate, explicit selection action.
+It permits excluding pairs only for unknown agreed research-model rules,
+with a recorded reason per pair, and requires at least one admitted spot USDT
+pair on each of the same seven venues. Reaudit all original sources, preserve
+the original strict manifest and datasets, and bind every validation and run
+stage to the new selected manifest. The full history of every admitted pair
+and all 540 configurations remain required. Do not present a four-venue or
+partially completed run as the authorized full seven-venue result.
+
+The owner approved the subsequent acceleration plan: new research jobs use
+`chart_mode=on_demand`, retaining every exact financial result, extremum/date
+and trade hash. Aggregate charts replay one selected configuration over its
+original complete roster/horizon and must match the original results before
+caching. Preserve earlier eager-chart results and the separate pair chart.
+The new `optimized-600s-v1` acceptance policy replaces the one-hour endurance
+gate with 600 seconds on all 4,792 admitted pairs and 540 configurations, at
+least two durable checkpoints and verified recovery. This is a ten-minute
+test, never evidence of a one-hour pass. Then perform the seven-day rehearsal
+and full histories with 32 calculation threads across configurations. Bind
+all new evidence to the exact code, executable and unchanged selected manifest;
+do not resume old checkpoints with a changed build. Short current-candidate
+comparisons are authorized; do not restart lengthy old-version benchmarks.
+Keep old artifacts intact, source datasets immutable and existing resource
+limits, exact accounting, checkpoint publication and source hashes enforced.
+
+The owner subsequently approved the expanded research TP matrix (2026-11-20):
+540 existing combinations × 28 exchange TP choices × 28 global TP choices =
+423,360 configurations. Each extra axis is off or 2–15% in 0.5-point steps;
+the exchange threshold is shared but each venue acts independently. After
+ordinary trades at each common O/H/L/C point, global TP takes precedence over
+venue TP. Aggregate profit includes all exit fees and is compared using >= to
+the attained peak spent of that scope's current cycle. Aggregate liquidation
+immediately sells all owned positions at their last known prices, even stale;
+preserve quote timestamps separately from sale timestamps. This is a new
+research assumption, not live/funded permission. Reset only the exited venue's
+cycle on venue exits, all cycles on global exits; reseed all affected pairs on
+their next actual price observation, retaining lifetime totals. Use bounded
+configuration batches and binary exact financial summaries for every config;
+pair details and charts replay on demand with result/hash verification. Do not
+load the full matrix's states into RAM or change/delete old data/artifacts.
+The accepted answers are in docs/RESEARCH_INTERVIEW_2026-11-19.md.
+
+On 2026-11-21 the owner increased the research artifact limit to 64 GiB and
+requested individually measured optimizations which preserve exact financial
+results, events, hashes, coverage and recovery. New study identities bind this
+limit; old studies/checkpoints retain their recorded limits. Keep the 64 GiB
+worker RSS limit and 32 GiB free RAM/disk floors. Do not modify old artifacts
+or original datasets. No further web-interface work is requested.
+
+The owner subsequently requested monthly and final spent/PnL/profit factor and
+Sharpe/Sortino immediately for every expanded-matrix configuration, for the
+portfolio and seven venues, followed by speed checks, ten-minute load and the
+seven-day rehearsal. PF uses completed pair positions after both fees, grouped
+by sale month. The owner selected monthly observations and cumulative monthly
+Sharpe/Sortino from history start, with 12-period annualization; partial months
+stay in financial totals but not the complete-month risk sample. Preserve exact
+money/moments and explicit unavailable ratios. Keep charts/pair details on
+request, all source histories and old artifacts intact; no UI work is requested.
+
+The owner then explicitly required the load test to cover **all 423,360
+configurations**, superseding the 540-representative expanded-matrix load stage.
+The `complete-matrix-600s-v2` policy processes all configurations in bounded
+batches over one identical deterministic synthetic history, retaining all 4,792
+admitted pair IDs, venues and rules. Require at least 600 seconds of summed
+complete-batch replay, two durable checkpoints and exact full-batch recovery.
+This is not 600 seconds per batch or a simultaneous full-matrix RAM allocation.
+Only short calibration may use the 540 representatives. Old load evidence
+does not satisfy this expanded coverage; keep interrupted artifacts intact.
+
+The owner's subsequent selected-matrix plan supersedes that configuration
+count for the current research: exactly 4,480 combinations, grid step 1–10%
+by 1, pair TP 2–8% by 1, and independently off or 2–8% by 1 for exchange and
+global TP. Keep the grid depth at 60%, all 4,792 admitted pairs and their full
+histories. Both common TP axes remain present. Preserve canonical config IDs
+and bind admission/recovery to the immutable selected list, not 423,360.
+Use framed C++ MessagePack and exact compressed positional records in
+`results.bin`; `results.sqlite` is only an index. Production summary/execution
+JSON must not contain financial tables. Preserve reading of old artifacts.
+New evidence requires a real short measurement with 32 calculation threads
+and batches of 1,024, then all 4,480 configurations on all admitted pair/rule
+identities in the load test. Start at exactly 1,024 synthetic records per source
+(preserve time gaps; a minute-count fixture with fewer records is insufficient) and double
+up to 32,000 if summed replay is below 600 seconds; prove two checkpoints and
+exact full-batch recovery, then the seven-day rehearsal and full histories.
+The 1–3 day duration is a target, never permission to drop work. Keep the
+64 GiB artifact/RSS limits, 32 GiB free RAM/disk floors, datasets, old evidence
+and the web interface unchanged. Local implementation and these runs are
+explicitly authorized; no new live/exchange or paid GitHub permission is implied.
+
+On 2026-11-21 the owner explicitly removed the seven-day rehearsal from the
+current selected-matrix chain: "давай обойдемся без недельной репетиции и
+приступим к полному прогону сразу после проверок". The required order is now
+validation/calibration, the complete selected-matrix load and exact full-batch
+recovery with two checkpoints, then full history directly. Record the rehearsal
+as WAIVED_BY_OWNER, never passed. Keep all other admission, financial, source,
+identity, resource and final independent-audit checks. The dated amendment is
+`/opt/grid-runs/tp-selected-bin-v086fr43/exact-records-r2/rehearsal-waiver.json`.
+This only changes scheduling; the same 4,480 configurations, 4,792 pairs,
+32 workers, 60% depth, financial code/executable and immutable study remain.
+
+
+The owner then explicitly replaced the entire old backtest web interface with
+an SSH-only Streamlit results table. This supersedes prior no-new-UI and public
+Nginx instructions for this requested replacement only. Remove the old HTTP
+server/static assets and its service/proxy configuration; keep Nginx stopped,
+disabled and masked. The new `grid-results-viewer` service binds only
+127.0.0.1:80 at /module1/backtesting/. Client access is the approved SSH port
+15407 tunnel from 127.0.0.1:8888 to the host's 127.0.0.1:80. Keep the viewer
+read-only over published `results.bin` and its SQLite index, with portfolio/venue
+and overall/month choices and sorting/filtering on every table field. Display
+rounding must not change exact numeric filters, sidebar sorting or saved data.
+No calculation launch/cancel/resume, exchange transport or deployment of the
+trading bot is authorized by this viewer change. Preserve offline engine/CLI,
+original datasets, completed artifacts and financial rules. Continue to use
+one uv.lock, local tests and GitHub Free only. See docs/BACKTEST_UI.md.
+
+The owner subsequently approved the selected-configuration detail replay plan.
+This supersedes the viewer-only launch restriction for one explicitly confirmed
+configuration at a time, on its original complete 4,792-pair seven-venue history.
+Streamlit must offer Yes/No confirmation; dismissal does not start work. Use a
+separate owned worker and the existing heavy lock, explicit checkpoint resume,
+binary exact details and read-only access to old results/datasets. No matrix run
+or exchange transport is authorized. Monthly drawdown means the largest net
+PnL shortfall from its lifetime peak attained in the month, carrying peaks across
+months (historical peak 100, path 80/70/90 means 30). Percentage uses that month's
+peak spent; medians use complete UTC months. Save portfolio/venue monthly risk,
+charts and pair totals, not a full trade journal. Derivatives must match all old
+financial fields and hashes before publication. Keep the SSH-only listener,
+Nginx masked, 64 GiB artifact/worker RSS caps and 32 GiB free RAM/disk floors.
+
+## Gap-free research selection — owner approval, 2026-11-22
+
+The owner approved a separate derived selection excluding each exchange+pair
+with even one missing minute between its own first and last archive records.
+Use five venues (BingX, Gate, HTX, KuCoin, OKX); Bitfinex and XT have no eligible
+gap-free sources in the frozen 4,792-pair parent. Expected structural selection
+is 1,644 candidates and 3,148 gap exclusions, not final historical certification.
+Do not fill gaps, trim histories, impose a new minimum duration, globally ban a
+ticker because another venue has gaps, or overwrite old manifests/results/data.
+Reaudit complete bytes, timestamps and SHA-256 before publication; keep exact
+parent/roster/policy identities and all 4,480 selected configuration IDs. Old
+seven-venue admission remains strict for its original policy. New-policy common
+TP requires a current observation at the shared OHLC point for every open
+position in that scope. Missing/ended prices prevent that trigger, not ordinary
+trading or another fully observed venue's TP. Full execution remains assumed;
+no fictitious stale-price sale or zero valuation is allowed. A started exit is
+not revoked because its expected profit falls. Preserve explicit stale marks
+and open remnants. This approval covers implementation, bounded exact tests
+and the new source audit/selection, not a new full backtest: suspicious-price
+and historical-rule decisions remain pending. Use local tools and GitHub Free
+only; preserve the SSH viewer and live/funded behavior.
+
+The owner reiterated that all identified unclear/abnormal assets must actually
+be excluded, not retained as warnings. The derived selection-v3 now removes
+749 additional exchange+pair sources from the 1,644 gap-free candidates and
+retains 895 on the same five venues. Its immutable exclusion review is under
+`/opt/grid-runs/reviewed-selection-20261122-1mgj2aww/`; use its `study/`
+for subsequent preparation, not the superseded 1,644-pair study. Preserve all
+4,480 configuration IDs and original data/results. Explicit conservative screens
+exclude symmetric minute price ratios >=2, identical flat OHLC runs >=1,440
+records, identical nonflat runs >=60 records, and identified unsupported
+leveraged/equity/rebasing asset models. These screens can reject real market
+events; they are uncertainty exclusions, not proof of corruption or certification
+of the remaining prices. No exclusion uses backtest PnL. Historical-rule policy
+and the reproduced exchange-calendar statistics defect remain unresolved;
+full launch/resume is blocked pending their resolution. See docs/RESEARCH_SWEEP.md.
+
+Subsequent owner decisions supersede that historical-rule hold: use the dated
+current public CCXT snapshot on full histories, the corrected own-venue calendar,
+and the separate one-hour-flat-price exclusion. The completed active study now
+contains 109 pairs on BingX/Gate/HTX/KuCoin/OKX and 4,480 configurations; its
+immutable selection is `/opt/grid-runs/flat-hour-20261122-0435/selection/`.
+Earlier datasets, selections, builds and results remain preserved. The owner
+waived repeated load tests and the weekly rehearsal; do not start them again.
+
+The owner then approved the next matrix: all grid steps 1–10 by1, coin TP2–8
+by1, exchange and global TP always on and each2–12 by1, and BUY depths
+30/35/40/45/50/55/60 percent. Add the 11 agreed fractional probes at all seven
+depths: total59,367. See the exact interview clarification and RESEARCH_SWEEP.md.
+This depth is an order-price boundary, not a stop loss or incoming-price filter.
+Preserve strict crossings, fees, current-price aggregate TP, exact arithmetic,
+legacy depth60 IDs and all original results. New depth IDs use -d30…-d55.
+Implement and validate this matrix on the same109 pairs; preparation alone does
+not start its full history replay. Do not silently prune configurations by old
+profit. Keep binary results, SSH loopback viewer/native table double-click and
+the existing current publication until new results are independently verified.

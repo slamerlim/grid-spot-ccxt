@@ -19,6 +19,10 @@ Simulator::Simulator(EngineState initial, EngineContext facts, BarModel assumpti
         throw Error("synthetic spread exceeds configured strategy admission");
 }
 std::vector<Event> Simulator::accept_once(Transition transition, std::int64_t index) {
+    if ((!transition.accepted || transition.state.reconcile_reason) && context.policy.log_percent_grid &&
+        transition.state.reconcile_reason)
+        throw Error("funded replay refused for " + transition.state.scope.venue + ":" + transition.state.scope.symbol +
+                    ": " + *transition.state.reconcile_reason);
     if (!transition.accepted || transition.state.reconcile_reason)
         throw Error("replay needs unsupported reconciliation");
     std::vector<Event> followups;
@@ -75,6 +79,7 @@ void Simulator::compact() {
         throw Error("safe checkpoint exceeds state bounds");
 }
 void Simulator::step(const Bar& bar, std::int64_t index) {
+    step_fills.clear();
     if (index < 0 || (last_timestamp_ && bar.timestamp <= *last_timestamp_)) throw Error("bar chronology must strictly advance");
     unsigned incompatible = 0;
     for (const auto& price : bar.prices) if (!price.tick_compatible(context.market.price_tick)) ++incompatible;
@@ -122,7 +127,20 @@ void Simulator::step(const Bar& bar, std::int64_t index) {
     context.rules_observed_ms = context.fees_observed_ms = context.now_ms;
     const Rational close = bar.prices[3].exact();
     context.book = Book {close, close * (Rational(1) + model.spread), context.now_ms, context.generation};
-    if (!begun_) { event(StartEvent {state.scope}, index); begun_ = true; }
+    // Explicit historical proxies, not observed venue reference prices. Gate uses
+    // two consecutive closes; missing minutes cannot supply its two-minute window.
+    const bool reference_was_missing = !context.limit_reference;
+    if (context.limit_reference_bars == 2) {
+        if (last_close_ && !after_gap) context.limit_reference = (*last_close_ + close) / Rational(2);
+        else context.limit_reference.reset();
+    } else context.limit_reference = close;
+    context.limit_reference_ms = context.now_ms;
+    const bool recovered_reference = begun_ && reference_was_missing && context.limit_reference;
+    if (!begun_) {
+        if ((context.buy_price_max_ratio || context.sell_price_min_ratio) && !context.limit_reference)
+            ++metrics.notices["LIMIT price-protection reference unavailable or stale"];
+        else { event(StartEvent {state.scope}, index); begun_ = true; }
+    }
     for (const auto& item : selected) {
         Fee fee = item.fee_rule; fee.max_settlements = 1;
         const Rational quantity = base_value(item.remaining(), context);
@@ -132,6 +150,9 @@ void Simulator::step(const Bar& bar, std::int64_t index) {
         FillEvent fill {state.scope, "ohlc:" + std::to_string(index) + ':' + std::to_string(item.id), item.id,
                         quantity, item.price, std::vector<ActualFee>{{fee.currency, charged, fee_quote}}};
         event(fill, index);
+        if (record_fills) step_fills.push_back({context.now_ms, item.buy, item.price, quantity, fee_quote,
+            quote_value(state.quote_cash, context), base_value(state.owned_base(), context),
+            quote_value(state.position_cost, context), quote_value(state.realized_pnl, context)});
         ++metrics.fill_count;
         metrics.turnover = metrics.turnover + quantity * item.price;
         metrics.fees[fee.currency] = metrics.fees[fee.currency] + charged;
@@ -145,7 +166,7 @@ void Simulator::step(const Bar& bar, std::int64_t index) {
             metrics.gross_loss = metrics.gross_loss + max(Rational(), Rational() - pnl);
         }
     }
-    if (after_gap && !state.reconcile_reason && std::none_of(state.orders.begin(), state.orders.end(), [](const auto& item) {
+    if ((after_gap || recovered_reference) && !state.reconcile_reason && std::none_of(state.orders.begin(), state.orders.end(), [](const auto& item) {
         return item.unknown || (item.terminal_amount && !item.terminal());
     })) {
         // This assertion covers only entirely known synthetic state. It cannot
@@ -153,10 +174,10 @@ void Simulator::step(const Bar& bar, std::int64_t index) {
         // refreshed completed close can plan orders eligible on a future bar.
         event(ReconciledEvent {state.scope, context.config_revision, context.generation,
                               std::nullopt, state.reconcile_revision}, index);
-        ++metrics.gap_refreshes;
-        ++metrics.notices["post_gap_known_state_refresh"];
+        if (after_gap) { ++metrics.gap_refreshes; ++metrics.notices["post_gap_known_state_refresh"]; }
+        if (recovered_reference) ++metrics.notices["LIMIT price-protection reference restored"];
     }
-    compact(); last_timestamp_ = bar.timestamp;
+    compact(); last_timestamp_ = bar.timestamp; last_close_ = close;
 }
 std::string Simulator::json() const {
     std::ostringstream out;

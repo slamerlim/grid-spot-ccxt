@@ -39,7 +39,7 @@ from grid.research.replay import run as replay
 
 MAX_ROUNDS = 8
 CASE_TIMEOUT_SECONDS = 240
-ZERO_FEES = (ActualFee("QUOTE", ZERO, None),)
+ZERO_FEES = (ActualFee("USDT", ZERO, None),)
 
 
 def fill_rows(snapshot: dict[str, object]) -> tuple[tuple[str, str, str], ...]:

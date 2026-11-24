@@ -1,0 +1,39 @@
+[Unit]
+Description=GRID Streamlit results viewer over SSH
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=grid-backtest
+Group=grid-backtest
+WorkingDirectory=/opt/grid
+BindReadOnlyPaths=/root/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu:/opt/grid-tools/backtest-runtime
+Environment=PYTHONPATH=/opt/grid-tools/results-viewer/lib/python3.12/site-packages:/opt/grid:/opt/grid/src
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=GRID_RESULTS_PUBLICATION=/opt/grid-runs/results-viewer-ssh/depth-matrix-20261122-nc93lrj3/final-publication.json
+Environment=GRID_RESULTS_MEDIANS=/opt/grid-runs/results-viewer-ssh/depth-matrix-20261122-nc93lrj3/monthly-medians-risk-v2.bin
+Environment=GRID_DETAIL_ROOT=/opt/grid-runs/results-viewer-details
+ExecStart=/usr/bin/env /opt/grid-tools/backtest-runtime/bin/python3.12 -m streamlit run /opt/grid/scripts/results_viewer.py --server.address=127.0.0.1 --server.port=80 --server.baseUrlPath=module1/backtesting --server.headless=true --server.fileWatcherType=auto --server.runOnSave=true --browser.serverAddress=127.0.0.1 --browser.serverPort=8888 --browser.gatherUsageStats=false --client.toolbarMode=viewer
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/grid-runs/results-viewer-details
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+MemoryMax=2G
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

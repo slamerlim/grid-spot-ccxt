@@ -63,7 +63,7 @@ def test_supervised_lifecycle_has_explicit_resume_and_limit_exit(tmp_path: Path)
             await owner.step()
             venue = owner.executor.gateway
             assert len(venue.sent) == 1
-            venue.fill("order-1", "seed", D(1), D(100), (ActualFee("QUOTE", D(0), None),))
+            venue.fill("order-1", "seed", D(1), D(100), (ActualFee("USDT", D(0), None),))
             now[0] += 10
             await owner.observe(case.facts(now[0], 3, D(200)))
             await owner.step()
@@ -73,7 +73,7 @@ def test_supervised_lifecycle_has_explicit_resume_and_limit_exit(tmp_path: Path)
             await owner.observe(case.facts(now[0], 4, D(200)))
             await owner.step()
             assert len(venue.sent) == 2 and venue.sent[-1].order_type == "limit"
-            venue.fill("order-2", "exit", D(1), D(200), (ActualFee("QUOTE", D(0), None),))
+            venue.fill("order-2", "exit", D(1), D(200), (ActualFee("USDT", D(0), None),))
             now[0] += 10
             await owner.observe(case.facts(now[0], 5, D(200)))
             health = await owner.step()

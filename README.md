@@ -111,18 +111,27 @@ normal diagnostics exit 0, and malformed configuration exits 2. Financial values
 in configuration are quoted decimal strings or `null`. The example contains no
 invented budget, trading spacing, account allocation or exit policy.
 
-## Backtest interface
+## Results viewer over SSH
 
-Run existing historical data through the Module 1 C++ engine, inspect saved
-results and compare up to four settings side by side in your browser:
+The completed GRID research run contains **4,480 configurations on all 4,792
+admitted pairs of seven venues**. Its compact Streamlit viewer reads the exact
+binary results without starting calculations or changing the saved files.
+Choose the portfolio or one exchange and the whole history or a calendar month.
+Filter by any table field and sort in either direction. Numerical filters and
+sidebar sorting use exact stored values; display rounding is presentation only.
 
-Open **http://103.1.225.114/module1/backtesting**. Sign in as `grid` using the
-password in `/etc/grid-backtest-ui/access.json` on this host. The installed
-service starts automatically; the requested HTTP connection is unencrypted.
-The interface includes the ten structurally validated source
-files and the existing 22-run study; new results stay in
-`/opt/grid-runs/backtest-ui/`. It is local offline research with explicit OHLC
-assumptions. See [usage, local mode and service controls](docs/BACKTEST_UI.md).
+Run this on your computer and keep the terminal open:
+
+```sh
+ssh -p 15407 -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8888:127.0.0.1:80 root@103.1.225.114
+```
+
+Open **http://127.0.0.1:8888/module1/backtesting/**.
+The `grid-results-viewer` service listens on `127.0.0.1:80` and starts after
+reboot. Nginx is disabled and masked. The previous HTTP interface, static
+assets, service and proxy route have been removed. Historical run artifacts
+and the offline calculation commands remain available.
+See [viewer controls and service setup](docs/BACKTEST_UI.md).
 
 ## Offline historical research
 
@@ -386,6 +395,11 @@ hosted CI as unavailable; do not request payment or claim local tests are hosted
 CI. See the [runbook](docs/RUNBOOK.md) for the account-lock guidance.
 
 ## Specifications and evidence
+
+- [Interview research sweep](docs/RESEARCH_SWEEP.md) documents the separate
+  original 540-configuration mode and the added 423,360-configuration matrix
+  with exchange/global TP, bounded batches, exact binary results and details
+  on demand. The new matrix has separate validation and historical-run gates.
 
 - [PRD v2](docs/PRD_GRID_SPOT_CCXT_FINAL_v2.md),
   [storage ADR](docs/ADR-0001-NVMe-Storage-and-Caching.md), and

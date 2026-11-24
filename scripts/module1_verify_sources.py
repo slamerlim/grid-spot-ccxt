@@ -63,10 +63,25 @@ def child_limits(log_bytes: int = MAX_LOG_BYTES) -> None:
 
 
 def run_child(
-    command: list[str], output: Path, timeout: float, *, log_bytes: int = MAX_LOG_BYTES
+    command: list[str],
+    output: Path,
+    timeout: float,
+    *,
+    log_bytes: int = MAX_LOG_BYTES,
+    env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if not MAX_LOG_BYTES <= log_bytes <= 32 * MAX_LOG_BYTES:
         raise ValueError("child log bound must be between 1 and 32 MiB")
+    child_environment = os.environ if env is None else env
+    inherited = child_environment.get("GRID_RESEARCH_HEAVY_LOCK_FD")
+    pass_fds: tuple[int, ...] = ()
+    if inherited is not None:
+        fd = int(inherited)
+        lock_path = Path(child_environment["GRID_RESEARCH_HEAVY_LOCK"])
+        opened, target = os.fstat(fd), lock_path.stat()
+        if (opened.st_dev, opened.st_ino) != (target.st_dev, target.st_ino):
+            raise ValueError("inherited heavy-job lock identity mismatch")
+        pass_fds = (fd,)
     start_utc = datetime.now(UTC).isoformat()
     start = time.perf_counter()
     timed_out = False
@@ -82,6 +97,8 @@ def run_child(
             stderr=stderr,
             start_new_session=True,
             preexec_fn=functools.partial(child_limits, log_bytes),
+            env=env,
+            pass_fds=pass_fds,
         )
         try:
             while True:

@@ -168,6 +168,16 @@ def test_directory_is_not_a_config(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
+@pytest.mark.parametrize("quote", ["BTC", "ETH", "USDC", "USD", "usdt"])
+def test_only_usdt_can_be_configured_for_trading(quote: str) -> None:
+    with pytest.raises(ConfigError, match="USDT-only"):
+        parse_config({"quote_currency": quote})
+    for field in ("allow", "pin"):
+        with pytest.raises(ConfigError, match="USDT-only"):
+            parse_config({"quote_currency": "USDT", "universe": {field: ["ASSET/" + quote]}})
+    assert parse_config({"quote_currency": "USDT"}).quote_currency == "USDT"
+
+
 @pytest.mark.parametrize(
     "value",
     ["!!int TOP_SECRET_MARKER", "!!timestamp TOP_SECRET_MARKER", "9999-99-99", "1" * 5000],

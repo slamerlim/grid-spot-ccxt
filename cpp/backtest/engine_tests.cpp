@@ -159,8 +159,62 @@ void gap_and_policies() {
     check(one_step.metrics.fill_count == 3 && one_step.state.owned_base() > 0,
           "one-step seed can fill on the subsequent eligible bar");
 }
+void exchange_limit_guards() {
+    auto c = context();
+    c.market.price_tick = q(".000001"); c.market.amount_tick = q(".0001");
+    c.market.prices.minimum = q(".000001");
+    c.market.buy_amount = c.market.sell_amount = {q(".001"), q("1000")};
+    c.market.buy_cost = c.market.sell_cost = {q(".000001"), q("100")};
+    c.base_quantum = q(".0001");
+    auto s = initial(c); s.mode = "portfolio_exit";
+    s.lots.push_back({0, q("1001").exact_units(c.base_quantum), q(".03")});
+    s.position_cost = q("30.03").exact_units(c.quote_quantum);
+    rejects([&] { (void)grid::place_exit(s, c, q(".03"), q("1001")); },
+            "portfolio LIMIT violates market rules");
+    const auto valid = grid::place_exit(s, c, q(".03"), q("1000"));
+    check(valid.commands.size() == 1 && valid.commands[0].order->amount == q("1000").exact_units(c.base_quantum),
+          "Gate exact maximum passes through actual funded order placement");
+    c.market.sell_cost.maximum = q("29.999999");
+    rejects([&] { (void)grid::place_exit(s, c, q(".03"), q("1000")); },
+            "portfolio LIMIT violates market rules");
+    check(s.orders.empty(), "rejected caps create no order or reservation");
+
+    c = context(); s = initial(c);
+    c.buy_price_max_ratio = q("1.1"); c.sell_price_min_ratio = q(".9");
+    auto missing = grid::reduce(s, grid::StartEvent{s.scope}, c);
+    check(missing.commands.empty() && !missing.notices.empty(), "missing protection reference skips seed explicitly");
+    c.limit_reference = q("100"); c.limit_reference_ms = c.now_ms;
+    c.validate_limit(q("110"), q("1"), true);
+    c.validate_limit(q("90"), q("1"), false);
+    rejects([&] { c.validate_limit(q("110.01"), q("1"), true); }, "LIMIT price violates exchange price protection");
+    rejects([&] { c.validate_limit(q("89.99"), q("1"), false); }, "LIMIT price violates exchange price protection");
+    c.limit_reference = q("90");
+    auto refused = grid::reduce(s, grid::StartEvent{s.scope}, c);
+    check(refused.commands.empty() && refused.state.orders.empty(), "HTX overpriced seed never reaches simulation execution");
+    c.limit_reference = q("100");
+    const auto accepted = grid::reduce(s, grid::StartEvent{s.scope}, c);
+    check(accepted.commands.size() == 1, "HTX valid seed retains existing strategy sizing");
+    c.now_ms = 60001;
+    rejects([&] { c.validate_limit(q("100"), q("1"), true); }, "LIMIT price-protection reference unavailable or stale");
+
+    c = context(); c.buy_price_max_ratio = q("1.08"); c.sell_price_min_ratio = q(".92");
+    c.limit_reference_bars = 2;
+    grid::Simulator gate(initial(c), c, {"strict_skip_ambiguous", 1, q(".001"), true});
+    gate.step(bar(0, 100, 100, 100), 0);
+    check(gate.state.orders.empty() && !gate.context.limit_reference,
+          "Gate does not place before two completed observations exist");
+    gate.step(bar(1, 102, 102, 102), 1);
+    check(gate.context.limit_reference == q("101") && gate.state.orders.size() == 1,
+          "Gate uses declared two-close mean and resumes initial placement");
+    gate.step(bar(4, 103, 103, 103), 2);
+    check(!gate.context.limit_reference, "Gate gap invalidates the two-minute reference");
+    gate.step(bar(5, 105, 105, 105), 3);
+    check(gate.context.limit_reference == q("104"), "Gate recovers only with consecutive completed closes");
+    check(gate.metrics.notices.contains("LIMIT price-protection reference restored"),
+          "reference recovery replans known synthetic state explicitly");
+}
 } // namespace
 int main() {
-    try { direct_admission(); public_transition_guards(); gap_and_policies(); std::cout << checks << " engine integration checks passed\n"; return 0; }
+    try { direct_admission(); public_transition_guards(); gap_and_policies(); exchange_limit_guards(); std::cout << checks << " engine integration checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << "engine check " << checks << ": " << error.what() << '\n'; return 1; }
 }

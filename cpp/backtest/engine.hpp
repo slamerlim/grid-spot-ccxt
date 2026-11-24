@@ -18,6 +18,9 @@ struct Policy {
     unsigned max_replacements = 10;
     std::int64_t max_source_age_ms = 1000;
     bool seed_at_ask = false;
+    // New funded research contract; old traces retain their original formula.
+    bool log_percent_grid = false;
+    Rational buy_floor_fraction;
 };
 struct Book {
     Rational bid, ask;
@@ -30,6 +33,10 @@ struct EngineContext {
     std::int64_t config_revision = 1, generation = 1, now_ms = 0;
     std::int64_t rules_observed_ms = 0, fees_observed_ms = 0;
     std::optional<Book> book;
+    std::optional<Rational> buy_price_max_ratio, sell_price_min_ratio;
+    std::optional<Rational> limit_reference;
+    std::int64_t limit_reference_ms = 0;
+    unsigned limit_reference_bars = 1;
     bool allow_new_exposure = true;
     Rational base_quantum {"1e-12"}, quote_quantum {"1e-12"}, token_quantum {"1e-12"};
     // Explicit research-only switches; defaults preserve Python baseline.
@@ -37,6 +44,7 @@ struct EngineContext {
     std::string reentry_policy = "reentry_near_fresh_book";
     [[nodiscard]] bool fresh(std::int64_t observed_ms) const;
     [[nodiscard]] const Rational& quantum(std::string_view currency) const;
+    void validate_limit(const Rational& price, const Rational& amount, bool buy) const;
 };
 struct ActualFee {
     std::string currency;
@@ -99,6 +107,8 @@ struct EngineState {
     std::int64_t control_revision = 0, round_id = 1, next_id = 1;
     unsigned next_level = 1, ladder_credits = 0;
     std::optional<Rational> anchor;
+    std::optional<Rational> entry_reference;
+    bool full_grid_placed = false;
     std::optional<std::int64_t> seed_id;
     std::vector<EngineOrder> orders;
     std::vector<FillEvent> fills;
@@ -124,6 +134,7 @@ struct Transition {
 };
 [[nodiscard]] std::int64_t reserved(const EngineState&, const EngineContext&, std::string_view currency);
 [[nodiscard]] std::int64_t available_quote(const EngineState&, const EngineContext&);
+[[nodiscard]] std::vector<Rational> floor_grid_prices(const Rational& entry, const EngineContext&);
 [[nodiscard]] Transition reduce(EngineState state, const Event&, const EngineContext&);
 [[nodiscard]] Transition request_cancel(EngineState state, std::int64_t order_id);
 [[nodiscard]] Transition place_exit(EngineState state, const EngineContext&, const Rational& price,

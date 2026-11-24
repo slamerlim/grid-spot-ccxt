@@ -180,6 +180,7 @@ bool apply_report(EngineState& state, const ReportEvent& report, const EngineCon
 EngineOrder new_order(EngineState& state, const EngineContext& context, bool buy, std::string role,
                        const Rational& price, const Rational& amount, const std::map<std::string, Rational>& reserves,
                        std::optional<unsigned> level = {}, const Rational& acquisition_fee = Rational()) {
+    context.validate_limit(price, amount, buy);
     const auto working_count = std::count_if(state.orders.begin(), state.orders.end(), [](const auto& item) { return !item.terminal(); });
     if (static_cast<std::size_t>(working_count) >= context.policy.max_open_orders) throw Error("open-order cap reached");
     if (state.orders.size() >= context.policy.max_order_records) throw Error("order history capacity requires durable checkpoint");
@@ -207,6 +208,9 @@ EngineOrder new_order(EngineState& state, const EngineContext& context, bool buy
 Command buy(EngineState& state, const EngineContext& context, const Rational& price, std::optional<unsigned> level) {
     const auto& policy = context.policy;
     if (price < policy.lower_price || price > policy.upper_price) throw Error("BUY outside configured range");
+    if (state.entry_reference && policy.buy_floor_fraction.sign() > 0 &&
+        price < (*state.entry_reference * (Rational(1) - policy.buy_floor_fraction)).rounded(context.market.price_tick, true))
+        throw Error("BUY below entry price floor");
     std::set<std::int64_t> lots;
     for (const auto& lot : state.lots) lots.insert(lot.order_id);
     for (const auto& item : state.orders) if (!item.terminal() && item.buy) lots.insert(item.id);
@@ -237,6 +241,17 @@ Command buy(EngineState& state, const EngineContext& context, const Rational& pr
 } // namespace
 
 bool EngineContext::fresh(std::int64_t observed_ms) const { return observed_ms <= now_ms && now_ms - observed_ms <= policy.max_source_age_ms; }
+void EngineContext::validate_limit(const Rational& price, const Rational& amount, bool buy) const {
+    if (!market.valid(price, amount, buy)) throw Error("LIMIT order violates market constraints");
+    const auto& ratio = buy ? buy_price_max_ratio : sell_price_min_ratio;
+    if (!ratio) return;
+    if (ratio->sign() <= 0) throw Error("invalid LIMIT price-protection ratio");
+    if (!limit_reference || limit_reference->sign() <= 0 || !fresh(limit_reference_ms))
+        throw Error("LIMIT price-protection reference unavailable or stale");
+    const Rational bound = *limit_reference * *ratio;
+    if (buy ? price > bound : price < bound)
+        throw Error("LIMIT price violates exchange price protection");
+}
 const Rational& EngineContext::quantum(std::string_view currency) const {
     return currency == "BASE" ? base_quantum : currency == "QUOTE" ? quote_quantum : token_quantum;
 }
@@ -273,6 +288,41 @@ std::int64_t available_quote(const EngineState& state, const EngineContext& cont
                                                context.policy.quote_reserve.exact_units(context.quote_quantum)));
 }
 
+std::vector<Rational> floor_grid_prices(const Rational& entry, const EngineContext& context) {
+    const auto& p = context.policy;
+    if (!p.log_percent_grid || entry.sign() <= 0 || p.spacing.sign() <= 0 || p.spacing >= Rational(1) ||
+        p.buy_floor_fraction.sign() <= 0 || p.buy_floor_fraction > Rational(".60") || p.spacing > p.buy_floor_fraction)
+        throw Error("full grid requires a positive log step within the BUY floor (maximum 60%)");
+    const auto floor = (entry * (Rational(1) - p.buy_floor_fraction)).rounded(context.market.price_tick, true);
+    if (floor < p.lower_price || floor > p.upper_price || floor >= entry)
+        throw Error("BUY floor cannot be represented inside the market range");
+    std::vector<Rational> prices;
+    Rational preceding = entry;
+    // Bound the exact unrounded price on a finer rational lattice. Matching
+    // endpoint ticks prove the order price. A tick-boundary ambiguity falls
+    // back to the exact power; rounding error can never choose an order price.
+    const Rational guard_quantum = context.market.price_tick / Rational("1e18");
+    Rational lower = entry.rounded(guard_quantum, false), upper = entry.rounded(guard_quantum, true);
+    const Rational ratio = Rational(1) - p.spacing;
+    for (unsigned n = 0; n < 10000; ++n) {
+        lower = (lower * ratio).rounded(guard_quantum, false);
+        upper = (upper * ratio).rounded(guard_quantum, true);
+        auto price = max(floor, lower.rounded(context.market.price_tick, false));
+        if (price != max(floor, upper.rounded(context.market.price_tick, false))) {
+            const auto exact = entry * ratio.power(n + 1);
+            price = max(floor, exact.rounded(context.market.price_tick, false));
+            lower = exact.rounded(guard_quantum, false); upper = exact.rounded(guard_quantum, true);
+        }
+        if (price >= preceding) throw Error("log grid levels collapse after price-tick rounding");
+        prices.push_back(price);
+        if (prices.size() > p.max_lots || prices.size() >= p.max_open_orders)
+            throw Error("entire floor grid exceeds the configured order or lot capacity");
+        if (price == floor) return prices;
+        preceding = price;
+    }
+    throw Error("entire floor grid exceeds the 10000-level research bound");
+}
+
 namespace {
 Transition plan(EngineState state, const EngineContext& context) {
     std::vector<Command> commands;
@@ -304,6 +354,7 @@ Transition plan(EngineState state, const EngineContext& context) {
             state.round_id = checked_add(state.round_id, 1);
             state.phase = state.lots.empty() ? "inactive" : "accumulating";
             state.seed_id.reset(); state.next_level = 1;
+            state.entry_reference.reset(); state.full_grid_placed = false;
             state.ladder_credits = state.lots.empty() ? 0 : policy.ladder_size;
             state.sell_dirty = !state.lots.empty(); state.replacements = 0;
         }
@@ -359,6 +410,25 @@ Transition plan(EngineState state, const EngineContext& context) {
     if (state.reconcile_reason || state.mode != "active") return result();
     if (!context.allow_new_exposure) { notices.push_back("risk blocks new exposure"); return result(); }
     if (state.phase == "sell_replacing") return result();
+    if (context.ladder_policy == "ladder_infinite") {
+        if (!state.full_grid_placed) {
+            // Plan on a private copy. No order/reservation escapes on any failure.
+            auto candidate = state;
+            candidate.entry_reference = context.book->bid;
+            candidate.anchor = candidate.entry_reference;
+            const auto prices = floor_grid_prices(*candidate.entry_reference, context);
+            candidate.ladder_credits = static_cast<unsigned>(prices.size());
+            std::vector<Command> placements;
+            placements.reserve(prices.size());
+            for (std::size_t i = 0; i < prices.size(); ++i)
+                placements.push_back(buy(candidate, context, prices[i], static_cast<unsigned>(i + 1)));
+            candidate.full_grid_placed = true;
+            if (candidate.lots.empty()) candidate.phase = "grid_pending";
+            state = std::move(candidate);
+            append(commands, std::move(placements));
+        }
+        return result();
+    }
     if (state.seed_id && !order(state, *state.seed_id).terminal()) return result();
     if (state.lots.empty()) {
         if (state.seed_id) { notices.push_back("seed requires explicit new round"); return result(); }
@@ -368,11 +438,15 @@ Transition plan(EngineState state, const EngineContext& context) {
         }
         try {
             Rational reference = policy.seed_at_ask ? context.book->ask : context.book->bid;
+            if (policy.log_percent_grid && !state.entry_reference) state.entry_reference = context.book->bid;
             if (state.round_id == 1 && context.entry_policy == "no_seed_lower")
-                reference = reference / (Rational(1) + policy.spacing);
+                reference = policy.log_percent_grid ? reference * (Rational(1) - policy.spacing)
+                                                    : reference / (Rational(1) + policy.spacing);
             else if (state.round_id > 1 && context.reentry_policy == "reentry_one_step_below_sell") {
                 if (!state.last_executed_sell_price) throw Error("one-step reentry requires last executed SELL price");
-                reference = min(reference, *state.last_executed_sell_price / (Rational(1) + policy.spacing));
+                const auto lower = policy.log_percent_grid ? *state.last_executed_sell_price * (Rational(1) - policy.spacing)
+                                                          : *state.last_executed_sell_price / (Rational(1) + policy.spacing);
+                reference = min(reference, lower);
             }
             const auto price = reference.rounded(context.market.price_tick, false);
             commands.push_back(buy(state, context, price, std::nullopt));
@@ -383,10 +457,14 @@ Transition plan(EngineState state, const EngineContext& context) {
         const auto count = std::min(state.ladder_credits, policy.ladder_size > working ? policy.ladder_size - working : 0U);
         for (unsigned index = 0; index < count; ++index) {
             try {
-                Rational price = grid_prices(*state.anchor, policy.spacing, {state.next_level}, context.market).front();
+                Rational price = policy.log_percent_grid
+                    ? (*state.anchor * (Rational(1) - policy.spacing).power(state.next_level)).rounded(context.market.price_tick, false)
+                    : grid_prices(*state.anchor, policy.spacing, {state.next_level}, context.market).front();
                 if (context.ladder_policy == "ladder_one") {
                     if (policy.ladder_size != 1) throw Error("single ladder requires exactly one pending slot");
-                    price = min(price, (context.book->bid / (Rational(1) + policy.spacing)).rounded(context.market.price_tick, false));
+                    const auto lower = policy.log_percent_grid ? context.book->bid * (Rational(1) - policy.spacing)
+                                                              : context.book->bid / (Rational(1) + policy.spacing);
+                    price = min(price, lower.rounded(context.market.price_tick, false));
                 }
                 for (const auto& item : state.orders) if (item.round_id == state.round_id && item.level && price >= item.price)
                     throw Error("grid levels collapse after quantization");
@@ -588,7 +666,11 @@ std::string state_json(const EngineState& state, const EngineContext& context) {
     out << "],\"position_cost\":" << decimal_json(quote(state.position_cost, context))
         << ",\"realized_pnl\":" << decimal_json(quote(state.realized_pnl, context))
         << ",\"reconcile_reason\":" << optional_text(state.reconcile_reason) << ",\"reconcile_revision\":" << state.reconcile_revision
-        << ",\"sell_dirty\":" << boolean(state.sell_dirty) << ",\"replacements\":" << state.replacements << '}';
+        << ",\"sell_dirty\":" << boolean(state.sell_dirty) << ",\"replacements\":" << state.replacements;
+    if (context.policy.log_percent_grid)
+        out << ",\"entry_reference\":" << (state.entry_reference ? decimal_json(*state.entry_reference) : "null")
+            << ",\"full_grid_placed\":" << boolean(state.full_grid_placed);
+    out << '}';
     return out.str();
 }
 } // namespace

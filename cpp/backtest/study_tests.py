@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import resource
 import struct
 import subprocess
@@ -15,7 +16,7 @@ from pathlib import Path
 from typing import Any, cast
 
 
-def configuration(sources: list[tuple[Path, str]], **changes: str) -> str:
+def configuration(sources: list[tuple[Path, str]], *, quote: str = "USDT", **changes: str) -> str:
     facts = dict(
         allow_new_exposure="1",
         amount_tick="0.001",
@@ -87,7 +88,7 @@ def configuration(sources: list[tuple[Path, str]], **changes: str) -> str:
     rows = ["GRID_MODULE1_REPLAY\t1"]
     for index, (path, digest) in enumerate(sources):
         rows.append(
-            f"SOURCE\tvenue{index}\tresearch\tASSET{index}/USDT\tallocation{index}\tgrid\tcycle\t{path}\t{digest}"
+            f"SOURCE\tvenue{index}\tresearch\tASSET{index}/{quote}\tallocation{index}\tgrid\tcycle\t{path}\t{digest}"
         )
     rows += [f"CONFIG\t{key}\t{value}" for key, value in sorted(facts.items())]
     rows += [f"FEE_RULE\t{side}\tQUOTE\t0.001\t0.00000001\t-\t64" for side in ("buy", "sell")]
@@ -112,19 +113,31 @@ def main() -> None:
             return path, hashlib.sha256(data).hexdigest()
 
         def run(
-            text: str, success: bool = True, expected_error: str | None = None
+            text: str | bytes,
+            success: bool = True,
+            expected_error: str | None = None,
+            *,
+            ledger: Path | None = None,
         ) -> dict[str, Any]:
             nonlocal refusals
             path = root / "input.tsv"
-            path.write_text(text)
+            raw = text.encode() if isinstance(text, str) else text
+            path.write_bytes(raw)
             completed = subprocess.run(
-                [str(program), "replay", str(path)], capture_output=True, timeout=30, check=False
+                [str(program), "replay", str(path)],
+                capture_output=True,
+                timeout=30,
+                check=False,
+                env={
+                    **os.environ,
+                    **({"GRID_BACKTEST_LEDGER_PATH": str(ledger)} if ledger else {}),
+                },
             )
             if success:
                 assert completed.returncode == 0, completed.stderr.decode()
                 assert not completed.stderr
                 result = json.loads(completed.stdout)
-                assert result["input_sha256"] == hashlib.sha256(text.encode()).hexdigest()
+                assert result["input_sha256"] == hashlib.sha256(raw).hexdigest()
                 assert all(item["complete"] for item in result["sources"])
                 return cast(dict[str, Any], result)
             assert completed.returncode == 2, completed
@@ -187,8 +200,48 @@ def main() -> None:
         text = configuration([flat])
         result = run(text)
         assert result == run(text), "repeated replay must be deterministic"
+        assert result["reporting_currency"] == "USDT"
         assert result["processed_rows"] == 4 and result["portfolio"]["cash"] == "1000"
         assert result["portfolio"]["metrics"]["buy_fills"] == 0
+        progress_path = root / "progress.json"
+        progress_input = root / "progress.tsv"
+        progress_input.write_text(text)
+        environment = {**os.environ, "GRID_BACKTEST_PROGRESS_PATH": str(progress_path)}
+        reported = subprocess.run(
+            [str(program), "replay", str(progress_input)],
+            capture_output=True,
+            timeout=30,
+            check=False,
+            env=environment,
+        )
+        assert reported.returncode == 0 and not reported.stderr
+        assert json.loads(reported.stdout) == result, "progress must not change financial output"
+        progress = json.loads(progress_path.read_text())
+        assert progress["stage"] == "complete"
+        assert progress["processed"] == progress["total"] == progress["replayed_candles"] == 4
+        assert progress["timestamp_ms"] == 240000 and progress["updated_at"].endswith("Z")
+        assert not progress_path.with_suffix(".json.tmp").exists()
+        # The sidecar is display telemetry: an unavailable destination cannot
+        # invalidate otherwise exact research results.
+        unavailable = subprocess.run(
+            [str(program), "replay", str(progress_input)],
+            capture_output=True,
+            timeout=30,
+            check=False,
+            env={
+                **environment,
+                "GRID_BACKTEST_PROGRESS_PATH": str(root / "absent" / "progress.json"),
+            },
+        )
+        assert unavailable.returncode == 0 and json.loads(unavailable.stdout) == result
+        checks += 1
+        cjk = run(
+            configuration([flat])
+            .replace("ASSET0/USDT", "果蝇/USDT")
+            .replace("allocation0", "venue0:果蝇/USDT")
+        )
+        assert cjk["reporting_currency"] == "USDT"
+        assert cjk["allocations"][0]["symbol"] == "果蝇/USDT"
         # Independently calculated funded counterfactual, including actual entry
         # rounding and forecast settlement reserve on the exit valuation.
         quantity, price = D("8.982"), D("100.1")
@@ -243,6 +296,7 @@ def main() -> None:
         two = source("two.bin", [(60000, 100, 100, 100, 100), (120000, 100, 100, 99, 100)])
         result = run(configuration([one, two]))
         assert result["processed_rows"] == 5 and result["complete_timestamp_groups"] == 2
+        run(configuration([one, two], quote="USD"), False, "USDT-only")
         assert result["portfolio"]["raw"]["ending_nav"] is None, (
             "missing owned mark must remain unknown"
         )
@@ -316,7 +370,17 @@ def main() -> None:
             (text.replace("SOURCE\tvenue0\t", "SOURCE\t\t"), "identifier"),
             (text.replace("SOURCE\tvenue0\t", "SOURCE\tven\x01ue\t"), "printable ASCII"),
             (text.replace("SOURCE\tvenue0\t", "SOURCE\t" + "v" * 129 + "\t"), "identifier"),
-            (text.replace("ASSET0/USDT", "ASSET0/BTC"), "common USDT"),
+            (configuration([flat], quote="BTC"), "USDT-only"),
+            (configuration([flat], quote="USDC"), "USDT-only"),
+            (configuration([flat, rising]).replace("ASSET0/USDT", "ASSET0/BTC"), "USDT-only"),
+            (text.replace("ASSET0/USDT", "/USDT"), "BASE/QUOTE"),
+            (text.replace("ASSET0/USDT", "ASSET0/"), "BASE/QUOTE"),
+            (text.replace("ASSET0/USDT", "ASSET0/USD/BTC"), "BASE/QUOTE"),
+            (text.replace("ASSET0/USDT", "ASSET0"), "BASE/QUOTE"),
+            (text.replace("ASSET0/USDT", "果" * 43 + "/USDT"), "identifier"),
+            (text.replace("ASSET0/USDT", "ASSET0/\u0085"), "control character"),
+            (text.replace("ASSET0/USDT", "ASSET0/\u202eUSDT"), "control character"),
+            (text.encode().replace(b"ASSET0/USDT", b"ASSET0/\xffSDT"), "invalid UTF-8"),
             (text + first_source + "\n", "duplicate study market or source"),
             (text.replace(buy_fee, buy_fee.replace("QUOTE", "TOKEN")), "fee-token conversion"),
             (text.replace(buy_fee, buy_fee.replace("0.001", "1")), "below one"),
@@ -383,6 +447,114 @@ def main() -> None:
         maximum = run(configuration(tiny_sources))
         assert maximum["processed_rows"] == 64 and len(maximum["sources"]) == 64
         run(configuration([*tiny_sources, flat]), False, "source count exceeds")
+        checks += 1
+
+        # Different saved minima per source; recording exact fills must not alter replay.
+        minimum_sources = [
+            source(
+                f"minimum{index}.bin",
+                [(minute * 60000, 100, 102, 90, 100) for minute in range(1, 9)],
+            )
+            for index in range(2)
+        ]
+        text = configuration(minimum_sources)
+        text += "SOURCE_RULE\t0\tbuy_cost_min\t3\nSOURCE_RULE\t0\tsell_cost_min\t3\n"
+        text += "SOURCE_RULE\t1\tbuy_cost_min\t7\nSOURCE_RULE\t1\tsell_cost_min\t7\n"
+        sidecar = root / "fills.jsonl"
+        baseline = run(text)
+        assert run(text, ledger=sidecar) == baseline
+        fills = [json.loads(line) for line in sidecar.read_text().splitlines()]
+        buys = [fill for fill in fills if fill["buy"]]
+        assert {fill["market"] for fill in buys} == {"venue0:ASSET0/USDT", "venue1:ASSET1/USDT"}
+        for fill in buys:
+            minimum = D(3 if fill["market"].startswith("venue0:") else 7)
+            tick = D("0.001")
+            quantity, price = D(fill["amount"]), D(fill["price"])
+            expected = max(D("0.001"), minimum / price)
+            expected = (expected / tick).to_integral_value(rounding=ROUND_CEILING) * tick
+            assert quantity == expected, fill
+            assert D(fill["cash"]) >= 0
+        run(text + "SOURCE_RULE\t2\tbuy_cost_min\t1\n", False, "outside roster")
+        run(text + "SOURCE_RULE\t0\tbuy_cost_min\t4\n", False, "duplicate source")
+        run(text + "SOURCE_RULE\t0\tinitial_quote_cash\t9999\n", False, "source market rule")
+        fine = source(
+            "fine-minimum.bin",
+            [(minute * 60000, 100000, 102000, 90000, 100000) for minute in range(1, 5)],
+        )
+        precise = (
+            configuration([fine])
+            + "SOURCE_RULE\t0\tamount_tick\t0.00001\n"
+            + "SOURCE_RULE\t0\tbuy_amount_min\t0.00001\n"
+            + "SOURCE_RULE\t0\tsell_amount_min\t0.00001\n"
+        )
+        run(precise, False, "not representable")
+        run(precise + "SOURCE_RULE\t0\tbase_quantum\t0.00001\n", ledger=sidecar)
+        precise_buys = [
+            json.loads(line) for line in sidecar.read_text().splitlines() if json.loads(line)["buy"]
+        ]
+        assert precise_buys and D(precise_buys[0]["amount"]) == D("0.00005")
+        checks += 1
+
+        # Funded replay applies normalized rule inputs across small and large USDT prices.
+        for venue, quote, price, amount_min, cost_min, tick in (
+            ("htx", "USDT", 100000, "0.00001", "1", "0.000001"),
+            ("gate", "USDT", 100000, "0.000001", "3", "0.000001"),
+            ("htx", "USDT", 0.03, "0.001", "0.0001", "0.0001"),
+            ("gate", "USDT", 0.03, "0.001", "0.000001", "0.0001"),
+            ("htx", "USDT", 3000, "0.001", "10", "0.0001"),
+            ("gate", "USDT", 3000, "0.001", "1", "0.0001"),
+        ):
+            candles = source(
+                f"{venue}-{quote}.bin",
+                [
+                    (minute * 60000, price, price * 1.001, price * 0.999, price)
+                    for minute in range(1, 5)
+                ],
+            )
+            config = configuration(
+                [candles],
+                quote=quote,
+                net_target="0.00000001",
+                lower_price="0.000001",
+                price_min="0.000001",
+                price_tick="0.000001",
+                buy_cost_min=cost_min,
+                sell_cost_min=cost_min,
+                buy_amount_min=amount_min,
+                sell_amount_min=amount_min,
+                amount_tick=tick,
+                base_quantum=tick,
+            )
+            config += (
+                "SOURCE_RULE\t0\tbuy_amount_max\t1000\nSOURCE_RULE\t0\tsell_amount_max\t1000\n"
+            )
+            if venue == "htx":
+                config += (
+                    "SOURCE_RULE\t0\tbuy_price_max_ratio\t1.1\n"
+                    "SOURCE_RULE\t0\tsell_price_min_ratio\t0.9\n"
+                )
+            else:
+                config += (
+                    "SOURCE_RULE\t0\tbuy_price_max_ratio\t1.15\n"
+                    "SOURCE_RULE\t0\tsell_price_min_ratio\t0.85\n"
+                    "SOURCE_RULE\t0\tlimit_reference_bars\t2\n"
+                )
+            result = run(config, ledger=sidecar)
+            entries = [json.loads(line) for line in sidecar.read_text().splitlines()]
+            orders = [row for row in entries if row["buy"]]
+            assert orders, (venue, quote, result)
+            for row in orders:
+                p, amount, increment = D(row["price"]), D(row["amount"]), D(tick)
+                assert amount >= D(amount_min) and amount * p >= D(cost_min)
+                assert amount - increment < D(amount_min) or (amount - increment) * p < D(cost_min)
+                assert D(row["cash"]) >= 0
+            checks += 1
+
+        # Replayed price protection is checked before an order becomes executable.
+        protected = configuration([flat]) + "SOURCE_RULE\t0\tbuy_price_max_ratio\t0.9\n"
+        blocked = run(protected, ledger=sidecar)
+        assert sidecar.read_text() == ""
+        assert "LIMIT price violates exchange price protection" in json.dumps(blocked)
         checks += 1
 
         # Whole-source verification also covers invalid records outside the window.

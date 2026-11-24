@@ -110,6 +110,8 @@ def load(path: Path) -> Replay:
                 s["unleveraged_spot"],
             )
             context = codec.loads(a["context"], Context)
+            if context.market.quote != "USDT" or not source.symbol.endswith("/USDT"):
+                raise DomainError("USDT-only policy: backtests require USDT-quoted spot markets")
             allocations.append(
                 Allocation(
                     codec.loads(a["scope"], Scope),

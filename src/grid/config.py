@@ -298,6 +298,12 @@ def parse_config(raw: object) -> Config:
             pin=universe.symbols("pin"),
         ),
     )
+    if result.quote_currency not in (None, "USDT"):
+        raise ConfigError("USDT-only policy: quote_currency must be USDT.")
+    if any(
+        not symbol.endswith("/USDT") for symbol in (*result.universe.allow, *result.universe.pin)
+    ):
+        raise ConfigError("USDT-only policy: allowed and pinned markets must be quoted in USDT.")
     if (
         result.grid.min_price is not None
         and result.grid.max_price is not None

@@ -52,7 +52,7 @@ def test_corruption_quarantines_raw_bytes(tmp_path: Path, raw: bytes, reason: st
     path = tmp_path / "corrupt.bin"
     path.write_bytes(raw * 40)
     before = path.read_bytes()
-    manifest = validate(Source(path, "fake", "BASE/QUOTE", 0, 40))
+    manifest = validate(Source(path, "fake", "BASE/USDT", 0, 40))
     assert manifest.accepted == 0 and manifest.rejected == 40
     assert manifest.reasons == {reason: 40}
     assert len(manifest.examples) == 32
@@ -64,7 +64,7 @@ def test_corruption_quarantines_raw_bytes(tmp_path: Path, raw: bytes, reason: st
 def test_length_legacy16_and_source_bounds(tmp_path: Path) -> None:
     path = tmp_path / "corrupt.bin"
     path.write_bytes(RECORD.pack(START, 100, 101, 99, 100) + b"!")
-    source = Source(path, "fake", "BASE/QUOTE", 0, 1)
+    source = Source(path, "fake", "BASE/USDT", 0, 1)
     assert "malformed_file_length" in validate(source).blockers
     with pytest.raises(DomainError, match="exceeds file"):
         validate(replace(source, count=2))
@@ -79,7 +79,7 @@ def test_gap_duplicate_disorder_and_unresolved_provenance(tmp_path: Path) -> Non
     gap = START + 468 * 24 * 60 * MINUTE
     timestamps = (START, START, START - MINUTE, gap)
     path.write_bytes(b"".join(RECORD.pack(ts, 100, 101, 99, 100) for ts in timestamps))
-    manifest = validate(Source(path, "fake", "BASE/QUOTE", 0, 4))
+    manifest = validate(Source(path, "fake", "BASE/USDT", 0, 4))
     assert manifest.reasons == {"duplicate_minute": 1, "out_of_order": 1}
     assert manifest.missing_minutes == 468 * 24 * 60 - 1
     assert "unknown_collection_provenance" in manifest.blockers
@@ -102,7 +102,7 @@ def test_missing_provenance_and_leveraged_symbol_flag(make_replay: MakeReplay) -
     assert not validate(replace(source, identity_evidence=None)).replay_eligible
     assert (
         "suspicious_leveraged_token_symbol"
-        in validate(replace(source, symbol="BTC3L/QUOTE")).blockers
+        in validate(replace(source, symbol="BTC3L/USDT")).blockers
     )
 
 
@@ -125,4 +125,4 @@ def test_mutation_replacement_symlink_and_fifo_refused(make_replay: MakeReplay) 
 @pytest.mark.parametrize(("offset", "count"), [(-1, 2), (0, 0), (0, 1000001)])
 def test_reader_bounds(tmp_path: Path, offset: int, count: int) -> None:
     with pytest.raises(DomainError):
-        Source(tmp_path / "none", "fake", "BASE/QUOTE", offset, count)
+        Source(tmp_path / "none", "fake", "BASE/USDT", offset, count)

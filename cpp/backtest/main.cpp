@@ -2,6 +2,8 @@
 #include "market.hpp"
 #include "trace.hpp"
 #include "study.hpp"
+#include "comparison.hpp"
+#include "sweep.hpp"
 
 #include <charconv>
 #include <iostream>
@@ -29,6 +31,8 @@ void usage() {
               << "grid_backtest trace TRACE_TSV_FILE\n"
               << "grid_backtest bars BAR_TSV_FILE\n"
               << "grid_backtest replay STUDY_TSV_FILE\n"
+              << "grid_backtest compare-reference CONFIG_JSON_FILE\n"
+              << "grid_backtest research-sweep PLAN_JSON_FILE\n"
               << "grid_backtest math-grid ANCHOR SPACING PRICE_TICK INDEX...\n"
               << "grid_backtest math-buy PRICE <MARKET> <BUY_FEE> <SELL_FEE> SPACING NET_TARGET AVAILABLE_QUOTE\n"
               << "grid_backtest math-tp OWNED COST <MARKET> <SELL_FEE> SPACING NET_TARGET\n"
@@ -41,6 +45,8 @@ int main(int argc, char** argv) {
     try {
         if (argc < 2) { usage(); return 2; }
         const std::string_view command(argv[1]);
+        if (command == "compare-reference" && argc == 3) return grid::comparison::run(argv[2]);
+        if (command == "research-sweep" && argc == 3) return grid::sweep::run(argv[2]);
         if (command == "scan" && argc >= 3 && argc <= 5) {
             bool gaps = false;
             std::string digest;

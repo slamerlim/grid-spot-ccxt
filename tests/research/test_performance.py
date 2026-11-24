@@ -151,7 +151,7 @@ def test_unallocated_cash_and_foreign_pool_remain_in_both_references(
         conversions=(
             Conversion(
                 PoolKey(scope.venue, scope.account, "TOKEN"),
-                "QUOTE",
+                "USDT",
                 D(2),
                 D(2),
                 D(100),
@@ -202,7 +202,7 @@ def test_portfolio_gross_wins_and_losses_do_not_net_away_losing_exit(
     path.write_bytes(
         b"".join(RECORD.pack(spec.start_ms + i * MINUTE, *p) for i, p in enumerate(prices))
     )
-    market = replace(first.context.market, symbol="LOSER/QUOTE", base="LOSER")
+    market = replace(first.context.market, symbol="LOSER/USDT", base="LOSER")
     second = replace(
         first,
         scope=replace(first.scope, symbol=market.symbol, allocation="loser"),
@@ -274,7 +274,7 @@ def test_duplicate_post_and_compaction_do_not_inflate_realized_statistics(
             snapshot = ledger.snapshot(scope)
             assert snapshot.state is not None and snapshot.version is not None
             states = (snapshot.state,)
-            before = posted(ledger, states, "QUOTE")
+            before = posted(ledger, states, "USDT")
             row = ledger.db.execute(
                 "SELECT payload FROM fills ORDER BY trade_id LIMIT 1"
             ).fetchone()
@@ -285,12 +285,12 @@ def test_duplicate_post_and_compaction_do_not_inflate_realized_statistics(
             assert outcome.accepted and outcome.version is not None
             compacted = ledger.compact("compact-research-check", scope, outcome.version)
             assert compacted.state is not None
-            assert posted(ledger, (compacted.state,), "QUOTE") == before
+            assert posted(ledger, (compacted.state,), "USDT") == before
             with pytest.raises(DomainError, match="unlike"):
                 posted(ledger, (compacted.state,), "OTHER")
             altered: State = replace(compacted.state, realized_pnl=D(999))
             with pytest.raises(DomainError, match="differs"):
-                posted(ledger, (altered,), "QUOTE")
+                posted(ledger, (altered,), "USDT")
 
         await engine.writer.submit(inspect)
         checked = True

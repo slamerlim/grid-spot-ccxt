@@ -1,6 +1,11 @@
 #include "study.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#include <fstream>
 #include <limits>
 #include <queue>
 #include <set>
@@ -9,6 +14,37 @@
 namespace grid {
 namespace {
 constexpr std::streamoff result_byte_limit = 32 * 1024 * 1024;
+// Optional observational sidecar. Atomic replacement keeps polling readers from
+// seeing partial JSON; a display failure never alters financial replay results.
+class ProgressFile {
+    std::string path_;
+    std::chrono::steady_clock::time_point last_{};
+public:
+    ProgressFile() {
+        if (const char* path = std::getenv("GRID_BACKTEST_PROGRESS_PATH")) path_ = path;
+    }
+    void update(std::uint64_t processed, std::uint64_t total, std::uint64_t replayed,
+                std::optional<std::int64_t> timestamp, const char* stage, bool force = false) {
+        if (path_.empty()) return;
+        const auto now = std::chrono::steady_clock::now();
+        if (!force && now - last_ < std::chrono::seconds(1)) return;
+        last_ = now;
+        const auto clock = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        std::tm utc{}; char updated[32]{};
+        if (!::gmtime_r(&clock, &utc) || std::strftime(updated, sizeof(updated), "%Y-%m-%dT%H:%M:%SZ", &utc) == 0) return;
+        const std::string temporary = path_ + ".tmp";
+        std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
+        file << "{\"stage\":" << json_quote(stage) << ",\"engine\":\"current\",\"message\":"
+             << json_quote(std::string_view(stage) == "complete" ? "Replay and full source verification complete" :
+                           "Replaying selected period and validating complete source history")
+             << ",\"processed\":" << processed << ",\"total\":" << total
+             << ",\"unit\":\"candles\",\"replayed_candles\":" << replayed
+             << ",\"timestamp_ms\":" << (timestamp ? std::to_string(*timestamp) : "null")
+             << ",\"updated_at\":" << json_quote(updated) << "}\n";
+        file.close();
+        if (file) (void)std::rename(temporary.c_str(), path_.c_str());
+    }
+};
 std::string number(const Rational& value) { return json_quote(value.str()); }
 std::string optional_number(const std::optional<Rational>& value) { return value ? number(*value) : "null"; }
 std::string optional_time(const std::optional<std::int64_t>& value) { return value ? std::to_string(*value) : "null"; }
@@ -158,6 +194,13 @@ std::optional<Rational> sum_known(const std::vector<AllocationNav>& values, cons
 } // namespace
 
 void run_study(const StudyConfig& config, std::ostream& output) {
+    ProgressFile progress;
+    std::ofstream ledger;
+    if (const char* path = std::getenv("GRID_BACKTEST_LEDGER_PATH")) {
+        ledger.open(path, std::ios::binary | std::ios::trunc);
+        if (!ledger) throw Error("cannot open research fill sidecar");
+    }
+    std::uint64_t total_source_records = 0;
     const std::size_t count = config.sources.size();
     std::vector<Simulator> simulations;
     std::vector<AllocationStats> statistics;
@@ -169,12 +212,15 @@ void run_study(const StudyConfig& config, std::ostream& output) {
     for (std::size_t index = 0; index < count; ++index) {
         const auto& source = config.sources[index];
         EngineState state;
-        state.scope = source.scope; state.quote_cash = config.initial_quote.exact_units(config.context.quote_quantum);
-        state.config_revision = config.context.config_revision; state.generation = config.context.generation;
-        simulations.emplace_back(state, config.context, config.model);
+        const auto& facts = config.source_contexts.empty() ? config.context : config.source_contexts.at(index);
+        state.scope = source.scope; state.quote_cash = config.initial_quote.exact_units(facts.quote_quantum);
+        state.config_revision = facts.config_revision; state.generation = facts.generation;
+        simulations.emplace_back(state, facts, config.model);
+        simulations.back().record_fills = ledger.is_open();
         statistics.emplace_back(config.initial_quote); scopes.push_back(source.scope);
         exchanges[source.scope.venue].push_back(index);
         SourceCursor cursor {std::make_unique<RawReader>(source.path, source.sha256), std::nullopt};
+        total_source_records += cursor.reader->total_records();
         Bar bar {};
         if (cursor.reader->next(bar)) { cursor.next = bar; heap.emplace(bar.timestamp, index); }
         cursors.push_back(std::move(cursor));
@@ -206,6 +252,7 @@ void run_study(const StudyConfig& config, std::ostream& output) {
         sampled_ms = now; sampled_day = now / 86400000;
     };
     std::vector<AllocationNav> final_nav(count), hold_nav(count);
+    progress.update(0, total_source_records, 0, std::nullopt, "replay", true);
     while (!heap.empty()) {
         const std::int64_t timestamp = heap.top().first;
         std::vector<std::size_t> members;
@@ -227,6 +274,18 @@ void run_study(const StudyConfig& config, std::ostream& output) {
                 if (stats.last_ms) stats.missing_minutes += static_cast<std::uint64_t>((timestamp - *stats.last_ms) / minute_ms - 1);
                 stats.last_ms = timestamp; ++stats.processed; ++window_rows;
                 simulation.step(bar, index);
+                if (ledger.is_open()) {
+                    for (const auto& fill : simulation.step_fills) {
+                        const auto& scope = config.sources[member].scope;
+                        ledger << "{\"market\":" << json_quote(scope.venue + ':' + scope.symbol);
+                        ledger << ",\"timestamp_ms\":" << fill.timestamp << ",\"buy\":" << (fill.buy ? "true" : "false")
+                               << ",\"price\":" << number(fill.price) << ",\"amount\":" << number(fill.amount)
+                               << ",\"fee\":" << number(fill.fee) << ",\"cash\":" << number(fill.cash)
+                               << ",\"base\":" << number(fill.base) << ",\"cost\":" << number(fill.cost)
+                               << ",\"realized\":" << number(fill.realized) << "}\n";
+                    }
+                    if (!ledger || ledger.tellp() > 256 * 1024 * 1024) throw Error("research fill sidecar capacity exceeded");
+                }
                 closes[member] = bar.prices[3].exact();
                 const auto cost = Rational(simulation.state.position_cost) * simulation.context.quote_quantum;
                 stats.max_position_cost = max(stats.max_position_cost, cost);
@@ -299,6 +358,10 @@ void run_study(const StudyConfig& config, std::ostream& output) {
             if (cursors[member].reader->next(next)) { cursors[member].next = next; heap.emplace(next.timestamp, member); }
             else cursors[member].next.reset();
         }
+        // Checking the clock once per 4,096 records avoids a syscall in the
+        // arithmetic hot path while publishing about once a second in replay.
+        if (whole_sources_rows % 4096 < members.size())
+            progress.update(whole_sources_rows, total_source_records, window_rows, timestamp, "replay");
     }
     if (!first_ms || !last_ms) throw Error("study interval has no valid observations");
     if (sampled_ms != checked_add(*last_ms, minute_ms)) sample_nav(checked_add(*last_ms, minute_ms));
@@ -333,6 +396,10 @@ void run_study(const StudyConfig& config, std::ostream& output) {
             throw Error("source integrity gate failed; discard entire study result");
         if (statistics[index].processed == 0) throw Error("selected market has no observations in study interval");
     }
+    if (ledger.is_open()) {
+        ledger.flush();
+        if (!ledger) throw Error("research fill sidecar write failed");
+    }
     SimulationMetrics combined;
     Rational total_cash, total_cost, total_realized, total_reserved;
     for (const auto& simulation : simulations) {
@@ -344,14 +411,24 @@ void run_study(const StudyConfig& config, std::ostream& output) {
     }
     if (total_cash + total_cost != funding + total_realized) throw Error("portfolio quote/cost/PnL conservation failed");
     std::ostringstream result;
-    result << "{\"schema\":\"grid-module1-replay-v1\",\"input_sha256\":" << json_quote(config.input_sha256)
+    result << "{\"schema\":\"grid-module1-replay-v1\",\"reporting_currency\":" << json_quote(config.reporting_currency)
+           << ",\"input_sha256\":" << json_quote(config.input_sha256)
            << ",\"source_status\":\"UNVERIFIED SOURCE / ASSUMPTION-BASED\",\"strict_historical_performance\":\"NOT_COMPUTABLE\""
            << ",\"start_ms\":" << *first_ms << ",\"end_ms_exclusive\":" << *last_ms + minute_ms
            << ",\"declared_start_ms\":" << declared_start << ",\"declared_end_ms_exclusive\":" << declared_end
            << ",\"ending_nav_timestamp_ms\":" << declared_end
            << ",\"source_rows\":" << whole_sources_rows << ",\"processed_rows\":" << window_rows
            << ",\"observed_timestamp_groups\":" << groups << ",\"complete_timestamp_groups\":" << complete_groups
-           << ",\"calendar_minutes\":" << calendar_minutes << ",\"sources\":[";
+           << ",\"calendar_minutes\":" << calendar_minutes;
+    if (config.context.policy.log_percent_grid)
+        result << ",\"funded_strategy\":{\"grid\":\"log_price_percent_down\",\"step_fraction\":" << number(config.context.policy.spacing)
+               << ",\"buy_floor_fraction\":" << number(config.context.policy.buy_floor_fraction)
+               << ",\"floor_rounding\":\"up_to_price_tick_final_step_may_be_shorter\""
+               << ",\"exchange_tp_threshold\":" << number(config.portfolio.exchange_threshold)
+               << ",\"global_tp_threshold\":" << number(config.portfolio.global_threshold)
+               << ",\"restart_after_exit\":" << (config.portfolio.restart_after_exit ? "true" : "false")
+               << ",\"book_price_proxy\":\"completed_close_both_sides\"}";
+    result << ",\"sources\":[";
     for (std::size_t index = 0; index < count; ++index) {
         if (index != 0) result << ',';
         const auto& scan = cursors[index].reader->stats();
@@ -402,7 +479,14 @@ void run_study(const StudyConfig& config, std::ostream& output) {
                << ",\"longest_observed_lot_hold_ms\":" << stats.longest_observed_lot_hold_ms
                << ",\"allocation_round_advances\":" << simulation.state.round_id - 1 << ",\"open_orders\":" << open
                << ",\"unknown_orders\":" << unknown << ",\"phase\":" << json_quote(simulation.state.phase)
-               << ",\"mode\":" << json_quote(simulation.state.mode) << '}';
+               << ",\"mode\":" << json_quote(simulation.state.mode);
+        if (simulation.context.policy.log_percent_grid)
+            result << ",\"entry_reference\":" << optional_number(simulation.state.entry_reference)
+                   << ",\"buy_floor_price\":" << (simulation.state.entry_reference
+                       ? number((*simulation.state.entry_reference * (Rational(1) - simulation.context.policy.buy_floor_fraction))
+                                .rounded(simulation.context.market.price_tick, true)) : "null")
+                   << ",\"full_grid_placed\":" << (simulation.state.full_grid_placed ? "true" : "false");
+        result << '}';
     }
     result << "],\"exchanges\":[";
     bool comma = false;
@@ -459,6 +543,8 @@ void run_study(const StudyConfig& config, std::ostream& output) {
            << "\"Instant funded buy-hold is a counterfactual benchmark, not LIMIT execution evidence\"]}";
     if (result.tellp() >= result_byte_limit) throw Error("study JSON exceeds 32 MiB; discard entire result");
     output << result.str() << '\n';
+    output.flush();
     if (!output) throw Error("study output failed");
+    progress.update(whole_sources_rows, total_source_records, window_rows, last_ms, "complete", true);
 }
 } // namespace grid

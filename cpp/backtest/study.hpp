@@ -12,6 +12,8 @@ struct StudyConfig {
     PortfolioPolicy portfolio;
     std::optional<std::int64_t> start_ms, end_ms;
     std::vector<StudySource> sources;
+    std::vector<EngineContext> source_contexts;
+    std::string reporting_currency;
     std::string input_sha256;
 };
 [[nodiscard]] StudyConfig read_study(const std::string& path);

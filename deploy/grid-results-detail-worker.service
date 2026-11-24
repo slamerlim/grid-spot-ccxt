@@ -1,0 +1,35 @@
+[Unit]
+Description=GRID single configuration detail replay worker
+After=local-fs.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=grid-backtest
+Group=grid-backtest
+WorkingDirectory=/opt/grid
+BindReadOnlyPaths=/root/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu:/opt/grid-tools/backtest-runtime
+Environment=PYTHONPATH=/opt/grid-tools/results-viewer/lib/python3.12/site-packages:/opt/grid:/opt/grid/src
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/env /opt/grid-tools/backtest-runtime/bin/python3.12 -m scripts.results_viewer_jobs --publication /opt/grid-runs/results-viewer-ssh/depth-matrix-20261122-nc93lrj3/final-publication.json --binary /opt/grid-builds/depth-matrix-test/grid_backtest --root /opt/grid-runs/results-viewer-details
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=infinity
+KillMode=control-group
+UMask=0007
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/opt/grid-runs/results-viewer-details /opt/grid-runs/.research-heavy.lock
+MemoryMax=64G
+TasksMax=96
+
+[Install]
+WantedBy=multi-user.target

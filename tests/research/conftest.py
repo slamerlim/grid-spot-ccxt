@@ -30,7 +30,7 @@ def make_replay(tmp_path: Path, context: Context) -> MakeReplay:
         source = Source(
             path,
             "fake",
-            "BASE/QUOTE",
+            "BASE/USDT",
             0,
             len(prices),
             "synthetic <qffff",
@@ -38,16 +38,17 @@ def make_replay(tmp_path: Path, context: Context) -> MakeReplay:
             "deterministic synthetic candles",
             True,
         )
-        scope = Scope("fake", "allocated-account", "BASE/QUOTE", "allocation", "grid", "cycle")
+        scope = Scope("fake", "allocated-account", "BASE/USDT", "allocation", "grid", "cycle")
         normalized = replace(
             context,
-            buy_fee=replace(context.buy_fee, max_settlements=1),
-            sell_fee=replace(context.sell_fee, max_settlements=1),
+            market=replace(context.market, symbol="BASE/USDT", quote="USDT"),
+            buy_fee=replace(context.buy_fee, currency="USDT", max_settlements=1),
+            sell_fee=replace(context.sell_fee, currency="USDT", max_settlements=1),
         )
         allocation = Allocation(scope, source, normalized, D("1000"))
         return Replay(
             (allocation,),
-            (Capital(scope.venue, scope.account, "QUOTE", D("1000")),),
+            (Capital(scope.venue, scope.account, "USDT", D("1000")),),
             START,
             START + len(prices) * MINUTE,
             "test-revision",

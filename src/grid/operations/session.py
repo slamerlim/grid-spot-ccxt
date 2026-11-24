@@ -79,7 +79,7 @@ class MockSession:
                     "boot_id": boot,
                     "source_sha256": source,
                     "uid": os.geteuid(),
-                    "fixture": "one-invented-spot-allocation-1000-QUOTE-zero-fee",
+                    "fixture": "one-invented-spot-allocation-1000-USDT-zero-fee",
                 }
                 journal.append("operator-session", metadata, 10000, 10**10)
             session = cls(directory, journal, metadata["origin_ns"], metadata["session_id"])

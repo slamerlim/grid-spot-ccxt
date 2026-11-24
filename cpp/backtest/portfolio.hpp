@@ -3,11 +3,13 @@
 #include "engine.hpp"
 
 namespace grid {
-// Offline USDT/common-quote scenario only. Accounts/allocations remain distinct;
+// Offline common-quote scenario only. Accounts/allocations remain distinct;
 // this coordinator has no balances of its own and never posts a fill.
 struct PortfolioPolicy {
     bool exchange_enabled = false, symbol_enabled = false;
     Rational exchange_threshold{".10"}, symbol_threshold{".10"};
+    Rational global_threshold{".10"};
+    bool restart_after_exit = true;
     Rational max_deviation{".05"};
     std::int64_t mark_max_age_ms = 0, ttl_ms = 3600000, duration_ms = 14400000;
     unsigned max_reprices = 3, max_cycles = 10000, nav_order_budget = 4;

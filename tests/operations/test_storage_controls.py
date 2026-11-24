@@ -258,7 +258,7 @@ def test_detached_backup_is_bounded_and_concurrent_halt_and_fill_are_not_reverte
             with pytest.raises(asyncio.CancelledError):
                 await task
             owner.executor.gateway.fill(
-                "order-1", "during-backup", D(1), D(100), (ActualFee("QUOTE", D(0), None),)
+                "order-1", "during-backup", D(1), D(100), (ActualFee("USDT", D(0), None),)
             )
             now[0] += 10
             await owner.observe(case.facts(now[0], 3))

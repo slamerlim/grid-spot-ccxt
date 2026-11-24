@@ -24,8 +24,8 @@ def main() -> None:
     ledger = Ledger(
         Path(data["path"]), Bounds(*data["bounds"]), frozenset(data["sources"]), mock_storage=True
     )
-    ledger.credit("fund", scope.venue, scope.account, Money("QUOTE", D(1000)))
-    ledger.start("start", scope, (Money("QUOTE", D(1000)),), context)
+    ledger.credit("fund", scope.venue, scope.account, Money("USDT", D(1000)))
+    ledger.start("start", scope, (Money("USDT", D(1000)),), context)
 
     def crash(stage: str) -> None:
         if stage == data["boundary"]:

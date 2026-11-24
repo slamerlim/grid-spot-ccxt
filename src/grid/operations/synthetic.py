@@ -32,7 +32,7 @@ class Fixture:
 
     def prepare(self, ledger: Ledger) -> None:
         for index, (scope, context) in enumerate(self.contexts):
-            funds = Money("QUOTE", D(1000))
+            funds = Money("USDT", D(1000))
             ledger.credit(f"fixture-fund-{index}", scope.venue, scope.account, funds)
             ledger.start(f"fixture-start-{index}", scope, (funds,), context)
 
@@ -84,9 +84,9 @@ def fixture(venues: int, candidates: int) -> Fixture:
     for index in range(candidates):
         base = f"BASE{index}"
         market = Market(
-            f"{base}/QUOTE",
+            f"{base}/USDT",
             base,
-            "QUOTE",
+            "USDT",
             1,
             Precision(PrecisionMode.TICK, tick=D("0.01")),
             Precision(PrecisionMode.TICK, tick=D("0.001")),
@@ -116,7 +116,7 @@ def fixture(venues: int, candidates: int) -> Fixture:
             1000,
             "bid",
         )
-        fee = FeeRule("QUOTE", D(0), D("0.0001"), None, 64)
+        fee = FeeRule("USDT", D(0), D("0.0001"), None, 64)
         scope = Scope(
             f"synthetic-{index % venues}",
             "mock-account",
@@ -141,7 +141,7 @@ def fixture(venues: int, candidates: int) -> Fixture:
     universe = UniversePolicy(
         SelectionMode.AUTOMATIC,
         tuple(f"synthetic-{i}" for i in range(venues)),
-        "QUOTE",
+        "USDT",
         (),
         (),
         (),
@@ -156,5 +156,5 @@ def fixture(venues: int, candidates: int) -> Fixture:
         D("0.01"),
     )
     exits = tuple(ExitRule(s, "bid", D(1), D("0.5"), D(0), 1000, 3) for s, _ in rows)
-    portfolio = PortfolioPolicy("QUOTE", (), exits, (), (), D(0), 1000, 10, 10000, "no_transfers")
+    portfolio = PortfolioPolicy("USDT", (), exits, (), (), D(0), 1000, 10, 10000, "no_transfers")
     return Fixture(tuple(rows), universe, portfolio)

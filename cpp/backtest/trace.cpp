@@ -42,6 +42,36 @@ void identifier(const std::string& text) {
     for (char ch : text) if (static_cast<unsigned char>(ch) < 32 || static_cast<unsigned char>(ch) > 126)
         throw Error("trace identifier must be printable ASCII");
 }
+void utf8_identifier(const std::string& text) {
+    if (text.empty() || text.size() > 128) throw Error("invalid trace identifier");
+    for (std::size_t offset = 0; offset < text.size();) {
+        const auto first = static_cast<unsigned char>(text[offset]);
+        if (first < 128) {
+            if (first < 32 || first == 127) throw Error("trace identifier contains a control character");
+            ++offset;
+            continue;
+        }
+        const std::size_t width = first >= 194 && first <= 223 ? 2 :
+                                  first >= 224 && first <= 239 ? 3 :
+                                  first >= 240 && first <= 244 ? 4 : 0;
+        if (width == 0 || offset + width > text.size()) throw Error("invalid UTF-8 trace identifier");
+        std::uint32_t point = static_cast<std::uint32_t>(first & (width == 2 ? 31 : width == 3 ? 15 : 7));
+        for (std::size_t index = 1; index < width; ++index) {
+            const auto continuation = static_cast<unsigned char>(text[offset + index]);
+            if (continuation < 128 || continuation > 191) throw Error("invalid UTF-8 trace identifier");
+            point = (point << 6) | static_cast<std::uint32_t>(continuation & 63);
+        }
+        if ((width == 2 && point < 128) || (width == 3 && point < 2048) ||
+            (width == 4 && point < 65536) || point > 0x10ffff ||
+            (point >= 0xd800 && point <= 0xdfff))
+            throw Error("invalid UTF-8 trace identifier");
+        if ((point >= 0x80 && point <= 0x9f) || point == 0x2028 || point == 0x2029 ||
+            point == 0x200e || point == 0x200f || (point >= 0x202a && point <= 0x202e) ||
+            (point >= 0x2066 && point <= 0x2069) || point == 0xfeff)
+            throw Error("trace identifier contains a control character");
+        offset += width;
+    }
+}
 void mode(const std::string& text) {
     const std::set<std::string> modes {"active", "hold_inventory", "paused", "retiring", "portfolio_exit", "exit_blocked"};
     if (!modes.contains(text)) throw Error("unsupported control mode");
@@ -70,6 +100,15 @@ struct Configuration {
         context.market.prices = limits("price"); context.market.buy_amount = limits("buy_amount");
         context.market.buy_cost = limits("buy_cost"); context.market.sell_amount = limits("sell_amount");
         context.market.sell_cost = limits("sell_cost"); context.market.validate();
+        for (const auto& key : {"buy_price_max_ratio", "sell_price_min_ratio"}) {
+            if (!values.contains(key)) continue;
+            auto value = optional_number(take(key));
+            if (value && value->sign() <= 0) throw Error("invalid LIMIT price-protection ratio");
+            (std::string_view(key) == "buy_price_max_ratio" ? context.buy_price_max_ratio
+                                                          : context.sell_price_min_ratio) = value;
+        }
+        if (values.contains("limit_reference_bars"))
+            context.limit_reference_bars = static_cast<unsigned>(whole("limit_reference_bars", 1, 2));
         context.config_revision = whole("config_revision"); context.generation = whole("market_generation");
         context.now_ms = whole("now_ms"); context.rules_observed_ms = whole("rules_observed_ms");
         context.fees_observed_ms = whole("fees_observed_ms"); context.allow_new_exposure = boolean(take("allow_new_exposure"));
@@ -83,6 +122,11 @@ struct Configuration {
         policy.quote_reserve = number("quote_reserve"); policy.max_quote_committed = number("max_quote_committed");
         policy.lower_price = number("lower_price"); policy.upper_price = number("upper_price");
         policy.cost_quantum = number("cost_quantum"); policy.max_spread = number("max_spread");
+        if (values.contains("log_percent_grid")) policy.log_percent_grid = boolean(take("log_percent_grid"));
+        if (values.contains("buy_floor_fraction")) policy.buy_floor_fraction = number("buy_floor_fraction");
+        if (policy.buy_floor_fraction.sign() < 0 || policy.buy_floor_fraction > Rational(".60") ||
+            (policy.log_percent_grid && (policy.spacing >= Rational(1) || policy.buy_floor_fraction.sign() <= 0)))
+            throw Error("invalid logarithmic step or BUY floor");
         for (const auto* required : {&policy.spacing, &policy.net_target, &policy.max_quote_committed,
                                     &policy.lower_price, &policy.upper_price, &policy.cost_quantum})
             if (required->sign() <= 0) throw Error("positive trace policy field required");
@@ -90,7 +134,7 @@ struct Configuration {
             throw Error("invalid trace risk range");
         policy.ladder_size = static_cast<unsigned>(whole("ladder_size", 1, 256));
         policy.max_lots = static_cast<unsigned>(whole("max_lots", 1, 10000));
-        policy.max_open_orders = static_cast<unsigned>(whole("max_open_orders", 1, 1024));
+        policy.max_open_orders = static_cast<unsigned>(whole("max_open_orders", 1, 10001));
         policy.max_order_records = static_cast<unsigned>(whole("max_order_records", policy.max_open_orders, 100000));
         policy.max_fill_records = static_cast<unsigned>(whole("max_fill_records", 1, 100000));
         policy.max_replacements = static_cast<unsigned>(whole("max_replacements", 0, 10000));
@@ -279,15 +323,32 @@ StudyConfig read_study(const std::string& path) {
     if (!std::getline(stream, line) || line != "GRID_MODULE1_REPLAY\t1") throw Error("unsupported replay schema");
     Configuration config;
     std::map<std::string, std::string> extra;
+    std::map<std::size_t, std::map<std::string, std::string>> source_rules;
     unsigned rows = 0;
+    unsigned rule_rows = 0;
     while (std::getline(stream, line)) {
-        if (++rows > 512 || line.size() > 65536) throw Error("replay config row bound exceeded");
+        if (line.size() > 65536) throw Error("replay config row bound exceeded");
         const auto tokens = split(line);
+        if (tokens[0] == "SOURCE_RULE") {
+            if (++rule_rows > 1088) throw Error("source rule row bound exceeded");
+        } else if (++rows > 512) throw Error("replay config row bound exceeded");
         if (tokens[0] == "SOURCE") {
             count(tokens, 9);
-            for (std::size_t index = 1; index < 7; ++index) identifier(tokens[index]);
+            for (std::size_t index = 1; index < 7; ++index) {
+                if (index == 3 || index == 4) utf8_identifier(tokens[index]);
+                else identifier(tokens[index]);
+            }
             if (result.sources.size() >= 64) throw Error("source count exceeds bound");
             result.sources.push_back({{tokens[1], tokens[2], tokens[3], tokens[4], tokens[5], tokens[6]}, tokens[7], tokens[8]});
+        } else if (tokens[0] == "SOURCE_RULE") {
+            count(tokens, 4);
+            const auto index = static_cast<std::size_t>(integer(tokens[1], 0, 63));
+            const std::set<std::string> allowed {"price_tick", "amount_tick", "price_min", "price_max",
+                "buy_amount_min", "buy_amount_max", "sell_amount_min", "sell_amount_max",
+                "buy_cost_min", "buy_cost_max", "sell_cost_min", "sell_cost_max", "base_quantum", "quote_quantum",
+                "buy_price_max_ratio", "sell_price_min_ratio", "limit_reference_bars"};
+            if (!allowed.contains(tokens[2]) || !source_rules[index].emplace(tokens[2], tokens[3]).second)
+                throw Error("invalid or duplicate source market rule");
         } else if (tokens[0] == "CONFIG") {
             count(tokens, 3);
             if (!config.values.emplace(tokens[1], tokens[2]).second) throw Error("duplicate replay config");
@@ -304,6 +365,9 @@ StudyConfig read_study(const std::string& path) {
         } else throw Error("unknown replay row type");
     }
     if (result.sources.empty()) throw Error("replay sources required");
+    if (!source_rules.empty() && !std::is_sorted(result.sources.begin(), result.sources.end(), [](const auto& a, const auto& b) {
+        return std::tie(a.scope.venue, a.scope.symbol) < std::tie(b.scope.venue, b.scope.symbol);
+    })) throw Error("source market rules require sorted source rows");
     std::sort(result.sources.begin(), result.sources.end(), [](const auto& a, const auto& b) {
         return std::tie(a.scope.venue, a.scope.symbol, a.scope.account, a.scope.allocation)
              < std::tie(b.scope.venue, b.scope.symbol, b.scope.account, b.scope.allocation);
@@ -311,11 +375,19 @@ StudyConfig read_study(const std::string& path) {
     std::set<std::pair<std::string, std::string>> markets;
     std::set<std::string> paths;
     for (const auto& source : result.sources) {
-        if (!source.scope.symbol.ends_with("/USDT")) throw Error("primary study requires common USDT spot quote");
+        const auto separator = source.scope.symbol.find('/');
+        if (separator == std::string::npos || separator == 0 || separator + 1 >= source.scope.symbol.size() ||
+            source.scope.symbol.find('/', separator + 1) != std::string::npos)
+            throw Error("replay source requires a BASE/QUOTE symbol");
+        const auto quote = source.scope.symbol.substr(separator + 1);
+        if (quote != "USDT") throw Error("USDT-only policy: replay sources must be quoted in USDT");
+        if (result.reporting_currency.empty()) result.reporting_currency = quote;
+        else if (quote != result.reporting_currency) throw Error("replay sources require one common quote currency");
         if (!markets.emplace(source.scope.venue, source.scope.symbol).second || !paths.insert(source.path).second)
             throw Error("duplicate study market or source");
     }
     config.scope = result.sources.front().scope;
+    const Configuration template_config = config;
     auto initial = config.build(); result.context = std::move(initial.first);
     result.initial_quote = Rational(initial.second.quote_cash) * result.context.quote_quantum;
     if (result.context.buy_fee.currency != "QUOTE" || result.context.sell_fee.currency != "QUOTE")
@@ -337,19 +409,48 @@ StudyConfig read_study(const std::string& path) {
     result.context.entry_policy = take("entry"); result.context.ladder_policy = take("ladder");
     result.context.reentry_policy = take("reentry_policy");
     if (result.context.entry_policy != "seed_min_limit" && result.context.entry_policy != "no_seed_lower") throw Error("unsupported entry policy");
-    if (result.context.ladder_policy != "ladder_multi" && result.context.ladder_policy != "ladder_one") throw Error("unsupported ladder policy");
+    if (result.context.ladder_policy != "ladder_multi" && result.context.ladder_policy != "ladder_one" &&
+        result.context.ladder_policy != "ladder_infinite") throw Error("unsupported ladder policy");
+    if (result.context.ladder_policy == "ladder_infinite" &&
+        (!result.context.policy.log_percent_grid || result.context.policy.buy_floor_fraction.sign() <= 0 ||
+         result.context.entry_policy != "no_seed_lower"))
+        throw Error("infinite ladder requires the explicit logarithmic floor contract");
     if (result.context.ladder_policy == "ladder_one" && result.context.policy.ladder_size != 1) throw Error("single ladder requires one pending slot");
     if (result.context.reentry_policy != "reentry_near_fresh_book" && result.context.reentry_policy != "reentry_one_step_below_sell")
         throw Error("unsupported reentry policy");
     auto& portfolio = result.portfolio;
     portfolio.exchange_enabled = boolean(take("exchange_tp_enabled")); portfolio.symbol_enabled = boolean(take("symbol_tp_enabled"));
     portfolio.exchange_threshold = Rational(take("exchange_tp_threshold")); portfolio.symbol_threshold = Rational(take("symbol_tp_threshold"));
+    if (extra.contains("global_tp_threshold")) portfolio.global_threshold = Rational(take("global_tp_threshold"));
+    if (extra.contains("restart_after_exit")) portfolio.restart_after_exit = boolean(take("restart_after_exit"));
+    if (result.context.policy.log_percent_grid && result.model.spread.sign() != 0)
+        throw Error("logarithmic funded runs require the completed-close proxy without synthetic spread");
     portfolio.max_deviation = Rational(take("max_deviation")); portfolio.mark_max_age_ms = integer(take("mark_max_age_ms"));
     portfolio.ttl_ms = integer(take("exit_ttl_ms"), 1); portfolio.duration_ms = integer(take("exit_duration_ms"), 1);
     portfolio.max_reprices = static_cast<unsigned>(integer(take("max_reprices"), 0, 10000));
     portfolio.max_cycles = static_cast<unsigned>(integer(take("max_cycles"), 1, 10000));
     portfolio.nav_order_budget = static_cast<unsigned>(integer(take("nav_order_budget"), 1, 10000));
     if (!extra.empty()) throw Error("unknown replay policy: " + extra.begin()->first);
+    for (const auto& [index, rules] : source_rules) {
+        (void)rules;
+        if (index >= result.sources.size()) throw Error("source market rule index outside roster");
+    }
+    for (std::size_t index = 0; index < result.sources.size(); ++index) {
+        auto facts = result.context;
+        if (source_rules.contains(index)) {
+            auto specific = template_config;
+            specific.scope = result.sources[index].scope;
+            for (const auto& [key, value] : source_rules.at(index)) specific.values[key] = value;
+            if (source_rules.at(index).contains("price_min")) specific.values["lower_price"] = source_rules.at(index).at("price_min");
+            if (source_rules.at(index).contains("price_max") && source_rules.at(index).at("price_max") != "-")
+                specific.values["upper_price"] = source_rules.at(index).at("price_max");
+            facts = specific.build().first;
+            facts.entry_policy = result.context.entry_policy;
+            facts.ladder_policy = result.context.ladder_policy;
+            facts.reentry_policy = result.context.reentry_policy;
+        }
+        result.source_contexts.push_back(std::move(facts));
+    }
     return result;
 }
 } // namespace grid

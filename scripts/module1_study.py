@@ -54,6 +54,18 @@ def token(value: object) -> str:
     return text
 
 
+def source_token(value: object, max_bytes: int) -> str:
+    """Permit printable UTF-8 only in archive identities and paths, never TSV controls."""
+    text = str(value)
+    try:
+        encoded = text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ValueError("SOURCE value must be valid UTF-8") from exc
+    if not text or not text.isprintable() or len(encoded) > max_bytes:
+        raise ValueError("SOURCE value must be bounded printable UTF-8")
+    return text
+
+
 def validate(config: dict[str, Any], manifest: dict[str, Any]) -> None:
     if config["schema"] != "grid-module1-experiment-v1" or config["contract_revision"] != 4:
         raise ValueError("explicit reviewed experiment revision 4 required")
@@ -168,7 +180,7 @@ def export_tsv(
         ],
         "max_lots": grid["maximum_accumulated_lots"],
         "max_open_orders": grid["maximum_open_orders"],
-        "max_order_records": 10000,
+        "max_order_records": max(10000, grid["maximum_open_orders"] * 2),
         "max_fill_records": 10000,
         "max_replacements": grid["maximum_sell_replacements_per_round"],
         "max_source_age_ms": 60000,
@@ -197,6 +209,11 @@ def export_tsv(
         "max_cycles": tp["maximum_cycles"],
         "nav_order_budget": tp["maximum_exit_reprices"] + 1,
     }
+    if grid.get("log_percent_grid", False):
+        values["log_percent_grid"] = True
+        values["buy_floor_fraction"] = grid["buy_floor_fraction"]
+        replay["global_tp_threshold"] = tp["global_return_threshold"]
+        replay["restart_after_exit"] = tp["restart_after_exit"]
     lines: list[tuple[object, ...]] = [("GRID_MODULE1_REPLAY", 1)]
     for row in sorted(selected, key=lambda item: (item["venue"], item["market"])):
         lines.append(
@@ -213,6 +230,14 @@ def export_tsv(
             )
         )
     lines.extend(("CONFIG", key, value) for key, value in sorted(values.items()))
+    for index, row in enumerate(sorted(selected, key=lambda item: (item["venue"], item["market"]))):
+        for key, value in sorted(
+            config.get("market_rules_by_market", {})
+            .get(f"{row['venue']}:{row['market']}", {})
+            .get("values", {})
+            .items()
+        ):
+            lines.append(("SOURCE_RULE", index, key, value))
     for side in ("buy", "sell"):
         lines.append(
             (
@@ -226,7 +251,21 @@ def export_tsv(
             )
         )
     lines.extend(("REPLAY_CONFIG", key, value) for key, value in sorted(replay.items()))
-    return ("\n".join("\t".join(token(value) for value in line) for line in lines) + "\n").encode()
+    encoded_lines = []
+    for line in lines:
+        if line[0] == "SOURCE":
+            # Only symbol, allocation ID and canonical archive path can contain
+            # Unicode. All config/fee/replay fields retain their strict ASCII gate.
+            fields = [
+                source_token(value, 128 if index in (3, 4) else 4096)
+                if index in (3, 4, 7)
+                else token(value)
+                for index, value in enumerate(line)
+            ]
+        else:
+            fields = [token(value) for value in line]
+        encoded_lines.append("\t".join(fields))
+    return ("\n".join(encoded_lines) + "\n").encode("utf-8")
 
 
 def jobs(config: dict[str, Any], manifest: dict[str, Any], group: str) -> list[dict[str, Any]]:

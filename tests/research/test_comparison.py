@@ -53,7 +53,7 @@ def test_fixed_scenarios_do_not_sort_by_profit(make_replay: MakeReplay) -> None:
         len([o for o in r["unfinished_orders"] if o.side is Side.SELL]) <= 1 for r in allocations
     )
     assert all(row.final_cycle_return_fraction is None for row in rows)
-    assert report["reporting_currency"] == "QUOTE"
+    assert report["reporting_currency"] == "USDT"
     assert all(s["result"]["config"].model == s["model"] for s in report["scenarios"])
     assert (
         digest({k: v for k, v in report.items() if k != "result_sha256"}) == report["result_sha256"]

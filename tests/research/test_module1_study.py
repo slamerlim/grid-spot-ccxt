@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from scripts import module1_study as study
+from scripts.module1_monthly import DAY_MS, METADATA, VALUES, analyse
 from scripts.module1_report import report
 from scripts.module1_verify_sources import sha256, utc_ms
 
@@ -508,3 +509,191 @@ def test_untrustworthy_json_and_tsv_fields_are_rejected(tmp_path: Path, text: st
         study.read_json(path)
     with pytest.raises(ValueError):
         study.token("value\nCONFIG\tspacing\t0")
+
+
+def monthly_sample(
+    offset_ms: int, *, trial: str = "seed_multi_strict", benchmark: str = "100", net: str = "100"
+) -> dict[str, str]:
+    return {
+        "trial_id": trial,
+        "status": "PASS",
+        "timestamp_ms": str(1735689600000 + offset_ms),  # 2025-01-01 UTC.
+        "full_history": "False",
+        "entry": "seed_min_limit",
+        "ladder": "ladder_multi",
+        "ohlc": "strict_skip_ambiguous",
+        "config_sha256": "same-frozen-config",
+        "result_sha256": trial,
+        "raw_nav": net,
+        "net_nav": net,
+        "buy_hold_raw_nav": benchmark,
+        "buy_hold_net_nav": benchmark,
+        "cash_benchmark": "100",
+    }
+
+
+def write_monthly_input(path: Path, points: list[dict[str, str]]) -> None:
+    with path.open("x", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(
+            stream, fieldnames=["trial_id", "status", "timestamp_ms", *METADATA, *VALUES]
+        )
+        writer.writeheader()
+        writer.writerows(points)
+
+
+@pytest.mark.parametrize(
+    ("ending", "direction", "ratio"),
+    [
+        ("105", "flat", "0.050000000000000000"),
+        ("95", "flat", "-0.050000000000000000"),
+        ("105.000000000000000001", "rising", "0.050000000000000000"),
+        ("94.999999999999999999", "falling", "-0.050000000000000000"),
+    ],
+)
+def test_monthly_five_percent_labels_use_exact_endpoints_not_truncated_returns(
+    tmp_path: Path, ending: str, direction: str, ratio: str
+) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    write_monthly_input(
+        source, [monthly_sample(0), monthly_sample(20 * DAY_MS, benchmark=ending, net="99")]
+    )
+    summary = analyse(source, output)
+    with (output / "monthly.csv").open(newline="") as stream:
+        row = next(csv.DictReader(stream))
+    assert summary["direction_counts"] == {direction: 1}
+    assert row["direction"] == direction
+    assert row["buy_hold_raw_nav_return"] == ratio
+    assert row["net_nav_return"] == "-0.010000000000000000"
+    assert row["observed_span_days"] == "20"
+    assert row["unsampled_utc_days_between_endpoints"] == "19"
+    assert row["partial_month_endpoint_sampling"] == "True"
+
+
+@pytest.mark.parametrize("span", [20 * DAY_MS - 1, 20 * DAY_MS, 20 * DAY_MS + 1])
+def test_monthly_twenty_day_cutoff_is_inclusive(tmp_path: Path, span: int) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    write_monthly_input(source, [monthly_sample(0), monthly_sample(span, benchmark="110")])
+    analyse(source, output)
+    with (output / "monthly.csv").open(newline="") as stream:
+        row = next(csv.DictReader(stream))
+    assert row["direction"] == ("unclassified" if span < 20 * DAY_MS else "rising")
+    assert row["unclassified_reason"] == (
+        "insufficient_span_under_20_days" if span < 20 * DAY_MS else ""
+    )
+
+
+@pytest.mark.parametrize("endpoint", [0, 1])
+def test_monthly_unknown_benchmark_endpoint_keeps_known_strategy_return(
+    tmp_path: Path, endpoint: int
+) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    points = [monthly_sample(0), monthly_sample(20 * DAY_MS, benchmark="110", net="102")]
+    points[endpoint]["buy_hold_raw_nav"] = ""
+    write_monthly_input(source, points)
+    analyse(source, output)
+    with (output / "monthly.csv").open(newline="") as stream:
+        row = next(csv.DictReader(stream))
+    assert row["direction"] == "unclassified"
+    assert row["unclassified_reason"] == "unknown_buy_hold_raw_endpoint"
+    assert row["buy_hold_raw_nav_return"] == row["buy_hold_raw_nav_change"] == ""
+    assert row["net_nav_return"] == "0.020000000000000000"
+
+
+def test_monthly_unknown_strategy_endpoint_and_intermediate_marks_remain_visible(
+    tmp_path: Path,
+) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    points = [
+        monthly_sample(0, net=""),
+        monthly_sample(DAY_MS, benchmark="", net=""),
+        monthly_sample(20 * DAY_MS, benchmark="110", net="102"),
+    ]
+    write_monthly_input(source, points)
+    analyse(source, output)
+    with (output / "monthly.csv").open(newline="") as stream:
+        row = next(csv.DictReader(stream))
+    assert row["direction"] == "rising"
+    assert row["buy_hold_raw_nav_unknown_observations"] == "1"
+    assert row["net_nav_unknown_observations"] == "2"
+    assert row["net_nav_first"] == row["net_nav_return"] == row["net_nav_change"] == ""
+    assert row["net_nav_last"] == "102"
+
+
+@pytest.mark.parametrize(
+    ("column", "value", "message"),
+    [
+        ("status", "FAIL", "passed retained trial"),
+        ("trial_id", "", "passed retained trial"),
+        ("timestamp_ms", "1735689600000", "strictly increasing"),
+        ("timestamp_ms", "-1", "strictly increasing"),
+        ("config_sha256", "other-config", "metadata changed"),
+        ("net_nav", "-1", "bounded nonnegative"),
+        ("net_nav", "NaN", "bounded nonnegative"),
+        ("net_nav", "Infinity", "bounded nonnegative"),
+        ("net_nav", "1e61", "bounded nonnegative"),
+        ("net_nav", "1" * 257, "unbounded NAV"),
+    ],
+)
+def test_monthly_invalid_input_is_rejected_before_output(
+    tmp_path: Path, column: str, value: str, message: str
+) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    points = [monthly_sample(0), monthly_sample(20 * DAY_MS)]
+    points[-1][column] = value
+    write_monthly_input(source, points)
+    before = source.read_bytes()
+    with pytest.raises(ValueError, match=message):
+        analyse(source, output)
+    assert source.read_bytes() == before
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("trial_id,timestamp_ms\ncase,0\n", "missing retained NAV columns"),
+        (
+            "trial_id,status,timestamp_ms,raw_nav,net_nav,buy_hold_raw_nav,buy_hold_net_nav,cash_benchmark\n"
+            "case,PASS,0,1,1,1,1,1,extra\n",
+            "malformed CSV",
+        ),
+    ],
+)
+def test_monthly_malformed_csv_is_rejected(tmp_path: Path, text: str, message: str) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    source.write_text(text)
+    with pytest.raises(ValueError, match=message):
+        analyse(source, output)
+    assert not output.exists()
+
+
+def test_monthly_portfolio_comparisons_require_matched_observed_endpoints(tmp_path: Path) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    write_monthly_input(
+        source,
+        [
+            monthly_sample(0),
+            monthly_sample(20 * DAY_MS),
+            monthly_sample(0, trial="seed_multi_buy"),
+            monthly_sample(21 * DAY_MS, trial="seed_multi_buy"),
+        ],
+    )
+    with pytest.raises(ValueError, match="unmatched observed monthly endpoints"):
+        analyse(source, output)
+    assert not output.exists()
+
+
+def test_monthly_output_is_exclusive_and_outside_git_and_archive(tmp_path: Path) -> None:
+    source, output = tmp_path / "nav.csv", tmp_path / "monthly"
+    write_monthly_input(source, [monthly_sample(0), monthly_sample(20 * DAY_MS)])
+    analyse(source, output)
+    before = {p.name: p.read_bytes() for p in output.iterdir()}
+    with pytest.raises(FileExistsError):
+        analyse(source, output)
+    assert {p.name: p.read_bytes() for p in output.iterdir()} == before
+    git_root = tmp_path / "checkout"
+    (git_root / ".git").mkdir(parents=True)
+    for forbidden in (git_root / "monthly", Path("/opt/datasets/forbidden-module1-monthly")):
+        with pytest.raises(ValueError, match="outside source archive and Git"):
+            analyse(source, forbidden)
+        assert not forbidden.exists()

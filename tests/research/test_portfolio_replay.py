@@ -25,7 +25,7 @@ pytestmark = pytest.mark.usefixtures("async_sockets")
 
 def settings_for(spec: Replay) -> Settings:
     policy = PortfolioPolicy(
-        "QUOTE",
+        "USDT",
         tuple(PoolKey(p.venue, p.account, p.currency) for p in spec.capital),
         tuple(
             ExitRule(a.scope, "bid", D(1), D("0.5"), D(0), 5 * MINUTE, 10) for a in spec.allocations
@@ -180,7 +180,7 @@ def test_loser_and_unallocated_cash_remain_in_consolidated_nav(
             for i, prices in enumerate(((100, 101, 99, 100),) * 2 + ((40, 41, 35, 40),))
         )
     )
-    market = replace(first.context.market, symbol="LOSER/QUOTE", base="LOSER")
+    market = replace(first.context.market, symbol="LOSER/USDT", base="LOSER")
     second = replace(
         first,
         scope=replace(first.scope, symbol=market.symbol, allocation="loser"),
@@ -270,7 +270,7 @@ def test_resource_or_unapproved_sqlite_refuses_success(make_replay: MakeReplay, 
         run(spec, settings)
 
 
-@pytest.mark.parametrize("currency", ["BASE", "QUOTE", "TOKEN"])
+@pytest.mark.parametrize("currency", ["BASE", "USDT", "TOKEN"])
 def test_actual_fill_fees_use_declared_owned_currency(
     make_replay: MakeReplay, currency: str
 ) -> None:
@@ -301,7 +301,7 @@ def test_actual_fill_fees_use_declared_owned_currency(
             conversions=(
                 Conversion(
                     PoolKey(allocation.scope.venue, allocation.scope.account, "TOKEN"),
-                    "QUOTE",
+                    "USDT",
                     D(2),
                     D(2),
                     D(100),
@@ -315,7 +315,7 @@ def test_actual_fill_fees_use_declared_owned_currency(
     state = result["final_states"][0]
     paid = result["fees_by_currency"][currency]
     assert paid > 0 and result["fees_quote"] == D("0.1")
-    assert state.quote_cash == D(900) - (paid if currency == "QUOTE" else D(0))
+    assert state.quote_cash == D(900) - (paid if currency == "USDT" else D(0))
     assert state.owned_base == D(1) - (paid if currency == "BASE" else D(0))
     if tokens:
         assert state.fee_balances == (Money("TOKEN", D(10) - paid),)
@@ -361,7 +361,7 @@ def test_shared_account_backoff_cannot_overfill_stale_partial_snapshot(
             sell_fee=replace(first.context.sell_fee, max_settlements=8),
         ),
     )
-    second_market = replace(market, symbol="SECOND/QUOTE", base="SECOND")
+    second_market = replace(market, symbol="SECOND/USDT", base="SECOND")
     second = replace(
         first,
         scope=replace(first.scope, symbol=second_market.symbol, allocation="second"),

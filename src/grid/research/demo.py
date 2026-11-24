@@ -28,9 +28,9 @@ def create(directory: Path, revision: str) -> Path:
         for i, row in enumerate(prices):
             stream.write(RECORD.pack(start + i * MINUTE, *row))
     market = Market(
-        "SYNTH/USD",
+        "SYNTH/USDT",
         "SYNTH",
-        "USD",
+        "USDT",
         1,
         Precision(PrecisionMode.TICK, tick=D("0.01")),
         Precision(PrecisionMode.TICK, tick=D("0.001")),
@@ -60,7 +60,7 @@ def create(directory: Path, revision: str) -> Path:
         60000,
         "bid",
     )
-    fee = FeeRule("USD", D("0.001"), D("0.0001"), None, 1)
+    fee = FeeRule("USDT", D("0.001"), D("0.0001"), None, 1)
     context = Context(market, policy, fee, fee, 1, start, start, start, None, True)
     scope = Scope("synthetic", "research", market.symbol, "example", "grid", "demo")
     source = Source(
@@ -76,7 +76,7 @@ def create(directory: Path, revision: str) -> Path:
     )
     spec = Replay(
         (Allocation(scope, source, context, D("1000")),),
-        (Capital(scope.venue, scope.account, "USD", D("1000")),),
+        (Capital(scope.venue, scope.account, "USDT", D("1000")),),
         start,
         start + len(prices) * MINUTE,
         revision,

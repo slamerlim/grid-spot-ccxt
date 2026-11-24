@@ -20,6 +20,11 @@ struct SimulationMetrics {
     std::map<std::string, Rational> fees;
     std::map<std::string, std::uint64_t> notices;
 };
+struct ResearchFill {
+    std::int64_t timestamp;
+    bool buy;
+    Rational price, amount, fee, cash, base, cost, realized;
+};
 class Simulator {
 public:
     EngineState state;
@@ -27,6 +32,8 @@ public:
     BarModel model;
     std::map<std::int64_t, std::int64_t> eligible, cancel_due;
     SimulationMetrics metrics;
+    bool record_fills = false;
+    std::vector<ResearchFill> step_fills;
     Simulator(EngineState initial, EngineContext facts, BarModel assumptions);
     void event(const Event&, std::int64_t index);
     void accept(Transition, std::int64_t index);
@@ -35,6 +42,7 @@ public:
 private:
     bool begun_ = false;
     std::optional<std::int64_t> last_timestamp_;
+    std::optional<Rational> last_close_;
     void compact();
     [[nodiscard]] std::vector<Event> accept_once(Transition, std::int64_t index);
     void drain(std::vector<Event>, std::int64_t index);

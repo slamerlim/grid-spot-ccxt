@@ -89,7 +89,7 @@ def test_ambiguity_is_shared_across_lots_and_new_orders_wait(
     )
 
 
-@pytest.mark.parametrize("currency", ["QUOTE", "BASE", "TOKEN"])
+@pytest.mark.parametrize("currency", ["USDT", "BASE", "TOKEN"])
 def test_fee_currency_conservation_and_shared_caps_at_every_bar(
     make_replay: MakeReplay, currency: str
 ) -> None:

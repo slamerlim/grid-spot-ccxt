@@ -72,6 +72,9 @@ public:
     [[nodiscard]] bool next(Bar& result);
     [[nodiscard]] const ScanStats& stats() const { return stats_; }
     [[nodiscard]] const std::string& path() const { return path_; }
+    [[nodiscard]] std::uint64_t total_records() const {
+        return static_cast<std::uint64_t>(initial_.st_size) / record_bytes;
+    }
 
 private:
     std::string path_;

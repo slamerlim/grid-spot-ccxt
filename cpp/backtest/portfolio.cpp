@@ -125,7 +125,8 @@ PortfolioCoordinator::PortfolioCoordinator(PortfolioPolicy policy, std::vector<S
         policy_.max_reprices > 1000 || policy_.max_cycles == 0 || policy_.max_cycles > 10000 ||
         policy_.nav_order_budget == 0 || policy_.nav_order_budget > 1000 ||
         policy_.max_deviation.sign() < 0 || policy_.max_deviation >= Rational(1) ||
-        policy_.exchange_threshold.sign() <= 0 || policy_.symbol_threshold.sign() <= 0)
+        policy_.exchange_threshold.sign() <= 0 || policy_.symbol_threshold.sign() <= 0 ||
+        policy_.global_threshold.sign() <= 0)
         throw Error("invalid bounded portfolio policy");
     PortfolioCycle global; global.tier = "global"; global.key = "all";
     std::map<std::pair<std::string, std::string>, std::vector<std::size_t>> venues;
@@ -193,6 +194,7 @@ PortfolioStep PortfolioCoordinator::evaluate(const std::vector<PortfolioAllocati
     for (std::size_t ci = 0; ci < cycles_.size(); ++ci) {
         auto& cycle = cycles_[ci];
         if (cycle.phase != "complete" || !cycle.completed_ms || now <= *cycle.completed_ms) continue;
+        if (!policy_.restart_after_exit) continue;
         if (std::any_of(cycle.members.begin(), cycle.members.end(), [&](auto i) { return owners_[i] != ci; })) continue;
         bool higher_trigger = false;
         for (std::size_t parent = 0; parent < ci; ++parent) {
@@ -200,7 +202,7 @@ PortfolioStep PortfolioCoordinator::evaluate(const std::vector<PortfolioAllocati
             if (above.phase != "active" || !contains_all(above.members, cycle.members) ||
                 (above.tier == "exchange" && !policy_.exchange_enabled)) continue;
             const auto value = group_nav(step.nav, above.members);
-            const Rational threshold = above.tier == "global" ? Rational(".10") : policy_.exchange_threshold;
+            const Rational threshold = above.tier == "global" ? policy_.global_threshold : policy_.exchange_threshold;
             if (value && *value >= above.baseline * (Rational(1) + threshold)) higher_trigger = true;
         }
         if (higher_trigger) continue; // No transient BUY between completed lower exit and higher handoff.
@@ -237,7 +239,7 @@ PortfolioStep PortfolioCoordinator::evaluate(const std::vector<PortfolioAllocati
             (cycle.tier == "symbol" && !policy_.symbol_enabled)) continue;
         if (std::any_of(cycle.members.begin(), cycle.members.end(), [&](auto i) { return owners_[i] && *owners_[i] < ci; })) continue;
         const auto value = group_nav(step.nav, cycle.members);
-        const Rational threshold = cycle.tier == "global" ? Rational(".10") :
+        const Rational threshold = cycle.tier == "global" ? policy_.global_threshold :
             cycle.tier == "exchange" ? policy_.exchange_threshold : policy_.symbol_threshold;
         if (!value || *value < cycle.baseline * (Rational(1) + threshold)) continue;
         cycle.phase = "exiting"; cycle.trigger_ms = now; ++cycle.triggers;

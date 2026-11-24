@@ -162,12 +162,12 @@ async def dry_run(directory: Path, sources: frozenset[str]) -> dict[str, object]
         if not samples[-1].admission_halted or len(venue.sent) != 1:
             raise DomainError("synthetic restart did not preserve ownership/halt")
         await control(owner, Action.RESUME, "reviewed-restart")
-        venue.fill("order-1", "seed", D(1), D(100), (ActualFee("QUOTE", D(0), None),))
+        venue.fill("order-1", "seed", D(1), D(100), (ActualFee("USDT", D(0), None),))
         for revision in (4, 5):
             now[0] += 10
             await owner.observe(case.facts(now[0], revision, D(200)))
             samples.append(await owner.step())
-        venue.fill("order-2", "exit", D(1), D(200), (ActualFee("QUOTE", D(0), None),))
+        venue.fill("order-2", "exit", D(1), D(200), (ActualFee("USDT", D(0), None),))
         now[0] += 10
         await owner.observe(case.facts(now[0], 6, D(200)))
         samples.append(await owner.step())

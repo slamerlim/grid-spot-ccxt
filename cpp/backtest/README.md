@@ -44,8 +44,10 @@ is used in financial operations or order/price comparisons.
   representable. Quote fee quantum is `1e-8`. Other profiles are supported only
   when each actual posting is provably representable. A third-token conversion
   does not justify silently rounding its quote cost.
-* Exact rational helpers are the slow order-placement path: minimum lots,
-  geometric powers, fees, tick rounding and basket targets. OpenSSL BIGNUM
+* Exact rational helpers cover minimum lots, geometric powers, fees, tick
+  rounding, basket targets and per-bar NAV. Reduced fractions fitting signed
+  64-bit components use 128-bit intermediates; larger results use OpenSSL
+  BIGNUM. No precision is discarded when switching representations. BIGNUM
   values are capped at 131,072 bits (including checked intermediate products).
   Decimal input is bounded to 96 mantissa digits and exponent -96..96;
   geometric index is 1..10,000, with at most 256 requested levels. An arithmetic
@@ -118,6 +120,7 @@ grid_backtest math-tp OWNED COST <MARKET> <SELL_FEE> SPACING NET_TARGET
 grid_backtest trace TRACE_TSV
 grid_backtest bars BAR_TSV
 grid_backtest replay STUDY_TSV
+grid_backtest compare-reference CONFIG_JSON
 
 MARKET = PRICE_TICK AMOUNT_TICK BUY_MIN_AMOUNT BUY_MIN_COST SELL_MIN_AMOUNT SELL_MIN_COST
 FEE = CURRENCY RATE INCREMENT CONVERSION_OR_- MAX_SETTLEMENTS
@@ -142,10 +145,54 @@ Study inputs start `GRID_MODULE1_REPLAY\t1`, with explicit `SOURCE`, `CONFIG`,
 experiment contract; `study_tests.py` is a self-contained small synthetic example.
 Unknown/duplicate fields, unsupported research switches, mixed quotes, duplicate
 markets and unrepresentable financial postings fail explicitly. The current
-historical study supports separately funded USDT allocations and QUOTE fees only.
+historical study supports separately funded allocations sharing one explicitly
+declared native quote currency and QUOTE fees only.
 Every source is read and hashed in full even when the replay window selects a
 subset. The merger retains one next bar per source and evaluates portfolio
 decisions after the entire equal-timestamp group, without forward-filled marks.
+
+For optional live progress, set `GRID_BACKTEST_PROGRESS_PATH` to a writable JSON
+sidecar path. The engine atomically replaces it approximately once per second,
+with `stage`, `processed`, `total`, `unit`, `replayed_candles`, `timestamp_ms` and
+`updated_at`. `processed / total` counts complete source records traversed,
+including records outside a selected replay window, because full source hashing
+and validation remain mandatory. `replayed_candles` counts only the selected
+window. Final `complete` follows source verification and successful result output.
+An unavailable progress destination does not change replay results. The sidecar
+is display telemetry; the worker's exit code and validated receipt establish
+whether a run passed.
+
+`compare-reference` is a separate, explicitly unfunded research mode for the
+owner-requested exact comparison with audited `module1_n` revision 3. It accepts
+that engine's JSON configuration, uses the same native quote units, 0.2% fee per
+side, O/H/L/C event ordering, idle BUY adjustment, quantity precision, averaging
+and chart aggregation. It writes compatible 72-byte `trades.bin`, 144-byte
+`series.bin`, and `summary.json` artifacts into a fresh result directory. Its
+summary identifies `grid-current-comparison`, `audited_grid_compatibility_v1`
+and `unfunded_not_live`; timing and these identity fields are excluded from
+financial parity comparisons. Negative results remain negative. It does not
+provide finite cash, the funded minimum-lot policy, delayed order reconciliation
+or portfolio exits, and cannot be used as a live mode.
+
+The implementation in `comparison.cpp` is adapted from the user's frozen
+`/opt/module1_n/src/backtest.cpp`, source SHA-256
+`196f65c5df6af76aca65ac8c67be7db91e57ca32039313773d877c1c8b3d765e`.
+It retains reference `long double` arithmetic only inside this separate namespace
+to preserve numerical behavior; the funded engine retains exact financial
+arithmetic. `vendor/json.hpp` is the unchanged MIT-licensed nlohmann JSON 3.10.5
+header, including its copyright and license, SHA-256
+`e832d339d9e0c042e7dff807754769d778cf5d6ae9730ce21eed56de99cb5e86`.
+The comparison executable has no runtime dependency on or subprocess call to
+the audited engine. It refuses result/progress paths inside `/opt/module1_n`
+or the dataset directories, and refuses overwriting existing result artifacts.
+
+`grid_backtest_comparison` includes manually calculated accounting cases,
+negative returns, precision modes, gaps and exclusive date windows. Optionally
+configure `-DGRID_COMPARISON_REFERENCE=/path/to/frozen-reference-copy` to compare
+all financial summary fields and every trade/chart byte against the audited
+binary. The copy must be outside the immutable audited project; the expected
+binary hash is pinned in `comparison_tests.py`. This establishes compatibility,
+not independent verification of the shared strategy's economic assumptions.
 
 On a missing-bar gap, the simulator advances the boundary clock before handling
 due cancellations; old observations cannot become artificially fresh. After the

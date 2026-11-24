@@ -66,7 +66,7 @@ def test_known_round_trip_accounting_and_final_partial_interval(make_replay: Mak
     assert result["buy_hold_nav_at_close"] > D("1000")  # type: ignore[operator]
 
 
-@pytest.mark.parametrize("currency", ["QUOTE", "BASE", "TOKEN"])
+@pytest.mark.parametrize("currency", ["USDT", "BASE", "TOKEN"])
 def test_finite_fees_reserves_and_nav_conservation(make_replay: MakeReplay, currency: str) -> None:
     spec = make_replay(
         ((100, 101, 99, 100), (100, 101, 99, 100), (110, 120, 100, 110), (110, 120, 109, 110))
@@ -85,7 +85,7 @@ def test_finite_fees_reserves_and_nav_conservation(make_replay: MakeReplay, curr
     allocation_result = report(spec)
     state: State = allocation_result["final_state"]
     assert state.quote_cash >= 0 and state.owned_base >= 0
-    assert reserved(state, "QUOTE") <= state.quote_cash
+    assert reserved(state, "USDT") <= state.quote_cash
     assert reserved(state, "BASE") <= state.owned_base
     assert all(m.amount >= 0 for m in state.fee_balances)
     assert allocation_result["fees_quote_at_modeled_conversion"] > 0
@@ -179,6 +179,19 @@ def test_unlike_quotes_duplicate_scopes_and_unknown_identity_refused(
         )
 
 
+@pytest.mark.parametrize("quote", ["BTC", "USDC", "USD"])
+def test_new_replay_configuration_rejects_non_usdt(
+    make_replay: MakeReplay, tmp_path: Path, quote: str
+) -> None:
+    spec = make_replay(((100, 101, 99, 100),) * 2)
+    # Serialize an old-style request without reading its candles or running an engine.
+    config = tmp_path / "non-usdt.json"
+    value = json.loads(json.dumps(bundle(spec)).replace("USDT", quote))
+    publish(config, value)
+    with pytest.raises(DomainError, match="USDT-only"):
+        load(config)
+
+
 def test_restart_replays_identical_inputs_and_publishes_exclusively(
     make_replay: MakeReplay,
     tmp_path: Path,
@@ -220,7 +233,7 @@ def test_multiple_markets_merge_by_utc_and_scope(make_replay: MakeReplay, tmp_pa
             )
         )
     )
-    market = replace(first.context.market, base="SECOND", symbol="SECOND/QUOTE")
+    market = replace(first.context.market, base="SECOND", symbol="SECOND/USDT")
     second = replace(
         first,
         scope=replace(first.scope, symbol=market.symbol, allocation="second"),

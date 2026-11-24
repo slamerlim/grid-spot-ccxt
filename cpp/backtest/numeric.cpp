@@ -77,12 +77,54 @@ __int128 power10(unsigned exponent) {
 }
 } // namespace
 
-Rational::Rational(std::int64_t value)
-    : numerator_(decimal_integer(std::to_string(value))), denominator_(integer()) {
-    require(BN_one(denominator_.get()));
+Rational::Rational(std::int64_t value) : small_numerator_(value) {}
+
+Rational Rational::native(__int128 n, __int128 d) {
+    // Callers combine signed int64 numerators and positive int64 denominators:
+    // even a sum/difference of their cross-products fits signed int128. The
+    // wider rounding multiplication has its own checked-overflow fallback.
+    if (d == 0) throw Error("division by zero");
+    if (d < 0) { n = -n; d = -d; }
+    auto magnitude = static_cast<unsigned __int128>(n < 0 ? -n : n);
+    auto divisor = static_cast<unsigned __int128>(d);
+    auto a = magnitude, b = divisor;
+    while (b != 0) { const auto remainder = a % b; a = b; b = remainder; }
+    if (a != 0) { n /= static_cast<__int128>(a); d /= static_cast<__int128>(a); }
+    if (n >= std::numeric_limits<std::int64_t>::min() && n <= std::numeric_limits<std::int64_t>::max() &&
+        d <= std::numeric_limits<std::int64_t>::max()) {
+        Rational result(static_cast<std::int64_t>(n));
+        result.small_denominator_ = static_cast<std::int64_t>(d);
+        return result;
+    }
+    const auto expanded = [](unsigned __int128 value) {
+        unsigned char bytes[16] {};
+        for (unsigned index = 0; index < 16; ++index) {
+            bytes[15 - index] = static_cast<unsigned char>(value & 255U); value >>= 8U;
+        }
+        auto result = integer();
+        if (!BN_bin2bn(bytes, 16, result.get())) throw Error("integer expansion failed");
+        return result;
+    };
+    auto numerator = expanded(static_cast<unsigned __int128>(n < 0 ? -n : n));
+    BN_set_negative(numerator.get(), n < 0 ? 1 : 0);
+    return Rational(std::move(numerator), expanded(static_cast<unsigned __int128>(d)));
+}
+void Rational::materialize() const {
+    if (numerator_) return;
+    numerator_ = decimal_integer(std::to_string(small_numerator_));
+    denominator_ = decimal_integer(std::to_string(small_denominator_));
+}
+void Rational::capture_native() {
+    if (BN_num_bits(numerator_.get()) <= 63 && BN_num_bits(denominator_.get()) <= 63) {
+        small_numerator_ = static_cast<std::int64_t>(BN_get_word(numerator_.get()));
+        if (BN_is_negative(numerator_.get())) small_numerator_ = -small_numerator_;
+        small_denominator_ = static_cast<std::int64_t>(BN_get_word(denominator_.get()));
+        small_ = true;
+        numerator_.reset(); denominator_.reset();
+    }
 }
 
-Rational::Rational(std::string_view value) : numerator_(integer()), denominator_(integer()) {
+Rational::Rational(std::string_view value) : numerator_(integer()), denominator_(integer()), small_(false) {
     if (value.empty() || value.size() > 256) throw Error("bounded decimal string required");
     const auto marker = value.find_first_of("eE");
     std::string_view mantissa = value.substr(0, marker);
@@ -115,14 +157,18 @@ Rational::Rational(std::string_view value) : numerator_(integer()), denominator_
     require(BN_one(denominator_.get()));
     if (scale >= 0) denominator_ = ten_power(static_cast<unsigned>(scale));
     else numerator_ = product(numerator_.get(), ten_power(static_cast<unsigned>(-scale)).get());
-    normalize();
+    normalize(); capture_native();
 }
 Rational::Rational(Integer numerator, Integer denominator)
-    : numerator_(std::move(numerator)), denominator_(std::move(denominator)) { normalize(); }
-Rational::Rational(const Rational& other) : numerator_(integer()), denominator_(integer()) {
-    if (BN_copy(numerator_.get(), other.numerator_.get()) == nullptr ||
-        BN_copy(denominator_.get(), other.denominator_.get()) == nullptr)
-        throw Error("integer copy failed");
+    : numerator_(std::move(numerator)), denominator_(std::move(denominator)), small_(false) { normalize(); capture_native(); }
+Rational::Rational(const Rational& other)
+    : small_(other.small_), small_numerator_(other.small_numerator_), small_denominator_(other.small_denominator_) {
+    if (!small_) {
+        numerator_ = integer(); denominator_ = integer();
+        if (BN_copy(numerator_.get(), other.numerator_.get()) == nullptr ||
+            BN_copy(denominator_.get(), other.denominator_.get()) == nullptr)
+            throw Error("integer copy failed");
+    }
 }
 Rational& Rational::operator=(const Rational& other) {
     if (this != &other) { Rational replacement(other); *this = std::move(replacement); }
@@ -161,10 +207,13 @@ void Rational::normalize() {
     require(BN_div(denominator_.get(), nullptr, denominator_.get(), gcd.get(), ctx.get()));
 }
 int Rational::sign() const {
+    if (small_) return small_numerator_ == 0 ? 0 : (small_numerator_ < 0 ? -1 : 1);
     return BN_is_zero(numerator_.get()) ? 0 : (BN_is_negative(numerator_.get()) ? -1 : 1);
 }
-std::string Rational::ratio() const { return text(numerator_.get()) + "/" + text(denominator_.get()); }
+std::string Rational::ratio() const { materialize(); return text(numerator_.get()) + "/" + text(denominator_.get()); }
 std::string Rational::str() const {
+    if (small_ && small_denominator_ == 1) return std::to_string(small_numerator_);
+    materialize();
     auto d = integer();
     if (BN_copy(d.get(), denominator_.get()) == nullptr) throw Error("integer copy failed");
     unsigned twos = 0, fives = 0;
@@ -188,30 +237,53 @@ std::string Rational::str() const {
     return (negative ? "-" : "") + result;
 }
 Rational operator+(const Rational& a, const Rational& b) {
+    if (a.small_ && b.small_) return Rational::native(
+        static_cast<__int128>(a.small_numerator_) * b.small_denominator_ +
+        static_cast<__int128>(b.small_numerator_) * a.small_denominator_,
+        static_cast<__int128>(a.small_denominator_) * b.small_denominator_);
+    a.materialize(); b.materialize();
     auto left = product(a.numerator_.get(), b.denominator_.get());
     auto right = product(b.numerator_.get(), a.denominator_.get());
     auto n = integer(); require(BN_add(n.get(), left.get(), right.get()));
     return Rational(std::move(n), product(a.denominator_.get(), b.denominator_.get()));
 }
 Rational operator-(const Rational& a, const Rational& b) {
+    if (a.small_ && b.small_) return Rational::native(
+        static_cast<__int128>(a.small_numerator_) * b.small_denominator_ -
+        static_cast<__int128>(b.small_numerator_) * a.small_denominator_,
+        static_cast<__int128>(a.small_denominator_) * b.small_denominator_);
     Rational negative(b);
+    negative.materialize(); negative.small_ = false;
     BN_set_negative(negative.numerator_.get(), negative.sign() > 0 ? 1 : 0);
     return a + negative;
 }
 Rational operator*(const Rational& a, const Rational& b) {
+    if (a.small_ && b.small_) return Rational::native(
+        static_cast<__int128>(a.small_numerator_) * b.small_numerator_,
+        static_cast<__int128>(a.small_denominator_) * b.small_denominator_);
+    a.materialize(); b.materialize();
     return Rational(product(a.numerator_.get(), b.numerator_.get()),
                     product(a.denominator_.get(), b.denominator_.get()));
 }
 Rational operator/(const Rational& a, const Rational& b) {
     if (b.sign() == 0) throw Error("division by zero");
+    if (a.small_ && b.small_) return Rational::native(
+        static_cast<__int128>(a.small_numerator_) * b.small_denominator_,
+        static_cast<__int128>(a.small_denominator_) * b.small_numerator_);
+    a.materialize(); b.materialize();
     return Rational(product(a.numerator_.get(), b.denominator_.get()),
                     product(a.denominator_.get(), b.numerator_.get()));
 }
 bool operator==(const Rational& a, const Rational& b) {
+    if (a.small_ && b.small_) return a.small_numerator_ == b.small_numerator_ && a.small_denominator_ == b.small_denominator_;
+    a.materialize(); b.materialize();
     return BN_cmp(a.numerator_.get(), b.numerator_.get()) == 0 &&
            BN_cmp(a.denominator_.get(), b.denominator_.get()) == 0;
 }
 bool operator<(const Rational& a, const Rational& b) {
+    if (a.small_ && b.small_) return static_cast<__int128>(a.small_numerator_) * b.small_denominator_ <
+                                   static_cast<__int128>(b.small_numerator_) * a.small_denominator_;
+    a.materialize(); b.materialize();
     const auto left = product(a.numerator_.get(), b.denominator_.get());
     const auto right = product(b.numerator_.get(), a.denominator_.get());
     return BN_cmp(left.get(), right.get()) < 0;
@@ -228,6 +300,7 @@ Rational Rational::power(unsigned exponent) const {
 }
 Rational Rational::decimal96() const {
     if (sign() == 0) return *this;
+    materialize();
     auto n = integer();
     if (BN_copy(n.get(), numerator_.get()) == nullptr) throw Error("integer copy failed");
     BN_set_negative(n.get(), 0);
@@ -260,7 +333,16 @@ Rational Rational::decimal96() const {
 }
 Rational Rational::rounded(const Rational& quantum, bool up) const {
     if (sign() < 0 || quantum.sign() <= 0) throw Error("rounding requires nonnegative value and positive quantum");
+    if (small_ && quantum.small_) {
+        const auto n = static_cast<__int128>(small_numerator_) * quantum.small_denominator_;
+        const auto d = static_cast<__int128>(small_denominator_) * quantum.small_numerator_;
+        const auto whole = n / d + (up && n % d != 0 ? 1 : 0);
+        __int128 scaled = 0;
+        if (!__builtin_mul_overflow(whole, static_cast<__int128>(quantum.small_numerator_), &scaled))
+            return native(scaled, quantum.small_denominator_);
+    }
     const Rational ratio_value = *this / quantum;
+    ratio_value.materialize();
     auto whole = integer(); auto remainder = integer(); auto ctx = context();
     require(BN_div(whole.get(), remainder.get(), ratio_value.numerator_.get(),
                    ratio_value.denominator_.get(), ctx.get()));
@@ -271,6 +353,10 @@ Rational Rational::rounded(const Rational& quantum, bool up) const {
 std::int64_t Rational::exact_units(const Rational& quantum) const {
     if (quantum.sign() <= 0) throw Error("positive currency quantum required");
     const Rational units = *this / quantum;
+    if (units.small_) {
+        if (units.small_denominator_ != 1) throw Error("financial value is not representable in currency quanta");
+        return units.small_numerator_;
+    }
     if (!BN_is_one(units.denominator_.get())) throw Error("financial value is not representable in currency quanta");
     const std::string value = text(units.numerator_.get());
     std::int64_t result = 0;
@@ -281,6 +367,11 @@ std::int64_t Rational::exact_units(const Rational& quantum) const {
 }
 Rational Rational::dyadic(std::uint32_t significand, int exponent) {
     if (exponent < -150 || exponent > 128) throw Error("float32 dyadic exponent unsupported");
+    if (exponent >= -62 && exponent <= 94) {
+        const __int128 n = static_cast<__int128>(significand) << (exponent >= 0 ? exponent : 0);
+        const __int128 d = static_cast<__int128>(1) << (exponent < 0 ? -exponent : 0);
+        return native(n, d);
+    }
     auto n = decimal_integer(std::to_string(significand)); auto d = integer(); require(BN_one(d.get()));
     if (exponent >= 0) require(BN_lshift(n.get(), n.get(), exponent));
     else require(BN_lshift(d.get(), d.get(), -exponent));

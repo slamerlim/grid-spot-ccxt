@@ -88,8 +88,16 @@ ENDPOINTS: dict[str, tuple[Endpoint, Endpoint]] = {
     ),
 }
 
+# Explicit research metadata refresh only; the original probe profile is unchanged.
+CATALOG_ENDPOINTS = {
+    "htx": Endpoint("api.huobi.pro", "/v1/common/symbols"),
+    "gate": Endpoint("api.gateio.ws", "/api/v4/spot/currency_pairs"),
+}
 
-def check_endpoint(venue: str, url: str, method: str, headers: object, body: object) -> int:
+
+def check_endpoint(
+    venue: str, url: str, method: str, headers: object, body: object, *, catalog: bool = False
+) -> int:
     if venue not in ENDPOINTS or method != "GET" or body is not None or len(url) > 1024:
         raise ReadError(Failure.POLICY)
     if headers not in (None, {}, {"Content-Type": "application/json"}):
@@ -108,7 +116,10 @@ def check_endpoint(venue: str, url: str, method: str, headers: object, body: obj
         ):
             raise ReadError(Failure.POLICY)
         query = [(key, value) for key, value in query if key != "timestamp"]
-    for index, endpoint in enumerate(ENDPOINTS[venue]):
+    if catalog and venue not in CATALOG_ENDPOINTS:
+        raise ReadError(Failure.POLICY)
+    endpoints = (CATALOG_ENDPOINTS[venue],) if catalog else ENDPOINTS[venue]
+    for index, endpoint in enumerate(endpoints):
         if (
             parsed.netloc == endpoint.host
             and parsed.path == endpoint.path
@@ -245,15 +256,25 @@ class RequestEvidence:
 class PublicCCXT:
     """Actual public implementation: no authenticated client can be configured."""
 
-    def __init__(self, venue: str, limits: ReadLimits, *, wire: PublicWire | None = None) -> None:
+    def __init__(
+        self,
+        venue: str,
+        limits: ReadLimits,
+        *,
+        wire: PublicWire | None = None,
+        catalog: bool = False,
+    ) -> None:
         if (
             venue not in VENUE_IDS
             or metadata.version("ccxt") != CCXT_VERSION
             or limits.observed_hour
             and venue != "okx"
+            or catalog
+            and venue not in CATALOG_ENDPOINTS
         ):
             raise ReadError(Failure.POLICY)
         self.venue = venue
+        self._catalog = catalog
         self._limits = limits
         self._wire = HTTPWire() if wire is None else wire
         self._closed = False
@@ -327,7 +348,8 @@ class PublicCCXT:
                 ]
 
             self._client.publicMarginGetCurrencyPairs = no_margin
-            self._client.publicSpotGetCurrencyPairs = one_pair
+            if not catalog:
+                self._client.publicSpotGetCurrencyPairs = one_pair
         self.precision_mode: int = self._client.precisionMode
 
     @property
@@ -370,6 +392,12 @@ class PublicCCXT:
         }
 
     def _select_catalog(self, response: Any) -> Any:
+        if self._catalog:
+            rows = response if self.venue == "gate" else response["data"]
+            if not isinstance(rows, list) or not 1 <= len(rows) <= self._limits.catalog_rows:
+                raise ReadError(Failure.BUDGET)
+            self.catalog_rows = len(rows)
+            return response
         if self.venue == "gate":
             self.catalog_rows = 1
             return response
@@ -407,7 +435,9 @@ class PublicCCXT:
         headers: Any = None,
         body: Any = None,
     ) -> Any:
-        endpoint_index = check_endpoint(self.venue, url, method, headers, body)
+        endpoint_index = check_endpoint(
+            self.venue, url, method, headers, body, catalog=self._catalog
+        )
         if self._closed or self._halted:
             raise ReadError(Failure.CLOSED)
         if self._fetching:
@@ -449,7 +479,11 @@ class PublicCCXT:
             outcome = failure.value
             raise ReadError(failure) from None
         finally:
-            endpoint = ENDPOINTS[self.venue][endpoint_index]
+            endpoint = (
+                CATALOG_ENDPOINTS[self.venue]
+                if self._catalog
+                else ENDPOINTS[self.venue][endpoint_index]
+            )
             self._evidence.append(
                 RequestEvidence(
                     endpoint.path,

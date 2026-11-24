@@ -259,7 +259,7 @@ async def case(
                 name,
                 D(1) / D(fills_per_scope),
                 D(100),
-                (ActualFee("QUOTE", D(0), None),),
+                (ActualFee("USDT", D(0), None),),
             )
             fills_created[name] = time.monotonic_ns()
 

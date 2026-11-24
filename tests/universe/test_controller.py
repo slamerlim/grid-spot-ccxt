@@ -5,11 +5,11 @@ from functools import partial
 from pathlib import Path
 
 import pytest
-from execution.helpers import EVIDENCE, LIMITS, ZERO_FEES, Harness, harness
+from execution.helpers import EVIDENCE, LIMITS, Harness, harness
 from persistence.conftest import SOURCES
 
 from grid.domain.market import Money
-from grid.domain.model import Context, Control, Mode, Order, Scope, Side, State
+from grid.domain.model import ActualFee, Context, Control, Mode, Order, Scope, Side, State
 from grid.domain.numbers import DomainError
 from grid.execution.executor import MockExecutor
 from grid.execution.models import ExecutionError, LimitRequest, Page
@@ -21,6 +21,8 @@ from grid.universe.controller import UniverseController
 from grid.universe.model import BuyAdmission, MarketKey, UniversePolicy
 
 from .conftest import facts_for
+
+ZERO_FEES = (ActualFee("USDT", D(0), None),)
 
 
 async def own(h: Harness, policy: UniversePolicy) -> UniverseController:
@@ -149,7 +151,7 @@ def test_lru_bounds_restart_requires_all_scopes_and_fresh_evidence(
             scopes = [h.scope]
             contexts = [context]
             for index in (1, 2):
-                scope = replace(h.scope, symbol=f"OTHER{index}/QUOTE", allocation=f"other{index}")
+                scope = replace(h.scope, symbol=f"OTHER{index}/USDT", allocation=f"other{index}")
                 other_context = replace(
                     context,
                     market=replace(context.market, symbol=scope.symbol, base=f"OTHER{index}"),
@@ -160,7 +162,7 @@ def test_lru_bounds_restart_requires_all_scopes_and_fresh_evidence(
                         request_id=f"fund-{index}",
                         venue=h.scope.venue,
                         account=h.scope.account,
-                        money=Money("QUOTE", D(1000)),
+                        money=Money("USDT", D(1000)),
                     )
                 )
                 await h.writer.submit(
@@ -168,7 +170,7 @@ def test_lru_bounds_restart_requires_all_scopes_and_fresh_evidence(
                         Ledger.start,
                         request_id=f"start-{index}",
                         scope=scope,
-                        funds=(Money("QUOTE", D(1000)),),
+                        funds=(Money("USDT", D(1000)),),
                         context=other_context,
                     )
                 )

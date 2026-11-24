@@ -29,6 +29,7 @@ from grid.portfolio.model import (
     ExitApproval,
     ExitSlot,
     PoolKey,
+    PortfolioPolicy,
     Residual,
 )
 
@@ -240,9 +241,12 @@ def test_global_takeover_counts_scoped_dust_once(tmp_path: Path, resumed: bool) 
 
 def test_existing_scoped_exit_codec_bytes_are_unchanged() -> None:
     case = fixture(1, 1)
+    # Retain the historical QUOTE fixture for this serialization compatibility check.
+    portfolio = codec.loads(codec.dumps(case.portfolio).replace("USDT", "QUOTE"), PortfolioPolicy)
+    scope = replace(case.scopes[0], symbol="BASE0/QUOTE")
     entry = AllocationExit(
-        ExitSlot(case.scopes[0], D(100), 0, None, None, "cancel and reconcile"),
-        ExitApproval("cycle", codec.digest(case.portfolio)),
+        ExitSlot(scope, D(100), 0, None, None, "cancel and reconcile"),
+        ExitApproval("cycle", codec.digest(portfolio)),
         CyclePhase.REQUESTED,
         10000,
         10000,

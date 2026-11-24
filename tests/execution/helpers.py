@@ -52,7 +52,9 @@ class Harness:
     async def seed(self) -> None:
         assert await self.service(), self.executor.last_error
         assert await self.send(), self.executor.last_error
-        self.venue.fill("order-1", "seed", D(1), D(100), ZERO_FEES)
+        self.venue.fill(
+            "order-1", "seed", D(1), D(100), (ActualFee(self.context.market.quote, D(0), None),)
+        )
         assert await self.service(), self.executor.last_error
 
 
@@ -70,7 +72,7 @@ async def harness(
     try:
         await writer.submit(
             lambda ledger: ledger.credit(
-                "funds", scope.venue, scope.account, Money("QUOTE", D(1000))
+                "funds", scope.venue, scope.account, Money(context.market.quote, D(1000))
             )
         )
         await writer.submit(
@@ -80,7 +82,7 @@ async def harness(
             lambda ledger: ledger.start(
                 "start",
                 scope,
-                (Money("QUOTE", D(1000)), Money("TOKEN", D(10))),
+                (Money(context.market.quote, D(1000)), Money("TOKEN", D(10))),
                 context,
             )
         )

@@ -10,6 +10,27 @@ from grid.universe.model import Facts, MarketKey, Membership, SelectionMode, Uni
 from grid.universe.selection import Eligibility, evaluate, select
 
 
+@pytest.mark.parametrize("quote", ["BTC", "USDC", "USD"])
+@pytest.mark.parametrize("mode", list(SelectionMode))
+def test_non_usdt_is_excluded_even_when_explicitly_allowed_or_pinned(
+    state: State, facts: Facts, policy: UniversePolicy, quote: str, mode: SelectionMode
+) -> None:
+    symbol = "BASE/" + quote
+    state = replace(state, scope=replace(state.scope, symbol=symbol))
+    key = MarketKey.of(state.scope)
+    facts = replace(
+        facts,
+        key=key,
+        book=replace(facts.book, symbol=symbol),
+        context=replace(
+            facts.context, market=replace(facts.context.market, symbol=symbol, quote=quote)
+        ),
+    )
+    policy = replace(policy, mode=mode, quote=quote, allow=(key,), pin=(key,))
+    result = evaluate(state, facts, policy, 10000, 10000000000)
+    assert not result.eligible and result.reason == "quote_or_product_excluded"
+
+
 @pytest.mark.parametrize("mode", list(SelectionMode))
 def test_modes_deny_wins_and_pin_cannot_admit_ineligible(
     state: State, facts: Facts, policy: UniversePolicy, mode: SelectionMode
@@ -127,7 +148,7 @@ def test_hard_admission_failures(
             context=replace(context, policy=replace(context.policy, max_quote_committed=D(99))),
         )
     elif failure == "product":
-        scope = replace(state.scope, symbol="BASE3L/QUOTE")
+        scope = replace(state.scope, symbol="BASE3L/USDT")
         state = replace(state, scope=scope)
         facts = replace(
             facts,
@@ -143,7 +164,7 @@ def test_hard_admission_failures(
 def test_residency_hysteresis_pins_stable_ties_and_bounds(
     state: State, policy: UniversePolicy
 ) -> None:
-    other = replace(state, scope=replace(state.scope, symbol="OTHER/QUOTE"))
+    other = replace(state, scope=replace(state.scope, symbol="OTHER/USDT"))
     first = Eligibility(True, "eligible", D("0.01"), D(10))
     challenger = Eligibility(True, "eligible", D("0.0095"), D(10))
     prior = (Membership(state.scope, True, 10000, 0, False),)
@@ -170,7 +191,7 @@ def test_candidates_remain_bounded_and_decimal_context_independent(
         ambient.prec = 6
         assert evaluate(state, facts, policy, 10000, 10000000000) == good
     rows = tuple(
-        (replace(state, scope=replace(state.scope, symbol=f"ASSET{i:04}/QUOTE")), good)
+        (replace(state, scope=replace(state.scope, symbol=f"ASSET{i:04}/USDT")), good)
         for i in range(count)
     )
     assert select(replace(policy, capacity=25), tuple(reversed(rows)), (), 10000) == tuple(

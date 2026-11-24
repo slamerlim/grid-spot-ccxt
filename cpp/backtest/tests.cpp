@@ -56,6 +56,26 @@ void append(const std::filesystem::path& path, const std::array<std::byte, 24>& 
     if (!out) throw std::runtime_error("fixture write failed");
 }
 void numeric() {
+    const grid::Rational smallest(std::numeric_limits<std::int64_t>::min());
+    const grid::Rational largest(std::numeric_limits<std::int64_t>::max());
+    check(smallest.str() == "-9223372036854775808", "native signed minimum renders exactly");
+    check((smallest / q("-1")).str() == "9223372036854775808", "native quotient expands beyond int64");
+    check(smallest - largest == q("-18446744073709551615"), "signed subtraction expands exactly");
+    check(largest + largest == q("18446744073709551614"), "signed addition expands exactly");
+    check((smallest * smallest) / smallest == smallest, "large product returns exactly to native range");
+    check((largest * largest).rounded(q("0.000000000000000001"), true) == largest * largest,
+          "rounding overflows native intermediate safely into exact large path");
+    check((q("1") / largest + q("1") / (largest - q("1"))).ratio() ==
+          "18446744073709551613/85070591730234615838173535747377725442", "large coprime denominator fallback");
+    check(q("-9223372036854775808").exact_units(q("1")) == std::numeric_limits<std::int64_t>::min(),
+          "big and native int64 minimum representations agree");
+    rejects([&] { (void)(largest + q("1")).exact_units(q("1")); }, "expanded integer never truncates ledger units");
+    rejects([&] { (void)(smallest / q("0")); }, "native zero divisor rejected");
+    const auto cached = q(".0125");
+    check(cached.ratio() == "1/80" && cached.str() == "0.0125" && cached + cached == q(".025"),
+          "rendering materialization preserves exact native arithmetic");
+    const auto copied = cached;
+    check(copied == cached && copied.rounded(q(".01"), true) == q(".02"), "materialized native copies remain coherent");
     check(q(".1") + q(".2") == q(".3"), "decimal addition");
     check((q("1") / q("3")).ratio() == "1/3", "recurring exact ratio");
     const auto thirds = (q("1") / q("3")).decimal96();

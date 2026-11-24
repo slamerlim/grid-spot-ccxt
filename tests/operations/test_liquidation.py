@@ -25,7 +25,7 @@ from grid.portfolio.model import CyclePhase, ExitApproval
 
 from .test_supervisor import boot, command
 
-FEES = (ActualFee("QUOTE", D(0), None),)
+FEES = (ActualFee("USDT", D(0), None),)
 
 
 async def refresh(owner: MockSupervisor, now: list[int], bid: D = D(90), ms: int = 10) -> None:

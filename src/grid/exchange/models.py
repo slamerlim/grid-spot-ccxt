@@ -156,9 +156,29 @@ def map_market(
     rules = mapping(row.get("limits") or {})
     precisions = mapping(row.get("precision") or {})
     amounts = ObservedLimits.parse(rules.get("amount"))
+    costs = ObservedLimits.parse(rules.get("cost"))
+    info = mapping(row.get("info") or {}) if venue in {"htx", "gate"} else {}
+    if venue == "gate":
+        # The pinned spot parser drops both maxima (and may merge margin facts).
+        # Gate documents explicit null bounds as no limit; absent fields stay unknown.
+        def gate_limits(kind: str, fallback: ObservedLimits) -> ObservedLimits:
+            minimum = info.get(f"min_{kind}_amount", fallback.minimum)
+            if f"min_{kind}_amount" in info and minimum is None:
+                minimum = "0"
+            return ObservedLimits.parse(
+                {
+                    "min": minimum,
+                    "max": info.get(f"max_{kind}_amount", fallback.maximum),
+                }
+            )
+
+        amounts = gate_limits("base", amounts)
+        costs = gate_limits("quote", costs)
     buy_amount = sell_amount = amounts
+    extra_constraints: tuple[str, ...] = ()
+    if venue == "gate" and any(info.get(key) is not None for key in ("up_rate", "down_rate")):
+        extra_constraints += ("gate_two_minute_trade_average_required",)
     if venue == "htx":
-        info = mapping(row.get("info") or {})
         if "etp" in str(info.get("tags", "")).lower() or info.get("underlying"):
             raise ReadError(Failure.POLICY)
         # CCXT's generic amount limits use the old non-side-specific fields.
@@ -171,6 +191,24 @@ def map_market(
         sell_amount = ObservedLimits.parse(
             {"min": minimum, "max": info.get("limit-order-max-sell-amt", maximum)}
         )
+        if any(
+            info.get(key) is not None
+            for key in ("buy-limit-must-less-than", "sell-limit-must-greater-than")
+        ):
+            extra_constraints += ("htx_limit_price_reference_required",)
+        if info.get("max-order-value") is not None:
+            if quote == "USDT":
+                cap = money(info["max-order-value"], positive=True)
+                costs = ObservedLimits.parse(
+                    {
+                        "min": costs.minimum,
+                        "max": min(cap, costs.maximum) if costs.maximum is not None else cap,
+                    }
+                )
+            else:
+                extra_constraints += ("htx_usdt_notional_cap_requires_conversion",)
+        if info.get("api-trading") != "enabled":
+            extra_constraints += ("htx_api_trading_eligibility_unverified",)
     # Static library fee defaults may already be floats. Do not promote them to
     # exact/account fees; public decimal estimates are observations only as well.
     maker, taker = row.get("maker"), row.get("taker")
@@ -189,7 +227,7 @@ def map_market(
         precision(precisions.get("amount"), 2 if venue == "bitfinex" else mode),
         ObservedLimits.parse(rules.get("price")),
         amounts,
-        ObservedLimits.parse(rules.get("cost")),
+        costs,
         buy_amount,
         sell_amount,
         None if isinstance(maker, float) else optional_money(maker, signed=True),
@@ -198,7 +236,7 @@ def map_market(
         if venue == "bitfinex"
         else ("offset_filters_and_limit_price_protection",)
         if venue == "xt"
-        else (),
+        else extra_constraints,
     )
 
 

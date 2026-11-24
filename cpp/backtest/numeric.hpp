@@ -9,12 +9,16 @@
 
 namespace grid {
 
+namespace sweep::units { struct NumericAccess; }
+
 class Error : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
 };
 
-// Slow-path exact ratios for order placement and original float32 uncertainty.
+// Exact ratios for order placement and original float32 uncertainty. Ordinary
+// reduced fractions stay in native integers; large planner values fall back to
+// bounded BIGNUM arithmetic. Neither path uses binary floating point.
 // Ledger storage is explicitly quantized int64; never use a ratio as an implicit
 // permission to post a fractional currency quantum.
 class Rational {
@@ -48,10 +52,18 @@ public:
     friend bool operator>=(const Rational& a, const Rational& b) { return !(a < b); }
 
 private:
+    // Read-only/exact conversion bridge implemented by the research sweep.
+    // It does not change any live/legacy arithmetic or materialize shared values.
+    friend struct sweep::units::NumericAccess;
     using Integer = std::unique_ptr<BIGNUM, decltype(&BN_free)>;
-    Integer numerator_;
-    Integer denominator_;
+    mutable Integer numerator_{nullptr, BN_free};
+    mutable Integer denominator_{nullptr, BN_free};
+    bool small_ = true;
+    std::int64_t small_numerator_ = 0, small_denominator_ = 1;
     Rational(Integer numerator, Integer denominator);
+    [[nodiscard]] static Rational native(__int128 numerator, __int128 denominator);
+    void materialize() const;
+    void capture_native();
     void normalize();
 };
 

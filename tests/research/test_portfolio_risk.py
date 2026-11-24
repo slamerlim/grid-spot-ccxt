@@ -118,7 +118,7 @@ def test_unknown_depth_withholds_marks_without_erasing_owned_exposure(
     assert totals["posted_position_cost_quote"] == D(100)
 
 
-@pytest.mark.parametrize("currency", ["BASE", "QUOTE", "TOKEN"])
+@pytest.mark.parametrize("currency", ["BASE", "USDT", "TOKEN"])
 def test_marked_inventory_pnl_includes_entry_and_estimated_exit_fees(
     make_replay: MakeReplay,
     currency: str,
@@ -147,7 +147,7 @@ def test_marked_inventory_pnl_includes_entry_and_estimated_exit_fees(
             conversions=(
                 Conversion(
                     PoolKey(first.scope.venue, first.scope.account, "TOKEN"),
-                    "QUOTE",
+                    "USDT",
                     D(2),
                     D(2),
                     D(100),
@@ -193,7 +193,7 @@ def conversion_scenario(make_replay: MakeReplay, tmp_path: Path) -> tuple[Replay
             for i in range(first.source.count)
         )
     )
-    market = replace(first.context.market, symbol="TOKEN/QUOTE", base="TOKEN")
+    market = replace(first.context.market, symbol="TOKEN/USDT", base="TOKEN")
     sink = replace(
         first,
         scope=replace(first.scope, symbol=market.symbol, allocation="conversion"),
@@ -214,7 +214,7 @@ def conversion_scenario(make_replay: MakeReplay, tmp_path: Path) -> tuple[Replay
         conversions=(
             Conversion(
                 PoolKey(first.scope.venue, first.scope.account, "TOKEN"),
-                "QUOTE",
+                "USDT",
                 D(1),
                 D(1),
                 D(100),
@@ -314,7 +314,7 @@ def test_attribution_refuses_unpaired_or_ambiguous_nav(
 def test_risk_interval_bound_refuses_before_history_or_database(make_replay: MakeReplay) -> None:
     spec = make_replay(((100, 101, 99, 100),) * 2)
     first = replace(spec.allocations[0], source=replace(spec.allocations[0].source, count=6000))
-    market = replace(first.context.market, symbol="OTHER/QUOTE", base="OTHER")
+    market = replace(first.context.market, symbol="OTHER/USDT", base="OTHER")
     second = replace(
         first,
         scope=replace(first.scope, allocation="other", symbol=market.symbol),
@@ -429,7 +429,7 @@ def test_transfer_conservation_refuses_decimal_precision_loss(
         for (owner, kind), amount in zip(sorted(owners), ("1e96", "1", "-1e96"), strict=True):
             db.execute(
                 "INSERT INTO journal VALUES (?,?,?,?,?)",
-                ("invented-advance", owner, "QUOTE", kind, codec.amount(D(amount))),
+                ("invented-advance", owner, "USDT", kind, codec.amount(D(amount))),
             )
         with pytest.raises(DomainError, match="exact supported precision"):
             transfers(

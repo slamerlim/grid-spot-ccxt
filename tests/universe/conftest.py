@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal as D
 
 import pytest
@@ -7,9 +8,30 @@ from persistence.conftest import bounds as bounds
 from persistence.conftest import funded as funded
 from persistence.conftest import ledger as ledger
 
+from grid.domain.market import Market
 from grid.domain.model import Context, State
 from grid.exchange.models import BookObservation
 from grid.universe.model import Facts, MarketKey, SelectionMode, UniversePolicy
+
+
+@pytest.fixture(scope="module")
+def market(market: Market) -> Market:
+    return replace(market, symbol="BASE/USDT", quote="USDT")
+
+
+@pytest.fixture(scope="module")
+def context(context: Context, market: Market) -> Context:
+    return replace(
+        context,
+        market=market,
+        buy_fee=replace(context.buy_fee, currency="USDT"),
+        sell_fee=replace(context.sell_fee, currency="USDT"),
+    )
+
+
+@pytest.fixture(scope="module")
+def state(state: State) -> State:
+    return replace(state, scope=replace(state.scope, symbol="BASE/USDT"))
 
 
 def facts_for(state: State, context: Context, revision: int = 1) -> Facts:
@@ -47,7 +69,7 @@ def policy(state: State) -> UniversePolicy:
     return UniversePolicy(
         SelectionMode.AUTOMATIC,
         (state.scope.venue,),
-        "QUOTE",
+        "USDT",
         (),
         (),
         (),

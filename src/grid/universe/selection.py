@@ -32,8 +32,10 @@ def evaluate(
             raise DomainError("unverified_account_rules_or_fees")
         context = replace(facts.context, now_ms=now_ms)
         market, book = context.market, facts.book
-        if market.quote != policy.quote or re.search(
-            r"(?:[235][LS]|BULL|BEAR|UP|DOWN)$", market.base
+        if (
+            market.quote != "USDT"
+            or market.quote != policy.quote
+            or re.search(r"(?:[235][LS]|BULL|BEAR|UP|DOWN)$", market.base)
         ):
             raise DomainError("quote_or_product_excluded")
         if state.mode in (Mode.PAUSED, Mode.HOLD, Mode.PORTFOLIO_EXIT, Mode.EXIT_BLOCKED):
